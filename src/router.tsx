@@ -14,6 +14,7 @@ import { queryClient } from './lib/queryClient'
 import { EmptyState, PageShell, PageTitle, Spinner } from './components/ui'
 import { AppBar } from './components/AppBar'
 import { RouteProgress } from './components/RouteProgress'
+import { MockBanner } from './components/MockBanner'
 import { LoginPage } from './routes/LoginPage'
 import { ExamListPage } from './routes/ExamListPage'
 import { ExamDetailPage } from './routes/ExamDetailPage'
@@ -78,6 +79,9 @@ function RootLayout() {
   return (
     <>
       <RouteProgress />
+      {/* Above the sign-in form too: knowing the backend is fake matters most
+          to whoever is about to wonder why their real credentials work. */}
+      <MockBanner />
       {authorised && !PUBLIC_PATHS.includes(pathname) && <AppBar />}
       {body()}
     </>

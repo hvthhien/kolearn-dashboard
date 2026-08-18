@@ -47,6 +47,74 @@ yet — set `VITE_MOCK_API=1` and the in-repo MSW handlers answer instead.
 npm run check      # api:check + lint + typecheck + test
 ```
 
+## Deploying to Vercel
+
+The checked-in `vercel.json` and `api/proxy.ts` make this app deployment-ready:
+
+- Vercel builds with Node 22 (from `engines`), runs `npm run build`, and
+  publishes `dist/`;
+- client-side routes fall back to `index.html`, so a reload on `/exams` or a
+  question editor route does not 404;
+- `/api/v1/*` is reverse-proxied to `kolearn-server`, which is what keeps the
+  refresh cookie a **same-origin httpOnly cookie** in production. The browser
+  never makes a cross-origin request, so this app does not need to appear in the
+  server's `HTTP_ALLOWED_ORIGINS`;
+- hashed Vite assets are cached for a year, while `index.html` is revalidated.
+
+First deploy `kolearn-server` to a public HTTPS origin. Then import this Git
+repository in Vercel and configure:
+
+1. Set **Root Directory** to `kolearn-dashboard` when importing the parent
+   repository. Leave it as `.` when this repository is imported on its own.
+2. Add `KOLEARN_API_ORIGIN` under **Settings → Environment Variables** for both
+   Production and Preview. Its value is the backend origin only, for example
+   `https://kolearn-server.vercel.app` — no `/api` suffix, no path.
+3. Deploy. Framework, build command, output directory, API proxy and SPA
+   routing all come from `vercel.json`; none of it needs dashboard overrides.
+
+CLI deployment is equivalent:
+
+```bash
+cd kolearn-dashboard
+```
+
+```bash
+npx vercel@latest link
+```
+
+```bash
+npx vercel@latest env add KOLEARN_API_ORIGIN production
+```
+
+```bash
+npx vercel@latest --prod
+```
+
+After deploying, open `/login`, sign in with an account that has `exam:read`,
+reload the page, and confirm in the network panel that
+`/api/v1/auth/refresh` returns 200. That exercises both the SPA fallback and
+the refresh-cookie proxy, which are the two things a static host gets wrong.
+
+### **Do not set `VITE_MOCK_API` on Vercel**
+
+The build refuses it, and the refusal is the point rather than a convenience.
+`VITE_MOCK_API` is read at build time and inlined, so a deployment built with it
+serves the fixtures in `src/mocks` to whoever opens it: a bank of exams that do
+not exist, a publish gate that always agrees, and a "Đã lưu" on every save,
+with nothing erroring. An editor could spend a morning authoring into a browser
+tab. That is the same shape as the failures the server blocks below the layer
+that could regress, so the block is in `vite.config.ts` rather than in this
+paragraph.
+
+A mock-backed preview is occasionally what you want — showing the screens to
+someone with no backend to hand. `KOLEARN_ALLOW_MOCK_BUILD=1` asks for it out
+loud, the build log says so, and every screen carries a banner saying the data
+is invented.
+
+`public/mockServiceWorker.js` ships with the bundle either way. It is inert
+unless the app registers it, which only the mock branch does, and it has to be
+served from the site root for local development to work at all.
+
 ## The API client is generated
 
 `src/api/gen/` is orval output and is committed. `api/openapi.yaml` is a
