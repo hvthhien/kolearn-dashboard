@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # The generated client must match the spec. Drift is silent: a client
+      # generated from last week's schema compiles perfectly and calls
+      # endpoints that changed shape.
+      #
+      # The shared-block comparison against kolearn-server is skipped here,
+      # because CI checks out one repo at a time. What it does check is that
+      # src/api/gen is current with api/openapi.yaml.
+      - run: npm run api:check
+
+      - run: npm run lint
+
+      - run: npm run typecheck
+
+      # Includes the two guards that are about the theme and the contract
+      # rather than about a screen: colourTokens, which fails on a class that
+      # compiles to nothing, and learnerSpecGuard, which is TCCN-303-2 and
+      # skips when kolearn-server is not checked out beside this repo.
+      - run: npm run test -- --reporter=default
+
+      - run: npm run build
+
+      # A criterion covered by a test here reports as uncovered in the
+      # server's matrix, which only sees its own checkout. Publishing the ids
+      # this repo names lets the two be reconciled without a cross-repo
+      # checkout token.
+      - name: Acceptance criteria named by these tests
+        run: |
+          grep -rhoE 'TCCN-[0-9]+-[0-9]+' src --include='*.test.ts' --include='*.test.tsx' \
+            | sort -u > tccn-covered.txt
+          {
+            echo '## Acceptance criteria named here'
+            echo
+            echo '```'
+            cat tccn-covered.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tccn-covered-dashboard
+          path: tccn-covered.txt

@@ -1,0 +1,232 @@
+@import 'tailwindcss';
+
+/**
+ * The same token contract as kolearn-web, minus the parts that are about a
+ * learner's phone.
+ *
+ * R-14's Korean floor stays, and for the same reason: an author proof-reading
+ * a stem is reading the very Hangul the rule protects, and a stem that reads
+ * comfortably here is the one that ships. What does not come across is the
+ * one-handed rule and the action dock — those are about a learner on a bus
+ * with a clock running, and this is a console on a desk. Copying them across
+ * unexamined is how a rule stops meaning anything.
+ *
+ * `.tap` does come across: 44×44 is about hitting the control you aimed at,
+ * which a trackpad does not exempt anyone from.
+ */
+
+@theme {
+  /* One scale for the product, and wiping the namespace first is what makes it
+     *the* scale rather than a preference. Tailwind ships xs…9xl; with the
+     namespace cleared, a step this file does not define compiles to nothing —
+     and `colourTokens.test.ts` already fails the build on a class that compiles
+     to nothing. So "use the scale" is checked by CI rather than by review.
+     Only the font-size namespace is cleared: `text-right`, `text-balance`,
+     `text-ellipsis` and `truncate` are separate utilities and are untouched. */
+  --text-*: initial;
+
+  --text-xs: 0.75rem; /* 12px */
+  --text-xs--line-height: 1.5;
+  --text-sm: 0.875rem; /* 14px */
+  --text-sm--line-height: 1.5;
+  --text-base: 1rem; /* 16px */
+  --text-base--line-height: 1.55;
+  --text-lg: 1.125rem; /* 18px */
+  --text-lg--line-height: 1.5;
+  --text-xl: 1.25rem; /* 20px */
+  --text-xl--line-height: 1.45;
+  --text-2xl: 1.5rem; /* 24px */
+  --text-2xl--line-height: 1.35;
+  --text-3xl: 1.875rem; /* 30px */
+  --text-3xl--line-height: 1.2;
+  --text-4xl: 2.25rem; /* 36px */
+  --text-4xl--line-height: 1.1;
+
+  /* Korean copy never renders below `--text-ko`. It is the floor, not a
+     suggestion; the larger step is for a single question stem in focus.
+
+     The floor was 24px and is now 20px. That is an amendment to R-14, not
+     drift: learners reported the Korean read oversized on screen, and 24px was
+     chosen for a phone held on a bus without anyone checking what it does to a
+     passage on a laptop. 20px still clears the small-text threshold the rule
+     exists to stay above — what it gives up is the extra margin, not the rule.
+     Anything below this is a regression, and README says the same number.
+
+     Aliases into the ramp rather than literals, the same shape as
+     `--color-brand`: the role says which text it is, the ramp says how big. */
+  --text-ko: var(--text-xl); /* 20px */
+  --text-ko--line-height: 1.6;
+  --text-ko-lg: var(--text-2xl); /* 24px */
+  --text-ko-lg--line-height: 1.55;
+  --text-gloss: var(--text-base); /* 16px */
+  --text-gloss--line-height: 1.5;
+
+  /* 44×44 is the tap-target floor. Named so a component asks for `size-tap`
+     rather than picking a number. */
+  --spacing-tap: 2.75rem; /* 44px */
+
+  /* The brand ramp is built out from #A9CD89, which is step 400 and the only
+     step chosen rather than derived. It is a surface colour: at L 0.805 it
+     carries ink at 8.9:1 and white at 1.8:1, so it grounds a bar or a chip and
+     never fills a button. The steps that do the work on white are 700 (5.25:1)
+     and 800 (8.13:1). 600 is deliberately documented as decorative — white on
+     it is 3.46:1, which passes for large text only and fails a button label. */
+  --color-brand-50: oklch(0.975 0.018 131);
+  --color-brand-100: oklch(0.945 0.04 131);
+  --color-brand-200: oklch(0.9 0.065 131);
+  --color-brand-300: oklch(0.855 0.085 131);
+  --color-brand-400: oklch(0.805 0.099 131); /* the source colour */
+  --color-brand-500: oklch(0.72 0.12 136);
+  --color-brand-600: oklch(0.62 0.13 141); /* decorative only — see above */
+  --color-brand-700: oklch(0.52 0.115 143);
+  --color-brand-800: oklch(0.42 0.09 145);
+  --color-brand-900: oklch(0.3 0.06 147);
+
+  /* Aliases, so `bg-brand` and `text-brand` keep resolving to something that
+     can actually hold a label. */
+  --color-brand: var(--color-brand-700);
+  --color-brand-soft: var(--color-brand-100);
+
+  /* Neutrals sit on the brand's hue at a chroma low enough to still read as
+     grey. At hue 265 they were blue against a green brand, which is the kind
+     of mismatch nobody can name and everybody sees. */
+  --color-ink: oklch(0.25 0.02 140);
+  --color-muted: oklch(0.515 0.016 140);
+  --color-line: oklch(0.9 0.012 140);
+  --color-surface: oklch(0.988 0.006 131);
+
+  /* `correct` was hue 155, which under a green brand reads as decoration
+     rather than a verdict. Moved to 168 — 25° off brand-700 — and capped at
+     chroma 0.09, the most hue 168 holds inside sRGB at this lightness. It is
+     still never the only signal: a verdict carries a filled chip and a word.  */
+  --color-correct: oklch(0.505 0.09 168);
+  --color-wrong: oklch(0.545 0.185 27);
+  --color-warn: oklch(0.545 0.115 70);
+  --color-warn-soft: oklch(0.96 0.04 75);
+}
+
+@layer base {
+  html {
+    /* R-14: the page never scrolls horizontally. `clip` rather than `hidden`
+       so it does not silently create a scroll container that breaks
+       `position: sticky` on the action dock. */
+    overflow-x: clip;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    overflow-x: clip;
+    margin: 0;
+    background: var(--color-surface);
+    color: var(--color-ink);
+    font-family: ui-sans-serif, system-ui, 'Segoe UI', sans-serif;
+  }
+
+  /* A long Korean word with no break opportunity is the usual cause of a
+     horizontal scrollbar appearing despite the rule above. */
+  p,
+  li,
+  h1,
+  h2,
+  h3 {
+    overflow-wrap: anywhere;
+  }
+
+  /* Pinned to 700 rather than to `--color-brand`. The ring is the one place
+     where re-pointing the brand alias at a lighter step would fail silently:
+     brand-400 on white is 1.8:1, a ring you cannot see rather than a colour
+     you dislike. */
+  :focus-visible {
+    outline: 3px solid var(--color-brand-700);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* Korean source text — stems, choices, passages.
+     These stay component classes rather than becoming bare `text-ko`
+     utilities because `word-break` travels with the size: a Korean size
+     without it is a size that can produce a horizontal scrollbar.
+     Line-height comes from the token too — it used to be repeated here as a
+     literal while `--text-ko--line-height` sat unused beside it, which is two
+     copies of one number and free to drift. */
+  .ko {
+    font-size: var(--text-ko);
+    line-height: var(--text-ko--line-height);
+    word-break: keep-all; /* break at spaces, not mid-eojeol */
+  }
+
+  .ko-lg {
+    font-size: var(--text-ko-lg);
+    line-height: var(--text-ko-lg--line-height);
+    word-break: keep-all;
+  }
+
+  /* Vietnamese gloss under Korean text. Deliberately smaller: it is support,
+     and it should not out-compete the text the learner is meant to read. */
+  .vi-gloss {
+    font-size: var(--text-gloss);
+    line-height: var(--text-gloss--line-height);
+    color: var(--color-muted);
+  }
+
+  /* Anything the learner taps. */
+  .tap {
+    min-height: var(--spacing-tap);
+    min-width: var(--spacing-tap);
+    touch-action: manipulation;
+  }
+
+  /* A long passage scrolls inside its own container, so selecting evidence
+     near the end of it does not scroll the form fields off screen. */
+  .passage {
+    max-height: 45vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* A request in flight is announced up here rather than by replacing the
+     screen with the word "loading". Fixed and 2px tall, so it can flicker on
+     and off as often as the network does without moving anything the learner
+     is reading. */
+  .route-progress {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    height: 2px;
+    overflow: hidden;
+    background: color-mix(in oklch, var(--color-brand) 18%, transparent);
+  }
+
+  .route-progress::after {
+    content: '';
+    display: block;
+    height: 100%;
+    width: 35%;
+    border-radius: 999px;
+    background: var(--color-brand);
+    animation: route-progress 1.1s ease-in-out infinite;
+  }
+
+  @keyframes route-progress {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(400%);
+    }
+  }
+
+  /* Motion is the indicator, so with motion off the bar becomes a static
+     line rather than nothing at all. */
+  @media (prefers-reduced-motion: reduce) {
+    .route-progress::after {
+      width: 100%;
+      animation: none;
+    }
+  }
+
+}

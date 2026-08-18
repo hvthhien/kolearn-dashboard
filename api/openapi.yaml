@@ -1,0 +1,1036 @@
+openapi: 3.1.0
+
+info:
+  title: Kolearn admin API
+  version: 0.1.0
+  description: |
+    The question-bank admin surface — `SC-BANK-ADMIN`. Internal, never a
+    learner screen.
+
+    **This document is authored here, not vendored.** kolearn-web copies the
+    server's spec; this one proposes the half the server has not written yet.
+    Every `/admin` path below is a contract kolearn-dashboard is built against
+    and kolearn-server is expected to implement. What is *not* a proposal is
+    everything under the `rbac` note on each operation: the permissions,
+    the publish report's shape, and the storage each field maps to already
+    exist in the server, and this spec is written to fit them rather than the
+    other way round.
+
+    The auth operations are reproduced verbatim from kolearn-server's spec —
+    an admin signs in through the same endpoints as a learner, holds the same
+    kind of access token, and is separated from one only by the permissions on
+    `CurrentUser`. `npm run api:check` diffs those blocks against the server's
+    spec whenever that checkout is present, because the failure to catch is a
+    client generated from a stale copy of somebody else's contract.
+
+    `/auth/register` is deliberately absent. Admin accounts are provisioned
+    with a role; an internal console that lets anyone create an account is not
+    an admin console.
+
+    Two conventions carry over unchanged:
+
+    **Errors are RFC 9457 problem+json.** Every non-2xx has `type`, `title`,
+    `status`, and `code`. Some carry extension members: the 409 refusing an
+    answer change includes the number of submitted attempts that already
+    contain the question, so the screen can say why rather than merely refuse
+    (TCCN-301-8).
+
+    **A layer that has not been written is absent, not empty.** Every
+    explanation field is `[string, 'null']` and no field defaults to `""`. An
+    empty string renders on the learner's review screen as a layer heading
+    with nothing under it, which reads as "the author had nothing to say"
+    rather than "nobody has written this yet" (TCCN-301-3).
+
+servers:
+  - url: /api/v1
+
+tags:
+  - name: auth
+  - name: exams
+  - name: questions
+  - name: topics
+  - name: blueprints
+  - name: imports
+
+security:
+  - bearerAuth: []
+
+paths:
+  # ── auth (verbatim from kolearn-server) ───────────────────────────────────
+
+  /auth/login:
+    post:
+      tags: [auth]
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Signed in. The refresh token is set as an httpOnly cookie.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthTokens' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /auth/refresh:
+    post:
+      tags: [auth]
+      operationId: refreshSession
+      security: []
+      summary: Exchange the refresh cookie for a new access token
+      description: |
+        Rotates the refresh token. Presenting one that has already been rotated
+        means it leaked, so the entire token family is revoked and this returns
+        401 — the legitimate holder is signed out too, which is the intended
+        outcome when a session is known to be compromised.
+      responses:
+        '200':
+          description: Rotated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthTokens' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /auth/logout:
+    post:
+      tags: [auth]
+      operationId: logout
+      responses:
+        '204': { description: Signed out; the refresh family is revoked. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /me:
+    get:
+      tags: [auth]
+      operationId: getCurrentUser
+      responses:
+        '200':
+          description: The signed-in learner.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CurrentUser' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ── exams ─────────────────────────────────────────────────────────────────
+
+  /admin/exams:
+    get:
+      tags: [exams]
+      operationId: listAdminExams
+      summary: Every exam in the bank, drafts included
+      description: |
+        rbac: `exam:read`. Unlike the learner's `GET /exams`, this returns
+        DRAFT and RETIRED papers — the drafts are the work.
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/ExamStatus' }
+        - name: level
+          in: query
+          schema: { $ref: '#/components/schemas/ExamLevel' }
+      responses:
+        '200':
+          description: The bank.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/AdminExamListItem' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+    post:
+      tags: [exams]
+      operationId: createAdminExam
+      summary: Start a new paper against a blueprint version
+      description: |
+        rbac: `exam:write`. The sections are copied from the named blueprint
+        version at creation time and not re-read afterwards, so a later
+        blueprint revision cannot restructure a paper people have already sat
+        (TCCN-302-1).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateExamRequest' }
+      responses:
+        '201':
+          description: Created, as a DRAFT.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminExamDetail' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /admin/exams/{examId}:
+    parameters:
+      - $ref: '#/components/parameters/ExamId'
+    get:
+      tags: [exams]
+      operationId: getAdminExam
+      summary: One paper, with its sections and the blueprint it was cut from
+      description: 'rbac: `exam:read`.'
+      responses:
+        '200':
+          description: The paper.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminExamDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [exams]
+      operationId: updateAdminExam
+      description: 'rbac: `exam:write`.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateExamRequest' }
+      responses:
+        '200':
+          description: Saved.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminExamDetail' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/exams/{examId}/publish:
+    parameters:
+      - $ref: '#/components/parameters/ExamId'
+    post:
+      tags: [exams]
+      operationId: publishAdminExam
+      summary: Run the release gate, and publish when it passes
+      description: |
+        rbac: `exam:publish`. Mirrors `bank.Publish` field for field, including
+        the split the server already makes: **blockers** refuse the publish,
+        **warnings** do not (TCCN-301-7). `dryRun` runs the gate and reports
+        without releasing, which is how the screen shows the two groups before
+        anyone commits to anything.
+
+        A 200 with a non-empty `blockers` means the gate ran and refused. That
+        is not an error — the report is the answer — so it is not a problem+json.
+      parameters:
+        - name: dryRun
+          in: query
+          schema: { type: boolean, default: false }
+        - name: acceptWarnings
+          in: query
+          description: |
+            Required when the report carries warnings and none of them block.
+            The confirmation step exists because a warning nobody has to
+            acknowledge is a warning nobody reads.
+          schema: { type: boolean, default: false }
+      responses:
+        '200':
+          description: The gate ran. Read `published` for what happened.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PublishReport' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/exams/{examId}/questions:
+    parameters:
+      - $ref: '#/components/parameters/ExamId'
+    get:
+      tags: [questions]
+      operationId: listAdminQuestions
+      summary: The paper's questions, with how much of each is authored
+      description: 'rbac: `exam:read`.'
+      responses:
+        '200':
+          description: The questions.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/AdminQuestionRow' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ── questions ─────────────────────────────────────────────────────────────
+
+  /admin/questions/{questionId}:
+    parameters:
+      - $ref: '#/components/parameters/QuestionId'
+    get:
+      tags: [questions]
+      operationId: getAdminQuestion
+      summary: Everything the author edits, in one payload
+      description: 'rbac: `exam:read`.'
+      responses:
+        '200':
+          description: The question.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminQuestion' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [questions]
+      operationId: saveAdminQuestion
+      summary: Save the draft
+      description: |
+        rbac: `question:write`. A half-built question saves (TCCN-301-10):
+        three choices, two correct answers, or no explanation at all are all
+        legal here and are caught by the publish gate instead. Requiring a
+        complete question at first save only teaches authors to type filler,
+        and the filler stays.
+
+        The one refusal is the answer key of a question learners have already
+        sat: 409 `question-answer-locked` (TCCN-301-8).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SaveQuestionRequest' }
+      responses:
+        '200':
+          description: Saved.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminQuestion' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: |
+            The answer key cannot change on a question that has been sat.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/AnswerLockedProblem' }
+
+  /admin/questions/{questionId}/versions:
+    parameters:
+      - $ref: '#/components/parameters/QuestionId'
+    post:
+      tags: [questions]
+      operationId: createQuestionVersion
+      summary: Supersede a question rather than rewrite it
+      description: |
+        rbac: `question:write`. The sanctioned way past a 409: the old question
+        keeps its answer key and every attempt that referenced it, and the new
+        one carries the correction forward (TCCN-301-8).
+      responses:
+        '201':
+          description: The new version, in DRAFT.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminQuestion' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/passages/{passageId}:
+    parameters:
+      - name: passageId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [questions]
+      operationId: getAdminPassage
+      summary: The stimulus a layer-4 span is measured against
+      description: 'rbac: `exam:read`.'
+      responses:
+        '200':
+          description: The passage.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminPassage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ── topics ────────────────────────────────────────────────────────────────
+
+  /admin/topics:
+    get:
+      tags: [topics]
+      operationId: searchAdminTopics
+      summary: Autocomplete over the normalised catalogue
+      description: |
+        rbac: `exam:read`. `q` matches the normalised name, so an author
+        looking for a topic finds the one that already exists rather than
+        creating its second spelling. R-06 counts weakness *by topic*; two
+        spellings split "sai 8 trên 11 lần gặp" into two rows, both wrong
+        (TCCN-301-5).
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string }
+        - name: category
+          in: query
+          schema: { $ref: '#/components/schemas/TopicCategory' }
+      responses:
+        '200':
+          description: Matching topics, curated ones first.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Topic' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [topics]
+      operationId: createAdminTopic
+      summary: Add to the catalogue
+      description: |
+        rbac: `topic:manage` — a stricter permission than the one that tags a
+        question with an existing topic, deliberately. `content_editor` may
+        author all day and cannot widen the catalogue.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateTopicRequest' }
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Topic' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  # ── blueprints ────────────────────────────────────────────────────────────
+
+  /admin/blueprints:
+    get:
+      tags: [blueprints]
+      operationId: listBlueprints
+      summary: R-16's exam structure, as configuration
+      description: |
+        rbac: `exam:read`. The section counts, time limits, scores and sitting
+        numbers come from `exam_blueprints`, which is versioned. GĐ-1 warns the
+        TOPIK format changes between years, so a format change is a new
+        version, not an edit — and never a constant in a screen (TCCN-302-1).
+      responses:
+        '200':
+          description: Every blueprint version.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Blueprint' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  # ── imports ───────────────────────────────────────────────────────────────
+
+  /admin/imports/dry-run:
+    post:
+      tags: [imports]
+      operationId: dryRunImport
+      summary: Report what a bundle would do, and write nothing
+      description: |
+        rbac: `import:manage`. Runs the same validation gate as the real
+        import and touches no row (TCCN-301-6). The real run that follows must
+        produce exactly the changes reported here.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ImportRequest' }
+      responses:
+        '200':
+          description: What would happen.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ImportPreview' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/imports:
+    post:
+      tags: [imports]
+      operationId: runImport
+      summary: Apply a bundle to the bank
+      description: 'rbac: `import:manage`.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ImportRequest' }
+      responses:
+        '200':
+          description: Applied.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ImportPreview' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    ExamId:
+      name: examId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    QuestionId:
+      name: questionId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+    BadRequest:
+      description: Malformed request.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Unauthorized:
+      description: Not signed in, or the access token has expired.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Forbidden:
+      description: Signed in, but lacking the required permission.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    NotFound:
+      description: No such resource.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Conflict:
+      description: The request conflicts with the resource's current state.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Unprocessable:
+      description: Well-formed but invalid.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    TooManyRequests:
+      description: Rate limited.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+  schemas:
+
+    # ── shared with kolearn-server, verbatim ────────────────────────────────
+
+    Problem:
+      type: object
+      required: [type, title, status]
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        code: { type: string }
+        requestId: { type: string }
+        errors:
+          type: array
+          items:
+            type: object
+            required: [field, message]
+            properties:
+              field: { type: string }
+              message: { type: string }
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+
+    AuthTokens:
+      type: object
+      required: [accessToken, expiresIn, user]
+      properties:
+        accessToken:
+          type: string
+          description: |
+            Short-lived. Hold it in memory only — the refresh token travels in
+            an httpOnly cookie precisely so that neither survives an XSS.
+        expiresIn: { type: integer, description: Seconds until the access token expires. }
+        user: { $ref: '#/components/schemas/CurrentUser' }
+
+    CurrentUser:
+      type: object
+      required: [id, email, emailVerified, displayName, roles, permissions]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        emailVerified: { type: boolean }
+        displayName: { type: string }
+        locale: { type: string }
+        roles:
+          type: array
+          items: { type: string }
+        permissions:
+          type: array
+          items: { type: string }
+
+    ExamLevel:
+      type: string
+      enum: [TOPIK_I, TOPIK_II]
+
+    SectionKind:
+      type: string
+      enum: [LISTENING, WRITING, READING]
+
+    # ── admin ───────────────────────────────────────────────────────────────
+
+    ExamStatus:
+      type: string
+      enum: [DRAFT, PUBLISHED, RETIRED]
+
+    ExamOrigin:
+      type: string
+      enum: [OFFICIAL, AI_GENERATED]
+
+    TopicCategory:
+      type: string
+      enum: [GRAMMAR, VOCAB, READING_SKILL, LISTENING_SKILL]
+
+    QuestionType:
+      type: string
+      enum: [MCQ, FILL_BLANK, ESSAY]
+
+    Topic:
+      type: object
+      required: [id, category, name, isSystem]
+      properties:
+        id: { type: string, format: uuid }
+        category: { $ref: '#/components/schemas/TopicCategory' }
+        name: { type: string }
+        description: { type: string }
+        isSystem:
+          type: boolean
+          description: Curated. Ranked above author-created topics in autocomplete.
+
+    CreateTopicRequest:
+      type: object
+      required: [category, name]
+      properties:
+        category: { $ref: '#/components/schemas/TopicCategory' }
+        name: { type: string, minLength: 1 }
+        description: { type: string }
+
+    BlueprintSection:
+      type: object
+      required: [kind, sitting, ordinal, questionCount, timeLimitSeconds, maxScore]
+      properties:
+        kind: { $ref: '#/components/schemas/SectionKind' }
+        sitting:
+          type: integer
+          enum: [1, 2]
+          description: |
+            TOPIK II is sat over two sessions — Nghe and Viết in the first,
+            Đọc in the second. Each section keeps its own clock; there is no
+            single timer over all 300 points (TCCN-302-3).
+        ordinal: { type: integer }
+        questionCount: { type: integer }
+        timeLimitSeconds: { type: integer }
+        maxScore: { type: integer }
+
+    Blueprint:
+      type: object
+      required: [version, level, totalScore, sections]
+      properties:
+        version: { type: string }
+        level: { $ref: '#/components/schemas/ExamLevel' }
+        totalScore: { type: integer }
+        effectiveFrom: { type: string, format: date }
+        sections:
+          type: array
+          items: { $ref: '#/components/schemas/BlueprintSection' }
+
+    ExamSection:
+      type: object
+      required: [id, kind, sitting, ordinal, questionCount, timeLimitSeconds, maxScore, authoredCount]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { $ref: '#/components/schemas/SectionKind' }
+        sitting: { type: integer, enum: [1, 2] }
+        ordinal: { type: integer }
+        questionCount:
+          type: integer
+          description: Copied from the blueprint when the paper was created, never re-read.
+        timeLimitSeconds: { type: integer }
+        maxScore: { type: integer }
+        authoredCount:
+          type: integer
+          description: How many questions actually exist in this section so far.
+
+    AdminExamListItem:
+      type: object
+      required: [id, code, title, level, status, origin, blueprintVersion, questionCount, examReady]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        title: { type: string }
+        level: { $ref: '#/components/schemas/ExamLevel' }
+        status: { $ref: '#/components/schemas/ExamStatus' }
+        origin: { $ref: '#/components/schemas/ExamOrigin' }
+        blueprintVersion: { type: string }
+        year: { type: integer }
+        questionCount: { type: integer }
+        examReady:
+          type: boolean
+          description: |
+            False when a section in the blueprint has no questions. Such a
+            paper may still be published for Luyện tập, but is marked as
+            unusable for Thi thử wherever it is listed — before anyone starts
+            it, not after (TCCN-302-4).
+        missingSections:
+          type: array
+          items: { $ref: '#/components/schemas/SectionKind' }
+        sourceName:
+          type: string
+          description: |
+            The import batch this paper came from. "Free to download" is not
+            "licensed for a paid product", and a whole source has to be
+            withdrawable as a unit.
+
+    AdminExamDetail:
+      allOf:
+        - $ref: '#/components/schemas/AdminExamListItem'
+        - type: object
+          required: [sections, blueprint]
+          properties:
+            sections:
+              type: array
+              items: { $ref: '#/components/schemas/ExamSection' }
+            blueprint: { $ref: '#/components/schemas/Blueprint' }
+            sourceUrl: { type: string }
+            licenseNote: { type: string }
+            publishedAt: { type: [string, 'null'], format: date-time }
+
+    CreateExamRequest:
+      type: object
+      required: [code, title, level, blueprintVersion]
+      properties:
+        code: { type: string, minLength: 1 }
+        title: { type: string, minLength: 1 }
+        level: { $ref: '#/components/schemas/ExamLevel' }
+        blueprintVersion: { type: string }
+        year: { type: integer }
+        sourceName: { type: string }
+        sourceUrl: { type: string }
+        licenseNote: { type: string }
+
+    UpdateExamRequest:
+      type: object
+      properties:
+        title: { type: string }
+        year: { type: integer }
+        sourceName: { type: string }
+        sourceUrl: { type: string }
+        licenseNote: { type: string }
+
+    PublishReport:
+      type: object
+      required: [examCode, published, blockers, warnings]
+      properties:
+        examCode: { type: string }
+        published:
+          type: boolean
+          description: False when a blocker stood, or when this was a dry run.
+        blockers:
+          type: array
+          description: |
+            Each refuses the publish. Kept apart from `warnings` because the
+            server keeps them apart, and merging the two on screen destroys
+            the reason both exist (TCCN-301-7).
+          items: { type: string }
+        warnings:
+          type: array
+          description: |
+            Reported, never blocking — including questions with no difficulty
+            assigned, which is a count to look at rather than a reason to stop
+            (TCCN-303-3).
+          items: { type: string }
+        unassignedDifficultyCount: { type: integer }
+
+    # ── question authoring ──────────────────────────────────────────────────
+
+    AdminChoice:
+      type: object
+      required: [ordinal, textKo, isCorrect]
+      properties:
+        ordinal: { type: integer, minimum: 1, maximum: 4 }
+        textKo: { type: string }
+        textVi:
+          type: string
+          description: |
+            YC-121. Authored with the exam, never machine-translated at request
+            time: a learner who cannot read the choice cannot read an
+            explanation about that choice either.
+        isCorrect: { type: boolean }
+        whyWrongKo:
+          type: [string, 'null']
+          description: |
+            Layer 3, per choice. Three distractors get three boxes — an
+            explanation shared across all of them cannot say anything about
+            any one of them (TCCN-301-2).
+        whyWrongVi: { type: [string, 'null'] }
+
+    Evidence:
+      type: object
+      description: |
+        Layer 4. A reading span is character offsets into the passage; a
+        listening span is milliseconds into the clip. One of the two must be
+        present — evidence that does not locate itself is not evidence.
+      properties:
+        id: { type: string, format: uuid }
+        passageId: { type: [string, 'null'], format: uuid }
+        charStart: { type: [integer, 'null'], minimum: 0 }
+        charEnd: { type: [integer, 'null'], minimum: 0 }
+        audioStartMs: { type: [integer, 'null'], minimum: 0 }
+        audioEndMs: { type: [integer, 'null'], minimum: 0 }
+        quoteKo:
+          type: string
+          description: |
+            The text the offsets pointed at when they were saved. Kept so an
+            edit to the passage can be detected as having moved the span,
+            rather than silently re-aiming it (TCCN-301-4).
+        quoteVi: { type: string }
+
+    QuestionTopic:
+      type: object
+      required: [topicId, name, category]
+      properties:
+        topicId: { type: string, format: uuid }
+        name: { type: string }
+        category: { $ref: '#/components/schemas/TopicCategory' }
+        note: { type: string }
+
+    AdminPassage:
+      type: object
+      required: [id, kind]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { $ref: '#/components/schemas/SectionKind' }
+        textKo: { type: [string, 'null'] }
+        textVi: { type: [string, 'null'] }
+        audioUrl: { type: [string, 'null'] }
+        audioDurationMs: { type: [integer, 'null'] }
+
+    AdminQuestionRow:
+      type: object
+      required: [id, ordinal, type, stemKo, layerStatus, choiceCount, correctChoiceCount, attemptedCount]
+      properties:
+        id: { type: string, format: uuid }
+        ordinal: { type: integer }
+        displayOrdinal:
+          type: integer
+          description: |
+            The number printed on the paper, where it differs from `ordinal` —
+            TOPIK II Reading restarts at 1 after Listening and Writing.
+        sectionKind: { $ref: '#/components/schemas/SectionKind' }
+        type: { $ref: '#/components/schemas/QuestionType' }
+        stemKo: { type: string }
+        layerStatus: { $ref: '#/components/schemas/LayerStatus' }
+        difficultyManual: { type: [integer, 'null'], minimum: 1, maximum: 5 }
+        choiceCount: { type: integer }
+        correctChoiceCount: { type: integer }
+        attemptedCount:
+          type: integer
+          description: Submitted attempts containing this question. Zero means the answer key is still free to change.
+
+    LayerStatus:
+      type: object
+      description: |
+        Which of the five layers exist. Absent is absent — the review screen
+        hides a layer with no content rather than heading an empty box
+        (TCCN-301-3).
+      required: [layer2, layer3Written, layer3Required, layer4, layer5]
+      properties:
+        layer2: { type: boolean }
+        layer3Written: { type: integer, description: Distractors with their own explanation. }
+        layer3Required: { type: integer, description: Distractors on this question. }
+        layer4: { type: boolean }
+        layer5: { type: boolean }
+        translated:
+          type: boolean
+          description: Stem and all four choices carry Vietnamese.
+
+    AdminQuestion:
+      type: object
+      required: [id, examId, ordinal, type, stemKo, choices, topics, evidence, attemptedCount, layerStatus]
+      properties:
+        id: { type: string, format: uuid }
+        examId: { type: string, format: uuid }
+        sectionKind: { $ref: '#/components/schemas/SectionKind' }
+        ordinal: { type: integer }
+        displayOrdinal: { type: integer }
+        type: { $ref: '#/components/schemas/QuestionType' }
+        passageId: { type: [string, 'null'], format: uuid }
+        stemKo: { type: string }
+        stemVi: { type: string }
+        maxScore: { type: integer }
+        explanationCorrectKo:
+          type: [string, 'null']
+          description: |
+            Layer 2 — why the right answer is right. Shown for every question,
+            including ones answered correctly: right by elimination is a wrong
+            answer that has not happened yet (R-07, YC-112).
+        explanationCorrectVi: { type: [string, 'null'] }
+        explanationWrongGenericKo:
+          type: [string, 'null']
+          description: |
+            The layer-3 fallback for an author who wrote one shared note. It
+            exists because imported papers have it; the editor does not offer
+            it as a way to avoid writing three (TCCN-301-2).
+        explanationWrongGenericVi: { type: [string, 'null'] }
+        difficultyManual:
+          type: [integer, 'null']
+          minimum: 1
+          maximum: 5
+          description: |
+            YC-303, assigned by hand while authoring. Never rendered to a
+            learner in ver1.0 — no label, no filter, no sort (TCCN-303-2).
+        difficultyObserved:
+          type: [number, 'null']
+          description: |
+            Derived from real attempt data. Read-only here and kept apart from
+            the manual value on purpose: ver1.0 uses only the manual one, and
+            collapsing the two would mean changing the schema again later.
+        choices:
+          type: array
+          items: { $ref: '#/components/schemas/AdminChoice' }
+        topics:
+          type: array
+          items: { $ref: '#/components/schemas/QuestionTopic' }
+        evidence:
+          type: array
+          items: { $ref: '#/components/schemas/Evidence' }
+        attemptedCount: { type: integer }
+        supersededByQuestionId: { type: [string, 'null'], format: uuid }
+        layerStatus: { $ref: '#/components/schemas/LayerStatus' }
+
+    SaveQuestionRequest:
+      type: object
+      required: [stemKo, choices]
+      properties:
+        stemKo: { type: string }
+        stemVi: { type: string }
+        explanationCorrectKo: { type: [string, 'null'] }
+        explanationCorrectVi: { type: [string, 'null'] }
+        explanationWrongGenericKo: { type: [string, 'null'] }
+        explanationWrongGenericVi: { type: [string, 'null'] }
+        difficultyManual: { type: [integer, 'null'], minimum: 1, maximum: 5 }
+        choices:
+          type: array
+          items: { $ref: '#/components/schemas/AdminChoice' }
+        topicIds:
+          type: array
+          items: { type: string, format: uuid }
+        evidence:
+          type: array
+          items: { $ref: '#/components/schemas/Evidence' }
+
+    AnswerLockedProblem:
+      allOf:
+        - $ref: '#/components/schemas/Problem'
+        - type: object
+          properties:
+            attemptedCount:
+              type: integer
+              description: |
+                Submitted attempts already carrying this question. Changing the
+                key would rewrite every one of their scores and every
+                denominator in the error log — "sai 8 trên 11 lần gặp" would
+                change meaning with nobody, including the person who pressed
+                save, being told (TCCN-301-8).
+            questionOrdinal: { type: integer }
+
+    # ── import ──────────────────────────────────────────────────────────────
+
+    ImportRequest:
+      type: object
+      required: [bundle]
+      properties:
+        bundle:
+          description: The exam bundle, in the format `cmd/importer` accepts.
+          type: object
+          additionalProperties: true
+        sourceName: { type: string }
+        sourceUrl: { type: string }
+        licenseNote: { type: string }
+
+    ImportIssue:
+      type: object
+      required: [where, message]
+      properties:
+        where:
+          type: string
+          description: |
+            Where in the bundle, e.g. `questions[14].choices`. The gate reports
+            every problem at once — fixing a thousand-question file one error
+            per run is not a workflow anyone follows.
+        message: { type: string }
+        line: { type: integer }
+
+    ImportPreview:
+      type: object
+      required: [dryRun, examCode, created, updated, skipped, issues]
+      properties:
+        dryRun: { type: boolean }
+        examCode: { type: string }
+        created: { type: integer }
+        updated: { type: integer }
+        skipped: { type: integer }
+        issues:
+          type: array
+          items: { $ref: '#/components/schemas/ImportIssue' }
+        translationCoverage:
+          type: number
+          description: |
+            Reported, never blocking. YC-121 is blunt about why it matters, but
+            an untranslated paper is still a paper.
