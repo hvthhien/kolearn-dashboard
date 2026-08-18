@@ -2,8 +2,8 @@ import { useCallback, useMemo, useState } from 'react'
 import type {
   AdminChoice,
   AdminQuestion,
-  Evidence,
-  QuestionTopic,
+  AdminEvidence,
+  AdminQuestionTopic,
   SaveQuestionRequest,
 } from '../../api/gen/model'
 
@@ -37,8 +37,8 @@ export interface Draft {
   /* Resolved rather than bare ids: a topic just picked has no entry in the
      question's stored topics, so an id-only draft has nothing to render the
      chip's name from and falls back to showing the uuid. */
-  topics: QuestionTopic[]
-  evidence: Evidence[]
+  topics: AdminQuestionTopic[]
+  evidence: AdminEvidence[]
 }
 
 function toDraft(q: AdminQuestion): Draft {

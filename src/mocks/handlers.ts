@@ -4,7 +4,7 @@ import type {
   AdminQuestion,
   AdminQuestionRow,
   AuthTokens,
-  ImportPreview,
+  ImportReport,
   PublishReport,
   SaveQuestionRequest,
 } from '../api/gen/model'
@@ -282,7 +282,7 @@ export const handlers = [
     return HttpResponse.json(p)
   }),
 
-  http.get(`${BASE}/admin/topics`, ({ request }) => {
+  http.get(`${BASE}/topics`, ({ request }) => {
     const url = new URL(request.url)
     const q = (url.searchParams.get('q') ?? '').trim().toLowerCase()
     const category = url.searchParams.get('category')
@@ -293,27 +293,34 @@ export const handlers = [
     return HttpResponse.json({ items })
   }),
 
-  http.post(`${BASE}/admin/imports/dry-run`, () => HttpResponse.json(IMPORT_PREVIEW)),
+  http.post(`${BASE}/admin/imports/dry-run`, () => HttpResponse.json(IMPORT_REPORT)),
 
   http.post(`${BASE}/admin/imports`, () =>
-    HttpResponse.json({ ...IMPORT_PREVIEW, dryRun: false }),
+    HttpResponse.json({ ...IMPORT_REPORT, dryRun: false }),
   ),
 ]
 
 /**
  * The dry run and the real run report the same numbers, because TCCN-301-6
  * says the run that follows must produce exactly what the preview reported.
+ *
+ * `ok: false` with issues is the shape the server sends when the gate refuses:
+ * a 200 carrying the verdict, not a problem+json, because the report is the
+ * answer the screen needs rather than a failure of the request.
  */
-const IMPORT_PREVIEW: ImportPreview = {
+const IMPORT_REPORT: ImportReport = {
   dryRun: true,
   examCode: 'TOPIK-II-102',
-  created: 48,
-  updated: 2,
-  skipped: 1,
+  ok: false,
+  passages: 12,
+  questions: 50,
+  choices: 200,
+  topics: 34,
+  topicsNew: 3,
   translationCoverage: 0.86,
   issues: [
-    { where: 'questions[14].choices', message: 'Chỉ có 3 lựa chọn, phải đúng 4 (GĐ-4).', line: 412 },
-    { where: 'questions[27].evidence', message: 'Căn cứ trỏ tới đoạn văn không tồn tại: p-reading-9.', line: 733 },
+    { where: 'questions[14].choices', message: 'Chỉ có 3 lựa chọn, phải đúng 4 (GĐ-4).' },
+    { where: 'questions[27].evidence', message: 'Căn cứ trỏ tới đoạn văn không tồn tại: p-reading-9.' },
   ],
 }
 

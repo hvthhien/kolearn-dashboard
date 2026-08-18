@@ -1,62 +1,68 @@
 openapi: 3.1.0
 
 info:
-  title: Kolearn admin API
+  title: Kolearn API
   version: 0.1.0
   description: |
-    The question-bank admin surface — `SC-BANK-ADMIN`. Internal, never a
-    learner screen.
+    API for Kolearn, a TOPIK exam-prep platform.
 
-    **This document is authored here, not vendored.** kolearn-web copies the
-    server's spec; this one proposes the half the server has not written yet.
-    Every `/admin` path below is a contract kolearn-dashboard is built against
-    and kolearn-server is expected to implement. What is *not* a proposal is
-    everything under the `rbac` note on each operation: the permissions,
-    the publish report's shape, and the storage each field maps to already
-    exist in the server, and this spec is written to fit them rather than the
-    other way round.
+    Covers Phase 1's thin slice: browse exams, take one, submit, read the
+    result, review each answer with its five explanation layers, tag topics,
+    and turn wrong answers into review cards.
 
-    The auth operations are reproduced verbatim from kolearn-server's spec —
-    an admin signs in through the same endpoints as a learner, holds the same
-    kind of access token, and is separated from one only by the permissions on
-    `CurrentUser`. `npm run api:check` diffs those blocks against the server's
-    spec whenever that checkout is present, because the failure to catch is a
-    client generated from a stale copy of somebody else's contract.
+    Two conventions run through the whole surface:
 
-    `/auth/register` is deliberately absent. Admin accounts are provisioned
-    with a role; an internal console that lets anyone create an account is not
-    an admin console.
+    **Errors are RFC 9457 problem+json.** Every non-2xx response — including
+    unmatched routes — has `type`, `title`, `status`, and `code`. Some carry
+    extension members: a 409 from `POST /attempts` includes the in-progress
+    attempt so the client can render its confirmation dialog without a second
+    request.
 
-    Two conventions carry over unchanged:
-
-    **Errors are RFC 9457 problem+json.** Every non-2xx has `type`, `title`,
-    `status`, and `code`. Some carry extension members: the 409 refusing an
-    answer change includes the number of submitted attempts that already
-    contain the question, so the screen can say why rather than merely refuse
-    (TCCN-301-8).
-
-    **A layer that has not been written is absent, not empty.** Every
-    explanation field is `[string, 'null']` and no field defaults to `""`. An
-    empty string renders on the learner's review screen as a layer heading
-    with nothing under it, which reads as "the author had nothing to say"
-    rather than "nobody has written this yet" (TCCN-301-3).
+    **A machine-derived score never appears as a bare number.** Bands and
+    writing scores are `EstimatedBand` / estimate-tagged objects that carry
+    their own disclaimer, so a client cannot render the value without having
+    been handed the caveat.
 
 servers:
   - url: /api/v1
 
 tags:
   - name: auth
-  - name: exams
-  - name: questions
+  - name: catalog
+  - name: attempt
+  - name: review
   - name: topics
-  - name: blueprints
-  - name: imports
+  - name: cards
+  - name: weakness
+  - name: writing
+  - name: admin
 
 security:
   - bearerAuth: []
 
 paths:
-  # ── auth (verbatim from kolearn-server) ───────────────────────────────────
+  # ── auth ──────────────────────────────────────────────────────────────────
+
+  /auth/register:
+    post:
+      tags: [auth]
+      operationId: register
+      security: []
+      summary: Create an account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '201':
+          description: Created. A verification email is sent; in dev it is logged to stdout.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthTokens' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /auth/login:
     post:
@@ -104,6 +110,66 @@ paths:
         '204': { description: Signed out; the refresh family is revoked. }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  /auth/verify-email:
+    post:
+      tags: [auth]
+      operationId: verifyEmail
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string }
+      responses:
+        '204': { description: Verified. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /auth/password/forgot:
+    post:
+      tags: [auth]
+      operationId: forgotPassword
+      security: []
+      description: |
+        Always returns 204, whether or not the address is registered. Reporting
+        which addresses exist would turn this into an account-enumeration
+        oracle.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '204': { description: Accepted. }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /auth/password/reset:
+    post:
+      tags: [auth]
+      operationId: resetPassword
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, password]
+              properties:
+                token: { type: string }
+                password: { type: string, minLength: 10 }
+      responses:
+        '204': { description: Reset; all sessions revoked. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
   /me:
     get:
       tags: [auth]
@@ -116,16 +182,986 @@ paths:
               schema: { $ref: '#/components/schemas/CurrentUser' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
-  # ── exams ─────────────────────────────────────────────────────────────────
+  # ── catalog ───────────────────────────────────────────────────────────────
+
+  /exams:
+    get:
+      tags: [catalog]
+      operationId: listExams
+      summary: Browse exams (YC-101)
+      description: |
+        Each entry carries the caller's own attempt count and best score, which
+        is what the list screen shows beside each exam.
+      parameters:
+        - { name: level, in: query, schema: { $ref: '#/components/schemas/ExamLevel' } }
+        - { name: cursor, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+      responses:
+        '200':
+          description: A page of exams.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/ExamListItem' }
+                  nextCursor: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /exams/{examId}:
+    get:
+      tags: [catalog]
+      operationId: getExam
+      summary: Exam detail for the entry screen
+      parameters:
+        - $ref: '#/components/parameters/ExamId'
+      responses:
+        '200':
+          description: Exam with its section layout.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ExamDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ── attempt ───────────────────────────────────────────────────────────────
+
+  /attempts:
+    post:
+      tags: [attempt]
+      operationId: startAttempt
+      summary: Start an attempt
+      description: |
+        Fails with 409 when the learner already has one in progress (R-03).
+        The problem response carries the existing attempt under
+        `inProgressAttempt`, so the client can render TCCN-106-5's
+        "Bạn còn bài dở ở Đề 83" dialog without a second request.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StartAttemptRequest' }
+      responses:
+        '201':
+          description: Started.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AttemptRunner' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: An attempt is already in progress.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/AttemptInProgressProblem' }
+        '422':
+          description: |
+            An unusable section selection — sent in EXAM mode, empty, or naming
+            a section this exam does not have.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /attempts/current:
+    get:
+      tags: [attempt]
+      operationId: getCurrentAttempt
+      summary: The in-progress attempt, if any
+      responses:
+        '200':
+          description: The attempt in progress.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AttemptRunner' }
+        '204': { description: Nothing in progress. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /attempts/{attemptId}:
+    get:
+      tags: [attempt]
+      operationId: getAttempt
+      summary: The attempt payload for the runner screen
+      description: |
+        Returns every question at once — a TOPIK paper is at most 50 questions,
+        so question navigation is a state transition with no network call
+        (Q-01, under 100ms).
+
+        This response NEVER carries correctness, distractor explanations, or
+        evidence, in either mode. TCCN-103-6 is not a presentation concern: a
+        learner who opens the network tab must find nothing that reveals an
+        answer. Those fields live only on the review response, which requires a
+        submitted attempt.
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+      responses:
+        '200':
+          description: Runner payload.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AttemptRunner' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [attempt]
+      operationId: updateAttempt
+      summary: Update runner state (current question, settings)
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                currentQuestionId: { type: string, format: uuid }
+                translationVisible: { type: boolean }
+      responses:
+        '204': { description: Updated. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /attempts/{attemptId}/answers/{questionId}:
+    put:
+      tags: [attempt]
+      operationId: recordAnswer
+      summary: Record an answer or flag (YC-103, R-03)
+      description: |
+        Idempotent and last-write-wins by `clientSeq`, so a retry that arrives
+        out of order cannot overwrite a newer answer with an older one.
+
+        A null `selectedChoiceOrdinal` clears the answer back to *bỏ qua*.
+        Returns 409 once the attempt or its section is submitted — the database
+        refuses the write regardless of what the handler believes (R-04).
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+        - $ref: '#/components/parameters/QuestionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RecordAnswerRequest' }
+      responses:
+        '200':
+          description: Recorded.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AnswerState' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /attempts/{attemptId}/submit:
+    post:
+      tags: [attempt]
+      operationId: submitAttempt
+      summary: Submit and score (YC-105, YC-107)
+      description: |
+        Scores in one transaction and freezes the attempt. Submitting an
+        already-submitted attempt returns its existing result rather than an
+        error, so a double tap or a retried request is harmless.
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+      responses:
+        '200':
+          description: Scored.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AttemptResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /attempts/{attemptId}/abandon:
+    post:
+      tags: [attempt]
+      operationId: abandonAttempt
+      summary: Give up an attempt without scoring it (R-03, TCCN-106-5)
+      description: |
+        Marks the attempt bỏ dở. It is never scored, and it stays in history
+        with that label exactly as a lapsed one does (TCCN-106-4, TCCN-111-3).
+
+        R-03 allows one live attempt, so this is what a learner who wants to
+        sit a different paper has to do first. It is deliberately its own call
+        rather than a flag on `startAttempt`: the 409 there stays
+        unconditional, and discarding work is never a side effect of asking
+        for something else.
+
+        Abandoning an already-abandoned attempt succeeds, so a double tap or a
+        retried request is harmless. A submitted one cannot be abandoned —
+        there is nothing to give up, and it is not blocking anything.
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+      responses:
+        '204': { description: Abandoned. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: The attempt has already been submitted.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /attempts/{attemptId}/result:
+    get:
+      tags: [attempt]
+      operationId: getAttemptResult
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+      responses:
+        '200':
+          description: The result.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AttemptResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: The attempt has not been submitted.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  # ── review ────────────────────────────────────────────────────────────────
+
+  /attempts/{attemptId}/questions/{questionId}/audio:
+    get:
+      tags: [attempt]
+      operationId: getQuestionAudio
+      summary: Stream the listening audio for one question (YC-110, R-01)
+      description: |
+        Authenticated and per-attempt on purpose, rather than a presigned or
+        public URL. R-01 allows exactly one play in EXAM mode, and the only
+        place that can be enforced is the request itself: a shareable link is
+        a rule the client is merely asked to respect, and a learner who opens
+        the network tab gets unlimited replays with nothing failing.
+
+        The first EXAM-mode request records an `AUDIO_PLAYED` event. A second
+        one is refused with 409 — including after a page reload, which is what
+        stops a refresh from buying another listen.
+
+        PRACTICE mode is unlimited and answers range requests, so the player
+        can seek.
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+        - $ref: '#/components/parameters/QuestionId'
+      responses:
+        '200':
+          description: The audio stream.
+          content:
+            audio/*:
+              schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: No audio for this question, or the attempt is not the caller's.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '409':
+          description: Already played once, and this attempt is in EXAM mode.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /attempts/{attemptId}/questions/{questionId}/review-audio:
+    get:
+      tags: [review]
+      operationId: getReviewAudio
+      summary: Replay a listening clip after the paper is submitted (YC-114, TCCN-114-2)
+      description: |
+        The same bytes as `getQuestionAudio`, under the opposite rule: unlimited
+        replays, no play recorded, range requests answered so the player can
+        seek to the moment the explanation cites.
+
+        R-01's single play governs **sitting** the paper, not studying it
+        afterwards — `TCCN-114-2` says so in as many words. Without this route
+        a learner who misheard a listening question can never hear it again,
+        which is the one thing the review screen exists to make possible.
+
+        A separate operation rather than a mode inside `getQuestionAudio`: that
+        one exists to enforce the single play, and a rule with an exception
+        threaded through it is a rule with a bug waiting in the exception. This
+        route requires the attempt to be **submitted** and refuses anything
+        else, so no path through it can hand out replays mid-exam.
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+        - $ref: '#/components/parameters/QuestionId'
+      responses:
+        '200':
+          description: The audio stream.
+          content:
+            audio/*:
+              schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: No audio for this question, or the attempt is not the caller's.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '409':
+          description: The attempt has not been submitted, so there is nothing to review.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /attempts/{attemptId}/media/{assetId}:
+    get:
+      tags: [attempt]
+      operationId: getAttemptImage
+      summary: Fetch an image used by a passage or answer choice
+      description: |
+        The asset must belong to a question in the caller's frozen attempt.
+        Images are available both while sitting and while reviewing a paper;
+        unlike listening audio, fetching them is not subject to a play limit.
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+        - $ref: '#/components/parameters/AssetId'
+      responses:
+        '200':
+          description: The image bytes.
+          content:
+            image/png:
+              schema: { type: string, format: binary }
+            image/jpeg:
+              schema: { type: string, format: binary }
+            image/webp:
+              schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: The image is absent, is not an image, or does not belong to the caller's attempt.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /attempts/{attemptId}/sections/{kind}/submit:
+    post:
+      tags: [attempt]
+      operationId: submitSection
+      summary: Close one section (R-04, YC-105)
+      description: |
+        A submitted section cannot be returned to. That is enforced by a
+        trigger on `attempt_answers` rather than by this endpoint, so it holds
+        against a client that forgot, a replayed offline write, and a request
+        made by hand.
+
+        Closing the last open section finishes the attempt, and the response
+        carries the result — leaving a paper IN_PROGRESS with every section
+        closed would be a state the learner cannot act on.
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+        - name: kind
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/SectionKind' }
+      responses:
+        '200':
+          description: Closed.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [finished]
+                properties:
+                  finished:
+                    type: boolean
+                    description: True when that was the last open section.
+                  result: { $ref: '#/components/schemas/AttemptResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: Already submitted, or the attempt is no longer in progress.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /attempts/{attemptId}/sections/{kind}/pause:
+    post:
+      tags: [attempt]
+      operationId: pauseSection
+      summary: Stop the PRACTICE clock (TCCN-105-1)
+      description: |
+        PRACTICE only, and the 409 for EXAM is R-01 rather than an oversight:
+        an exam clock that can be paused is not an exam clock. TCCN-106-2 says
+        closing the browser for twelve minutes costs twelve minutes, and a
+        pause button would be a supported way around exactly that.
+
+        The elapsed time is banked on the way out, so the total survives any
+        number of pauses. Pausing an already-paused section changes nothing.
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+        - name: kind
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/SectionKind' }
+      responses:
+        '204': { description: Paused. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: EXAM mode, or the section or attempt is no longer open.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /attempts/{attemptId}/sections/{kind}/resume:
+    post:
+      tags: [attempt]
+      operationId: resumeSection
+      summary: Start the PRACTICE clock again (TCCN-105-1)
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+        - name: kind
+          in: path
+          required: true
+          schema: { $ref: '#/components/schemas/SectionKind' }
+      responses:
+        '204': { description: Running. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: EXAM mode, or the section or attempt is no longer open.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /attempts/{attemptId}/events:
+    post:
+      tags: [attempt]
+      operationId: recordAttemptEvent
+      summary: Record what happened during an attempt (R-12)
+      description: |
+        Append-only telemetry. The event that carries a rule is
+        `AUDIO_LOAD_FAILED`: after the learner has retried and the audio still
+        will not play, the client records `AUDIO_SKIPPED_SYSTEM_ERROR` and the
+        question is scored as VOIDED rather than wrong. R-12 is explicit that
+        our failure must not count against the learner, and voided questions
+        leave the denominator entirely.
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AttemptEventRequest' }
+      responses:
+        '204': { description: Recorded. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /attempts/{attemptId}/retry-wrong:
+    post:
+      tags: [attempt]
+      operationId: retryWrong
+      summary: Practise the questions this attempt missed (YC-122)
+      description: |
+        Creates a PRACTICE attempt holding exactly the questions that were not
+        answered correctly — wrong ones and blank ones both, because running
+        out of time is not evidence a learner knew the answer.
+
+        Always PRACTICE, and always without a band: a subset of a paper has no
+        blueprint and no honest total, so a level cannot be estimated from it.
+
+        The questions come from the origin attempt's own snapshot rather than
+        from the exam, so a redo asks what was actually asked even if the bank
+        has been edited since (GĐ-3).
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+      responses:
+        '201':
+          description: The redo, ready to sit.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AttemptRunner' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: |
+            Nothing was wrong, the attempt is not submitted, or another attempt
+            is already in progress.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/AttemptInProgressProblem' }
+
+  /me/attempts:
+    get:
+      tags: [attempt]
+      operationId: listAttemptHistory
+      summary: Past attempts, the two modes apart (YC-111)
+      description: |
+        Newest first. `mode` is reported on every row and can be filtered on,
+        because the two must never be merged into one ranking: a PRACTICE score
+        is higher simply because the clock was not running, so a mixed list
+        would show a learner improving when they had only stopped being timed.
+
+        Abandoned attempts stay in the list with that status. History that
+        quietly disappears is indistinguishable from lost work.
+
+        No band appears here. A level beside a score in a list invites exactly
+        the reading điều cấm #1 forbids; it belongs on the result screen, inside
+        the one component that always renders its disclaimer with it.
+      parameters:
+        - { name: mode, in: query, schema: { $ref: '#/components/schemas/AttemptMode' } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200':
+          description: The learner's attempts.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/AttemptHistoryRow' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /attempts/{attemptId}/review:
+    get:
+      tags: [review]
+      operationId: reviewAttempt
+      summary: Answer review with the five explanation layers (YC-108, 112, 113)
+      description: |
+        Defaults to `wrong`, because that is why the learner opened this screen
+        (TCCN-108-2).
+
+        An explanation layer with no authored content is **omitted from the
+        response entirely** — not null, not an empty string. R-07 requires the
+        client to hide the block rather than render an empty frame or a
+        "chưa có" line, and the cheapest way to guarantee that is to give the
+        client nothing to render.
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+        - name: filter
+          in: query
+          schema:
+            type: string
+            enum: [all, wrong, skipped, flagged]
+            default: wrong
+      responses:
+        '200':
+          description: Reviewed questions.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, counts]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/ReviewQuestion' }
+                  counts: { $ref: '#/components/schemas/ReviewCounts' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: The attempt has not been submitted.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /attempts/{attemptId}/topic-summary:
+    get:
+      tags: [review]
+      operationId: getAttemptTopicSummary
+      summary: This attempt's topics by frequency (TCCN-108-5)
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+      responses:
+        '200':
+          description: Topics for this attempt, most-missed first.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/AttemptTopicSummaryRow' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ── topics ────────────────────────────────────────────────────────────────
+
+  /topics:
+    get:
+      tags: [topics]
+      operationId: listTopics
+      summary: Topic suggestions for tagging
+      parameters:
+        - { name: category, in: query, schema: { $ref: '#/components/schemas/TopicCategory' } }
+        - { name: q, in: query, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+      responses:
+        '200':
+          description: Matching topics, curated ones first.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Topic' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+    post:
+      tags: [topics]
+      operationId: createTopic
+      summary: Create a topic, or resolve to an equivalent existing one
+      description: |
+        Returns 200 with the existing topic when the name normalises to one
+        already present, and 201 only when a genuinely new topic was created.
+        Two topics differing by spacing or case would split one weakness across
+        two rows of the analysis table (R-06, TCCN-108-11).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [category, name]
+              properties:
+                category: { $ref: '#/components/schemas/TopicCategory' }
+                name: { type: string, minLength: 1 }
+      responses:
+        '200':
+          description: An equivalent topic already existed; it is returned unchanged.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Topic' }
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Topic' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /attempts/{attemptId}/questions/{questionId}/topics:
+    put:
+      tags: [topics]
+      operationId: setQuestionTopics
+      summary: Set the topics for one question in this attempt (YC-108, R-06)
+      description: |
+        Sets the complete topic set for the question. Because the error log is
+        append-only, the server applies this as a diff rather than a replace:
+        newly added topics are inserted as entries, removed ones are recorded
+        as retractions. Untagging never deletes history (điều cấm #2).
+
+        Entries are written for correct answers too, marked as such — without
+        the denominator, "wrong 8 times" cannot become "wrong 8 of the 11 times
+        you met it" (TCCN-108-7).
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+        - $ref: '#/components/parameters/QuestionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [topicIds]
+              properties:
+                topicIds:
+                  type: array
+                  items: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Applied.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QuestionTopicsResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ── cards ─────────────────────────────────────────────────────────────────
+
+  /cards:
+    post:
+      tags: [cards]
+      operationId: createCard
+      summary: Create a review card (YC-109)
+      description: |
+        Returns 200 with the existing card and `alreadyExisted: true` when the
+        learner already has one for this term, rather than an error —
+        TCCN-109-2 wants "đã có trong bộ X" plus a link to it, which is
+        information, not a failure.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateCardRequest' }
+      responses:
+        '200':
+          description: A matching card already existed.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CardResult' }
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CardResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /cards:batch:
+    post:
+      tags: [cards]
+      operationId: createCardsBatch
+      summary: Create cards for several terms at once (TCCN-109-3)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cards]
+              properties:
+                cards:
+                  type: array
+                  minItems: 1
+                  items: { $ref: '#/components/schemas/CreateCardRequest' }
+      responses:
+        '200':
+          description: Reports how many were created and how many already existed.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CardBatchResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  # ── weakness ──────────────────────────────────────────────────────────────
+
+  /me/weakness:
+    get:
+      tags: [weakness]
+      operationId: getWeakness
+      summary: Cumulative weakness by topic (TCCN-108-6)
+      description: |
+        One row per topic across every attempt, with the multiple-choice and
+        writing counts attributed separately on the same row (TCCN-206-1).
+        Topics with repeat wrong answers sort first — a mistake that survived a
+        retry is the highest-value thing to study next (R-08).
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+      responses:
+        '200':
+          description: The weakness table.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/WeaknessRow' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ── writing ───────────────────────────────────────────────────────────────
+
+  /attempts/{attemptId}/writing/{questionId}:
+    get:
+      tags: [writing]
+      operationId: openWritingTask
+      summary: Open a writing task (YC-201, YC-207)
+      description: |
+        Everything SC-WRITE-DO needs to start: any autosaved draft, the last
+        submission if there is one, and the remaining grading allowance.
+
+        The allowance is part of this response rather than a call the screen
+        could forget to make. YC-207 is a sequencing requirement, not a display
+        one — "hạn mức phải hiện trước khi người học ngồi viết, không phải sau
+        khi đã viết xong 700 chữ".
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+        - $ref: '#/components/parameters/QuestionId'
+      responses:
+        '200':
+          description: The task, its draft, and the allowance.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WritingTaskState' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+    put:
+      tags: [writing]
+      operationId: saveWritingDraft
+      summary: Autosave a draft (YC-201, R-03)
+      description: |
+        Last-write-wins by `clientSeq`, and the stored draft is returned rather
+        than the submitted one. The client's outbox coalesces and retries, so a
+        replayed older draft arriving after a newer one is routine; echoing the
+        request back would leave the screen showing text the server discarded.
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+        - $ref: '#/components/parameters/QuestionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SaveWritingDraftRequest' }
+      responses:
+        '200':
+          description: The draft as stored.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WritingDraft' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /attempts/{attemptId}/writing/{questionId}/submission:
+    post:
+      tags: [writing]
+      operationId: submitWriting
+      summary: Submit a writing task for marking (YC-203, R-09, R-11)
+      description: |
+        The essay is stored before anything is dispatched or charged (R-09), so
+        every path below keeps the learner's text in full.
+
+        202 means it is queued for marking. 200 means there is already a result:
+        either the same text was marked before, which costs nothing (R-11), or
+        the month's allowance is spent and the essay is held as AWAITING_QUOTA
+        with a balance saying when credits return (TCCN-207-2).
+
+        422 is an empty submission — nothing is sent for marking and no credit
+        is spent (TCCN-201-5). Writing under or over the required length is not
+        an error: TCCN-201-4 warns and submits anyway.
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+        - $ref: '#/components/parameters/QuestionId'
+      responses:
+        '200':
+          description: Already marked, or held for want of credits.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WritingSubmission' }
+        '202':
+          description: Queued for marking.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WritingSubmission' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /attempts/{attemptId}/writing/submissions:
+    post:
+      tags: [writing]
+      operationId: submitAllWriting
+      summary: Send every writing task for marking (YC-203)
+      description: |
+        What "Nộp phần Viết" does, and the only way the learner-facing app
+        submits an essay. A per-task button meant tapping it mid-section threw
+        the learner out of a paper they were halfway through; the real paper is
+        collected once, when the section closes.
+
+        Tasks are sent in the order printed on the paper, so when the month's
+        allowance is shorter than the number of tasks, "send what fits" means
+        câu 51 first. The remainder come back `AWAITING_QUOTA` with their text
+        intact (TCCN-207-2), and a task with nothing written in it is skipped
+        without touching a credit (TCCN-201-5).
+
+        Must be called *before* the writing section is submitted: a task whose
+        section has closed is refused with 409 (R-04).
+
+        202 when something was queued, 200 when there was nothing to queue.
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+      responses:
+        '200':
+          description: Nothing to queue — every task blank, or every one held.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WritingBatchSubmitResult' }
+        '202':
+          description: Queued for marking.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WritingBatchSubmitResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /writing/submissions/{submissionId}:
+    get:
+      tags: [writing]
+      operationId: getWritingSubmission
+      summary: Read a submission and its mark (YC-203, YC-204)
+      description: |
+        SC-WRITE-RESULT polls this while `status` is QUEUED or GRADING, which is
+        what TCCN-203-3 means by letting the learner leave the screen.
+      parameters:
+        - $ref: '#/components/parameters/SubmissionId'
+      responses:
+        '200':
+          description: The submission, with its mark when there is one.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WritingSubmission' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /writing/submissions/{submissionId}/retry:
+    post:
+      tags: [writing]
+      operationId: retryWritingSubmission
+      summary: Send a failed or held-back essay for marking again (TCCN-203-4)
+      description: |
+        Free: the failed run released its hold, so the retry takes a fresh one
+        when marking actually starts (R-09). Retrying something already queued
+        or already marked succeeds and changes nothing.
+      parameters:
+        - $ref: '#/components/parameters/SubmissionId'
+      responses:
+        '202':
+          description: Queued, or already in a state that needs no retry.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WritingSubmission' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /me/writing/quota:
+    get:
+      tags: [writing]
+      operationId: getWritingQuota
+      summary: Remaining grading allowance (YC-207, R-11)
+      responses:
+        '200':
+          description: What is left this month, and when it resets.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WritingQuota' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ── admin: ngân hàng đề (SC-BANK-ADMIN) ───────────────────────────────────
+  #
+  # Internal. Every operation here is gated by an rbac permission held only by
+  # content_editor / content_admin, and none of it is reachable by a learner.
+  # The screens live in kolearn-dashboard.
 
   /admin/exams:
     get:
-      tags: [exams]
+      tags: [admin]
       operationId: listAdminExams
       summary: Every exam in the bank, drafts included
       description: |
-        rbac: `exam:read`. Unlike the learner's `GET /exams`, this returns
-        DRAFT and RETIRED papers — the drafts are the work.
+        rbac: `exam:read`. Unlike the learner's `GET /exams` this returns DRAFT
+        and RETIRED papers and carries no per-caller attempt columns — the
+        drafts are the work, and whose attempts they are is not the question
+        this screen asks.
       parameters:
         - name: status
           in: query
@@ -148,36 +1184,11 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
-    post:
-      tags: [exams]
-      operationId: createAdminExam
-      summary: Start a new paper against a blueprint version
-      description: |
-        rbac: `exam:write`. The sections are copied from the named blueprint
-        version at creation time and not re-read afterwards, so a later
-        blueprint revision cannot restructure a paper people have already sat
-        (TCCN-302-1).
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/CreateExamRequest' }
-      responses:
-        '201':
-          description: Created, as a DRAFT.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/AdminExamDetail' }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '409': { $ref: '#/components/responses/Conflict' }
-
   /admin/exams/{examId}:
     parameters:
       - $ref: '#/components/parameters/ExamId'
     get:
-      tags: [exams]
+      tags: [admin]
       operationId: getAdminExam
       summary: One paper, with its sections and the blueprint it was cut from
       description: 'rbac: `exam:read`.'
@@ -190,74 +1201,18 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
-    patch:
-      tags: [exams]
-      operationId: updateAdminExam
-      description: 'rbac: `exam:write`.'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/UpdateExamRequest' }
-      responses:
-        '200':
-          description: Saved.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/AdminExamDetail' }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-
-  /admin/exams/{examId}/publish:
-    parameters:
-      - $ref: '#/components/parameters/ExamId'
-    post:
-      tags: [exams]
-      operationId: publishAdminExam
-      summary: Run the release gate, and publish when it passes
-      description: |
-        rbac: `exam:publish`. Mirrors `bank.Publish` field for field, including
-        the split the server already makes: **blockers** refuse the publish,
-        **warnings** do not (TCCN-301-7). `dryRun` runs the gate and reports
-        without releasing, which is how the screen shows the two groups before
-        anyone commits to anything.
-
-        A 200 with a non-empty `blockers` means the gate ran and refused. That
-        is not an error — the report is the answer — so it is not a problem+json.
-      parameters:
-        - name: dryRun
-          in: query
-          schema: { type: boolean, default: false }
-        - name: acceptWarnings
-          in: query
-          description: |
-            Required when the report carries warnings and none of them block.
-            The confirmation step exists because a warning nobody has to
-            acknowledge is a warning nobody reads.
-          schema: { type: boolean, default: false }
-      responses:
-        '200':
-          description: The gate ran. Read `published` for what happened.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/PublishReport' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
 
   /admin/exams/{examId}/questions:
     parameters:
       - $ref: '#/components/parameters/ExamId'
     get:
-      tags: [questions]
+      tags: [admin]
       operationId: listAdminQuestions
       summary: The paper's questions, with how much of each is authored
       description: 'rbac: `exam:read`.'
       responses:
         '200':
-          description: The questions.
+          description: The questions, in paper order.
           content:
             application/json:
               schema:
@@ -271,13 +1226,50 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
-  # ── questions ─────────────────────────────────────────────────────────────
+  /admin/exams/{examId}/publish:
+    parameters:
+      - $ref: '#/components/parameters/ExamId'
+    post:
+      tags: [admin]
+      operationId: publishAdminExam
+      summary: Run the release gate, and publish when it passes
+      description: |
+        rbac: `exam:publish`. Reports what `bank.Publish` reports, including the
+        split it already makes: **blockers** refuse the publish, **warnings** do
+        not. Merging the two would destroy the reason both exist — if warnings
+        blocked as well, nobody would publish anything and the gate would be
+        routed around (TCCN-301-7).
+
+        `dryRun` runs the gate and reports without releasing, which is how the
+        screen shows both groups before anyone commits to anything. A 200 with
+        a non-empty `blockers` means the gate ran and refused; that is the
+        answer, not an error, so it is not problem+json.
+      parameters:
+        - name: dryRun
+          in: query
+          schema: { type: boolean, default: false }
+        - name: acceptWarnings
+          in: query
+          description: |
+            Required when the report carries warnings and nothing blocks. The
+            confirmation step exists because a warning nobody has to
+            acknowledge is a warning nobody reads.
+          schema: { type: boolean, default: false }
+      responses:
+        '200':
+          description: The gate ran. Read `published` for what happened.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PublishReport' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /admin/questions/{questionId}:
     parameters:
       - $ref: '#/components/parameters/QuestionId'
     get:
-      tags: [questions]
+      tags: [admin]
       operationId: getAdminQuestion
       summary: Everything the author edits, in one payload
       description: 'rbac: `exam:read`.'
@@ -291,18 +1283,19 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
     put:
-      tags: [questions]
+      tags: [admin]
       operationId: saveAdminQuestion
       summary: Save the draft
       description: |
-        rbac: `question:write`. A half-built question saves (TCCN-301-10):
-        three choices, two correct answers, or no explanation at all are all
-        legal here and are caught by the publish gate instead. Requiring a
-        complete question at first save only teaches authors to type filler,
-        and the filler stays.
+        rbac: `question:write`. A half-built question saves — three choices, two
+        correct answers, no explanation at all (TCCN-301-10). Requiring a
+        complete question at first save only teaches an author to type filler
+        to get past it, and the filler stays; the publish gate is where the
+        shape is enforced.
 
         The one refusal is the answer key of a question learners have already
-        sat: 409 `question-answer-locked` (TCCN-301-8).
+        sat, which is refused by a trigger in migration 00016 whatever this
+        handler believes (TCCN-301-8).
       requestBody:
         required: true
         content:
@@ -320,16 +1313,18 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
           description: |
-            The answer key cannot change on a question that has been sat.
+            `question_answer_locked` — the answer key cannot change on a
+            question that has been sat.
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/AnswerLockedProblem' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
 
   /admin/questions/{questionId}/versions:
     parameters:
       - $ref: '#/components/parameters/QuestionId'
     post:
-      tags: [questions]
+      tags: [admin]
       operationId: createQuestionVersion
       summary: Supersede a question rather than rewrite it
       description: |
@@ -338,13 +1333,14 @@ paths:
         one carries the correction forward (TCCN-301-8).
       responses:
         '201':
-          description: The new version, in DRAFT.
+          description: The new version, in the same exam and section.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/AdminQuestion' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
 
   /admin/passages/{passageId}:
     parameters:
@@ -353,10 +1349,13 @@ paths:
         required: true
         schema: { type: string, format: uuid }
     get:
-      tags: [questions]
+      tags: [admin]
       operationId: getAdminPassage
       summary: The stimulus a layer-4 span is measured against
-      description: 'rbac: `exam:read`.'
+      description: |
+        rbac: `exam:read`. The author selects inside this text to produce the
+        character range, so the offsets stored are offsets into exactly what is
+        returned here.
       responses:
         '200':
           description: The passage.
@@ -367,76 +1366,21 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
-  # ── topics ────────────────────────────────────────────────────────────────
-
-  /admin/topics:
-    get:
-      tags: [topics]
-      operationId: searchAdminTopics
-      summary: Autocomplete over the normalised catalogue
-      description: |
-        rbac: `exam:read`. `q` matches the normalised name, so an author
-        looking for a topic finds the one that already exists rather than
-        creating its second spelling. R-06 counts weakness *by topic*; two
-        spellings split "sai 8 trên 11 lần gặp" into two rows, both wrong
-        (TCCN-301-5).
-      parameters:
-        - name: q
-          in: query
-          schema: { type: string }
-        - name: category
-          in: query
-          schema: { $ref: '#/components/schemas/TopicCategory' }
-      responses:
-        '200':
-          description: Matching topics, curated ones first.
-          content:
-            application/json:
-              schema:
-                type: object
-                required: [items]
-                properties:
-                  items:
-                    type: array
-                    items: { $ref: '#/components/schemas/Topic' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-    post:
-      tags: [topics]
-      operationId: createAdminTopic
-      summary: Add to the catalogue
-      description: |
-        rbac: `topic:manage` — a stricter permission than the one that tags a
-        question with an existing topic, deliberately. `content_editor` may
-        author all day and cannot widen the catalogue.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/CreateTopicRequest' }
-      responses:
-        '201':
-          description: Created.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Topic' }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '409': { $ref: '#/components/responses/Conflict' }
-
-  # ── blueprints ────────────────────────────────────────────────────────────
-
   /admin/blueprints:
     get:
-      tags: [blueprints]
+      tags: [admin]
       operationId: listBlueprints
       summary: R-16's exam structure, as configuration
       description: |
-        rbac: `exam:read`. The section counts, time limits, scores and sitting
+        rbac: `exam:read`. Section counts, time limits, scores and sitting
         numbers come from `exam_blueprints`, which is versioned. GĐ-1 warns the
-        TOPIK format changes between years, so a format change is a new
-        version, not an edit — and never a constant in a screen (TCCN-302-1).
+        TOPIK format changes between years and must be checked against the
+        official publication, so a format change is a new version rather than
+        an edit — and never a constant in a screen (TCCN-302-1).
+
+        Read-only over HTTP by design: `kolearn_app` has no INSERT, UPDATE or
+        DELETE on this table (migration 00012). Exam structure changes through
+        a migration a person reviewed.
       responses:
         '200':
           description: Every blueprint version.
@@ -452,17 +1396,22 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
-  # ── imports ───────────────────────────────────────────────────────────────
-
   /admin/imports/dry-run:
     post:
-      tags: [imports]
+      tags: [admin]
       operationId: dryRunImport
       summary: Report what a bundle would do, and write nothing
       description: |
-        rbac: `import:manage`. Runs the same validation gate as the real
-        import and touches no row (TCCN-301-6). The real run that follows must
-        produce exactly the changes reported here.
+        rbac: `import:manage`. Runs the same validation gate as the real import
+        and touches no row (TCCN-301-6). Every problem is reported at once
+        rather than stopping at the first: fixing a thousand-question file one
+        error per run is not a workflow anyone follows — people hand-edit the
+        database instead, and the paper lands in the bank without ever passing
+        the gate.
+
+        Bundles posted here carry no audio or images. A paper with media still
+        goes through `cmd/importer -assets`, which is the only path that can
+        upload the files.
       requestBody:
         required: true
         content:
@@ -470,20 +1419,24 @@ paths:
             schema: { $ref: '#/components/schemas/ImportRequest' }
       responses:
         '200':
-          description: What would happen.
+          description: What would happen, or why it cannot.
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ImportPreview' }
+              schema: { $ref: '#/components/schemas/ImportReport' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
   /admin/imports:
     post:
-      tags: [imports]
+      tags: [admin]
       operationId: runImport
       summary: Apply a bundle to the bank
-      description: 'rbac: `import:manage`.'
+      description: |
+        rbac: `import:manage`. Imports as a DRAFT; publishing is a separate,
+        gated step. An exam whose code already exists is refused rather than
+        merged — a re-import is a new version of a paper, not an edit to one
+        people may already have sat.
       requestBody:
         required: true
         content:
@@ -494,10 +1447,11 @@ paths:
           description: Applied.
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ImportPreview' }
+              schema: { $ref: '#/components/schemas/ImportReport' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/Unprocessable' }
 
 components:
@@ -514,8 +1468,23 @@ components:
       in: path
       required: true
       schema: { type: string, format: uuid }
+    AttemptId:
+      name: attemptId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
     QuestionId:
       name: questionId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    AssetId:
+      name: assetId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    SubmissionId:
+      name: submissionId
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -537,7 +1506,7 @@ components:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
     NotFound:
-      description: No such resource.
+      description: No such resource, or it does not belong to the caller.
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
@@ -559,7 +1528,7 @@ components:
 
   schemas:
 
-    # ── shared with kolearn-server, verbatim ────────────────────────────────
+    # ── errors ──────────────────────────────────────────────────────────────
 
     Problem:
       type: object
@@ -569,6 +1538,10 @@ components:
         title: { type: string }
         status: { type: integer }
         detail: { type: string }
+        # RFC 9457's standard member for the specific occurrence. Nothing
+        # populates it today, but `httpx.Problem` carries the field and would
+        # otherwise emit a member no generated client declares.
+        instance: { type: string }
         code: { type: string }
         requestId: { type: string }
         errors:
@@ -579,6 +1552,23 @@ components:
             properties:
               field: { type: string }
               message: { type: string }
+
+    AttemptInProgressProblem:
+      allOf:
+        - $ref: '#/components/schemas/Problem'
+        - type: object
+          properties:
+            inProgressAttempt: { $ref: '#/components/schemas/AttemptSummary' }
+
+    # ── auth ────────────────────────────────────────────────────────────────
+
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 10 }
+        displayName: { type: string }
 
     LoginRequest:
       type: object
@@ -615,6 +1605,8 @@ components:
           type: array
           items: { type: string }
 
+    # ── catalog ─────────────────────────────────────────────────────────────
+
     ExamLevel:
       type: string
       enum: [TOPIK_I, TOPIK_II]
@@ -623,7 +1615,925 @@ components:
       type: string
       enum: [LISTENING, WRITING, READING]
 
-    # ── admin ───────────────────────────────────────────────────────────────
+    AttemptMode:
+      type: string
+      enum: [PRACTICE, EXAM]
+
+    ExamListItem:
+      type: object
+      required: [id, code, title, level, questionCount, attemptCount]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        title: { type: string }
+        level: { $ref: '#/components/schemas/ExamLevel' }
+        year: { type: integer }
+        questionCount: { type: integer }
+        attemptCount:
+          type: integer
+          description: How many times the caller has taken this exam.
+        bestScore:
+          type: integer
+          description: |
+            The caller's best total. Absent when they have never submitted an
+            attempt — which the list screen renders as its empty state rather
+            than as a zero (R-13).
+        lastAttemptedAt: { type: string, format: date-time }
+
+    ExamDetail:
+      type: object
+      required: [id, code, title, level, blueprintVersion, totalScore, sections]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        title: { type: string }
+        level: { $ref: '#/components/schemas/ExamLevel' }
+        blueprintVersion: { type: string }
+        totalScore: { type: integer }
+        hasTranslations:
+          type: boolean
+          description: |
+            False when this exam has no Vietnamese content, in which case the
+            client hides the translation toggle entirely rather than showing it
+            disabled (TCCN-121-3).
+        sections:
+          type: array
+          items: { $ref: '#/components/schemas/ExamSection' }
+
+    ExamSection:
+      type: object
+      required: [kind, ordinal, questionCount, timeLimitSeconds, maxScore]
+      properties:
+        kind: { $ref: '#/components/schemas/SectionKind' }
+        sitting: { type: integer }
+        ordinal: { type: integer }
+        questionCount: { type: integer }
+        timeLimitSeconds: { type: integer }
+        maxScore: { type: integer }
+
+    # ── attempt (runner) ────────────────────────────────────────────────────
+
+    StartAttemptRequest:
+      type: object
+      required: [examId, mode]
+      properties:
+        examId: { type: string, format: uuid }
+        mode: { $ref: '#/components/schemas/AttemptMode' }
+        sections:
+          type: array
+          description: |
+            PRACTICE only (YC-102). Omitted or empty means the whole paper.
+
+            Sending this in EXAM mode is a 422 rather than being ignored: R-01
+            says a Thi thử sits every section, and a client that offered the
+            choice and silently got the whole paper would have told the learner
+            something untrue about what they were about to sit.
+
+            The attempt contains exactly these sections and nothing else
+            (TCCN-102-3), and a paper missing a section cannot produce a band.
+          items: { $ref: '#/components/schemas/SectionKind' }
+
+    AttemptSummary:
+      type: object
+      required: [id, examId, examTitle, mode, status, startedAt]
+      properties:
+        id: { type: string, format: uuid }
+        examId: { type: string, format: uuid }
+        examTitle: { type: string }
+        mode: { $ref: '#/components/schemas/AttemptMode' }
+        status:
+          type: string
+          enum: [IN_PROGRESS, SUBMITTED, ABANDONED]
+        startedAt: { type: string, format: date-time }
+        unansweredCount: { type: integer }
+
+    AttemptRunner:
+      type: object
+      description: |
+        Everything the runner screen needs, and deliberately nothing more.
+
+        There is no correctness field anywhere in this tree, in either mode.
+        The review response is a separate schema that shares no structure with
+        this one, so a field cannot be added to both by accident.
+      required: [id, examId, examTitle, mode, status, startedAt, sections, questions]
+      properties:
+        id: { type: string, format: uuid }
+        examId: { type: string, format: uuid }
+        examTitle: { type: string }
+        mode: { $ref: '#/components/schemas/AttemptMode' }
+        status:
+          type: string
+          enum: [IN_PROGRESS, SUBMITTED, ABANDONED]
+        startedAt: { type: string, format: date-time }
+        currentQuestionId: { type: string, format: uuid }
+        translationVisible:
+          type: boolean
+          description: Defaults to false — the learner reads for themselves first (R-07).
+        serverTime:
+          type: string
+          format: date-time
+          description: |
+            Sent so the client can measure its clock offset. EXAM deadlines are
+            absolute instants, and a device with a skewed clock would otherwise
+            show the wrong remaining time.
+        sections:
+          type: array
+          items: { $ref: '#/components/schemas/AttemptSectionState' }
+        questions:
+          type: array
+          items: { $ref: '#/components/schemas/RunnerQuestion' }
+        answers:
+          type: array
+          items: { $ref: '#/components/schemas/AnswerState' }
+        writingProgress:
+          type: array
+          description: |
+            The writing section's equivalent of `answers`: enough for the
+            question palette to tell a written task from a blank one, and not
+            one word of what was written.
+          items: { $ref: '#/components/schemas/WritingProgress' }
+
+    AttemptSectionState:
+      type: object
+      required: [kind, ordinal, status, timeLimitSeconds]
+      properties:
+        kind: { $ref: '#/components/schemas/SectionKind' }
+        ordinal: { type: integer }
+        status:
+          type: string
+          enum: [PENDING, IN_PROGRESS, SUBMITTED]
+        timeLimitSeconds: { type: integer }
+        deadlineAt:
+          type: string
+          format: date-time
+          description: |
+            EXAM only. An absolute instant, not a remaining duration: closing
+            the browser for twelve minutes has to cost twelve minutes
+            (TCCN-106-2), which a countdown the client owns cannot guarantee.
+        paused:
+          type: boolean
+          description: |
+            PRACTICE only. True when the clock is stopped, so a resumed attempt
+            comes back paused rather than quietly counting the time the learner
+            deliberately stepped away for.
+        elapsedMs:
+          type: integer
+          format: int64
+          description: PRACTICE only — accumulates while the screen is open (TCCN-106-3).
+
+    RunnerQuestion:
+      type: object
+      description: |
+        A question as the learner sees it while working.
+
+        No `isCorrect`, no `whyWrong`, no `explanation`, no `evidence`. Adding
+        any of them here would leak the answer key to anyone reading the
+        network tab, and would do so silently — a Go reflection test fails the
+        build if a field matching those names appears in the corresponding
+        struct.
+      required: [id, ordinal, sectionKind, type, stemKo, choices]
+      properties:
+        id: { type: string, format: uuid }
+        ordinal:
+          type: integer
+          description: Official learner-facing number within the paper section.
+        sectionKind: { $ref: '#/components/schemas/SectionKind' }
+        type:
+          type: string
+          enum: [MCQ, FILL_BLANK, ESSAY]
+        stemKo: { type: string }
+        stemVi: { type: string }
+        maxScore: { type: integer }
+        passage: { $ref: '#/components/schemas/RunnerPassage' }
+        choices:
+          type: array
+          items: { $ref: '#/components/schemas/RunnerChoice' }
+        lengthRange:
+          allOf: [{ $ref: '#/components/schemas/WritingLengthRange' }]
+          description: |
+            Present on a writing task. Read from exam_blueprints.writing_tasks,
+            never from a constant: GĐ-1 warns the paper's shape changes between
+            years, so "600–700" is data (R-16).
+        blanks:
+          type: array
+          description: |
+            Present on Q51/Q52. Position only — the accepted answers are the
+            answer key and never leave the server (TCCN-202-1).
+          items: { $ref: '#/components/schemas/WritingBlank' }
+
+    RunnerPassage:
+      type: object
+      required: [id, kind]
+      properties:
+        id: { type: string, format: uuid }
+        kind:
+          type: string
+          enum: [TEXT, AUDIO]
+        bodyKo: { type: string }
+        bodyVi: { type: string }
+        audioUrl: { type: string }
+        images:
+          type: array
+          items: { $ref: '#/components/schemas/ExamImage' }
+
+    RunnerChoice:
+      type: object
+      required: [ordinal, textKo]
+      properties:
+        ordinal: { type: integer, minimum: 1, maximum: 4 }
+        textKo: { type: string }
+        textVi: { type: string }
+        images:
+          type: array
+          items: { $ref: '#/components/schemas/ExamImage' }
+
+    ExamImage:
+      type: object
+      required: [id, ordinal, url, altKo]
+      properties:
+        id: { type: string, format: uuid }
+        ordinal: { type: integer, minimum: 1 }
+        url: { type: string }
+        altKo: { type: string }
+        altVi: { type: string }
+
+    RecordAnswerRequest:
+      type: object
+      required: [clientSeq]
+      properties:
+        selectedChoiceOrdinal:
+          type: [integer, 'null']
+          minimum: 1
+          maximum: 4
+          description: Null clears the answer back to skipped.
+        flagged:
+          type: boolean
+          description: Independent of the answer — flagged and answered is valid (R-02).
+        clientSeq:
+          type: integer
+          format: int64
+          description: Monotonic per client; an older write never overwrites a newer one.
+
+    AnswerState:
+      type: object
+      required: [questionId, flagged]
+      properties:
+        questionId: { type: string, format: uuid }
+        selectedChoiceOrdinal: { type: [integer, 'null'] }
+        flagged: { type: boolean }
+        answeredAt: { type: string, format: date-time }
+
+    # ── result ──────────────────────────────────────────────────────────────
+
+    AttemptResult:
+      type: object
+      required:
+        [attemptId, mode, totalScore, maxTotalScore, correctCount, wrongCount,
+         skippedCount, voidedCount, sections, submittedAt]
+      properties:
+        attemptId: { type: string, format: uuid }
+        examTitle: { type: string }
+        mode: { $ref: '#/components/schemas/AttemptMode' }
+        totalScore: { type: integer }
+        maxTotalScore: { type: integer }
+        correctCount: { type: integer }
+        wrongCount:
+          type: integer
+          description: |
+            Answered and wrong. Kept apart from skipped because "did not know"
+            and "ran out of time" are different problems needing different
+            responses (R-05).
+        skippedCount: { type: integer }
+        voidedCount:
+          type: integer
+          description: |
+            Questions dropped because the system failed — an audio file that
+            would not load after three retries (R-12). Excluded from wrong;
+            our outage is not the learner's mistake.
+        elapsedMs: { type: integer, format: int64 }
+        submittedAt: { type: string, format: date-time }
+        sections:
+          type: array
+          items: { $ref: '#/components/schemas/SectionResult' }
+        estimatedBand: { $ref: '#/components/schemas/EstimatedBand' }
+        bandWithheldReason:
+          type: string
+          enum: [PRACTICE_MODE, INCOMPLETE_SECTIONS, NOT_A_FULL_PAPER, WRITING_PENDING]
+          description: |
+            Present instead of `estimatedBand` when no level may be shown at
+            all. The screen states which rule applied rather than silently
+            omitting the row.
+        writingSubmissions:
+          type: array
+          description: |
+            Where the writing section's score leads. Every other number on the
+            result screen links to the questions it counts (CR-03); the writing
+            section cannot use the review screen, which shows choices and
+            explanations an essay does not have.
+          items: { $ref: '#/components/schemas/AttemptWritingSubmissionRef' }
+        includesMachineMarkedScore:
+          type: boolean
+          description: |
+            True when the total contains an AI-marked writing score. The total
+            is still the real 300-point total, because the actual exam counts
+            writing the same way — but it must not be displayed without the
+            "phần Viết do máy chấm — điểm ước tính" note beside it.
+
+    SectionResult:
+      type: object
+      required: [kind, correct, wrong, skipped, total, scaledScore, maxScore, machineMarked]
+      properties:
+        kind: { $ref: '#/components/schemas/SectionKind' }
+        correct: { type: integer }
+        wrong: { type: integer }
+        skipped: { type: integer }
+        voided: { type: integer }
+        total: { type: integer }
+        scaledScore:
+          type: integer
+          description: On the section's own 100-point scale, not a count of right answers (R-05).
+        maxScore: { type: integer }
+        elapsedMs: { type: integer, format: int64 }
+        machineMarked:
+          type: boolean
+          description: The writing section, shown apart from the marked-by-machine sections (TCCN-203-2).
+
+    EstimatedBand:
+      type: object
+      description: |
+        An estimated level, never an exam result.
+
+        `disclaimer` is a required field rather than something the client
+        supplies, so the caveat cannot be lost between the API and the screen.
+        Điều cấm #1 is that a learner might believe they have reached cấp 4,
+        pay to sit the real exam, and fail.
+      required: [band, achieved, hasNextBand, disclaimer, blueprintVersion]
+      properties:
+        band:
+          type: integer
+          minimum: 0
+          maximum: 6
+          description: |
+            0 means "chưa đạt cấp nào" — a complete paper that landed below the
+            lowest threshold. That is a real result with a real gap to report
+            (TCCN-107-8), distinct from a band being withheld.
+        achieved: { type: boolean }
+        hasNextBand:
+          type: boolean
+          description: |
+            False at the top band, where there is nothing left to climb toward.
+            Required, and the only thing a client may branch on: `nextBand` and
+            `pointsToNext` are omitted when zero, so their absence cannot tell
+            "no band above this one" apart from "the value happened to be 0".
+        nextBand: { type: integer }
+        pointsToNext:
+          type: integer
+          description: '"Còn 1 điểm nữa để đạt cấp 2" (TCCN-107-7).'
+        marginOverCurrent:
+          type: integer
+          description: Headroom over the threshold just cleared (TCCN-107-2).
+        blueprintVersion: { type: string }
+        disclaimer: { type: string }
+        thresholdNote:
+          type: string
+          description: |
+            The reminder that thresholds come from the published exam rules and
+            should be re-checked against the most recent sitting (TCCN-107-3).
+
+    # ── review ──────────────────────────────────────────────────────────────
+
+    ReviewCounts:
+      type: object
+      required: [all, wrong, skipped, flagged]
+      properties:
+        all: { type: integer }
+        wrong: { type: integer }
+        skipped: { type: integer }
+        flagged: { type: integer }
+
+    AttemptEventRequest:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum:
+            - AUDIO_PLAYED
+            - AUDIO_LOAD_FAILED
+            - AUDIO_SKIPPED_SYSTEM_ERROR
+            - PAUSED
+            - RESUMED
+        questionId: { type: string, format: uuid }
+        payload:
+          type: object
+          additionalProperties: true
+          description: Free-form detail, e.g. the failure count that led to a skip.
+
+    AttemptHistoryRow:
+      type: object
+      required: [id, examId, examTitle, examCode, level, mode, kind, status, startedAt, sectionsSat]
+      properties:
+        id: { type: string, format: uuid }
+        examId: { type: string, format: uuid }
+        examTitle: { type: string }
+        examCode: { type: string }
+        level: { $ref: '#/components/schemas/ExamLevel' }
+        mode: { $ref: '#/components/schemas/AttemptMode' }
+        kind:
+          type: string
+          enum: [FULL, SECTION, WRONG_REDO, GENERATED]
+        status:
+          type: string
+          enum: [IN_PROGRESS, SUBMITTED, ABANDONED]
+        startedAt: { type: string, format: date-time }
+        submittedAt: { type: string, format: date-time }
+        totalScore:
+          type: integer
+          description: |
+            Absent unless the attempt was actually scored, so an unfinished
+            paper renders as nothing rather than as a zero.
+        maxTotalScore: { type: integer }
+        sectionsSat:
+          type: array
+          items: { $ref: '#/components/schemas/SectionKind' }
+
+    ReviewQuestion:
+      type: object
+      description: |
+        A question after submission, with everything the runner response
+        withholds.
+
+        Layers 2 to 5 are optional here in the strict sense: a layer the exam
+        author never wrote is absent from the JSON, so the client renders
+        nothing rather than an empty frame (R-07 constraint 3, TCCN-112-4).
+      required: [id, ordinal, sectionKind, stemKo, outcome, correctChoiceOrdinal, choices, topics]
+      properties:
+        id: { type: string, format: uuid }
+        ordinal:
+          type: integer
+          description: Official learner-facing number within the paper section.
+        sectionKind: { $ref: '#/components/schemas/SectionKind' }
+        stemKo: { type: string }
+        stemVi: { type: string }
+        passage: { $ref: '#/components/schemas/ReviewPassage' }
+        outcome:
+          type: string
+          enum: [CORRECT, WRONG, SKIPPED, VOIDED]
+        selectedChoiceOrdinal: { type: [integer, 'null'] }
+        correctChoiceOrdinal: { type: integer }
+        flagged: { type: boolean }
+        choices:
+          type: array
+          items: { $ref: '#/components/schemas/ReviewChoice' }
+        explanationCorrect:
+          $ref: '#/components/schemas/LocalisedText'
+          description: |
+            Layer 2 — why the right answer is right. Shown for every question,
+            including ones answered correctly: answering right by elimination
+            is a wrong answer that has not happened yet (R-07, YC-112).
+        explanationWrongGeneric:
+          $ref: '#/components/schemas/LocalisedText'
+          description: |
+            Layer 3 fallback, used when the author wrote one shared note rather
+            than a per-distractor one (TCCN-112-3).
+        evidence:
+          type: array
+          description: Layer 4. Absent entirely when the question has no source material (TCCN-114-3).
+          items: { $ref: '#/components/schemas/ReviewEvidence' }
+        topics:
+          type: array
+          description: |
+            Layer 5, as tappable chips. Topics authored with the exam arrive
+            already attached, so the learner does not re-tag what the author
+            already identified (R-07 constraint 1, TCCN-108-4).
+          items: { $ref: '#/components/schemas/AttachedTopic' }
+
+    ReviewPassage:
+      type: object
+      required: [id, kind]
+      properties:
+        id: { type: string, format: uuid }
+        kind:
+          type: string
+          enum: [TEXT, AUDIO]
+        bodyKo: { type: string }
+        bodyVi: { type: string }
+        transcriptKo: { type: string }
+        transcriptVi: { type: string }
+        audioUrl: { type: string }
+        images:
+          type: array
+          items: { $ref: '#/components/schemas/ExamImage' }
+
+    ReviewChoice:
+      type: object
+      required: [ordinal, textKo, isCorrect]
+      properties:
+        ordinal: { type: integer }
+        textKo: { type: string }
+        textVi: { type: string }
+        images:
+          type: array
+          items: { $ref: '#/components/schemas/ExamImage' }
+        isCorrect: { type: boolean }
+        whyWrong:
+          $ref: '#/components/schemas/LocalisedText'
+          description: |
+            Layer 3, specific to this distractor — two learners who chose
+            differently read different explanations (TCCN-112-3).
+
+    ReviewEvidence:
+      type: object
+      properties:
+        passageId: { type: string, format: uuid }
+        charStart: { type: integer }
+        charEnd: { type: integer }
+        audioStartMs: { type: integer }
+        audioEndMs: { type: integer }
+        quote: { $ref: '#/components/schemas/LocalisedText' }
+
+    LocalisedText:
+      type: object
+      properties:
+        ko: { type: string }
+        vi: { type: string }
+
+    AttachedTopic:
+      type: object
+      required: [id, category, name, source]
+      properties:
+        id: { type: string, format: uuid }
+        category: { $ref: '#/components/schemas/TopicCategory' }
+        name: { type: string }
+        source:
+          type: string
+          enum: [AUTHORED, LEARNER]
+          description: Whether the exam author attached this or the learner did.
+
+    AttemptTopicSummaryRow:
+      type: object
+      required: [topic, wrongCount, totalCount]
+      properties:
+        topic: { $ref: '#/components/schemas/Topic' }
+        wrongCount: { type: integer }
+        totalCount: { type: integer }
+        questionIds:
+          type: array
+          description: So tapping the row filters the review list to exactly these questions.
+          items: { type: string, format: uuid }
+
+    # ── topics ──────────────────────────────────────────────────────────────
+
+    TopicCategory:
+      type: string
+      enum: [GRAMMAR, VOCAB, READING_SKILL, LISTENING_SKILL]
+
+    Topic:
+      type: object
+      required: [id, category, name, isSystem]
+      properties:
+        id: { type: string, format: uuid }
+        category: { $ref: '#/components/schemas/TopicCategory' }
+        name: { type: string }
+        isSystem:
+          type: boolean
+          description: Curated topics seed the suggestion list and rank above learner-created ones.
+
+    QuestionTopicsResult:
+      type: object
+      required: [topics, added, retracted]
+      properties:
+        topics:
+          type: array
+          items: { $ref: '#/components/schemas/AttachedTopic' }
+        added: { type: integer }
+        retracted:
+          type: integer
+          description: |
+            Topics removed. Recorded as retractions rather than deletions —
+            the error log is append-only (điều cấm #2).
+
+    # ── cards ───────────────────────────────────────────────────────────────
+
+    CreateCardRequest:
+      type: object
+      required: [type, front]
+      properties:
+        type:
+          type: string
+          enum: [VOCAB, GRAMMAR, STRUCTURE_TEMPLATE]
+        front: { type: string, minLength: 1 }
+        back: { type: string }
+        sourceQuestionId:
+          type: string
+          format: uuid
+          description: The card inherits this question's topics (TCCN-109-1).
+
+    CardResult:
+      type: object
+      required: [id, type, front, deckId, deckName, alreadyExisted]
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string }
+        front: { type: string }
+        back: { type: string }
+        deckId: { type: string, format: uuid }
+        deckName: { type: string }
+        alreadyExisted:
+          type: boolean
+          description: |
+            True when a card for this term was already in the collection. The
+            existing card is returned unchanged — in particular its review
+            schedule is untouched (TCCN-115-2).
+
+    CardBatchResult:
+      type: object
+      required: [created, alreadyExisted, cards]
+      properties:
+        created: { type: integer }
+        alreadyExisted: { type: integer }
+        cards:
+          type: array
+          items: { $ref: '#/components/schemas/CardResult' }
+
+    # ── writing ─────────────────────────────────────────────────────────────
+
+    AttemptWritingSubmissionRef:
+      type: object
+      required: [questionId, submissionId, displayOrdinal, status]
+      properties:
+        questionId: { type: string, format: uuid }
+        submissionId: { type: string, format: uuid }
+        displayOrdinal: { type: integer }
+        status: { $ref: '#/components/schemas/WritingStatus' }
+
+    WritingProgress:
+      type: object
+      required: [questionId, charCount, submitted]
+      properties:
+        questionId: { type: string, format: uuid }
+        charCount: { type: integer }
+        submitted:
+          type: boolean
+          description: Sent for marking, as opposed to merely started.
+
+    WritingLengthRange:
+      type: object
+      required: [minChars, maxChars]
+      properties:
+        minChars: { type: integer }
+        maxChars: { type: integer }
+
+    WritingBlank:
+      type: object
+      description: |
+        One gap in Q51/Q52 — where it is, and nothing else. accepted_answers is
+        the answer key and is not selected by any query that serves a learner.
+      required: [ordinal, label]
+      properties:
+        ordinal: { type: integer }
+        label: { type: string }
+
+    WritingBlankAnswer:
+      type: object
+      required: [ordinal, text]
+      properties:
+        ordinal: { type: integer }
+        text: { type: string }
+
+    WritingStatus:
+      type: string
+      description: |
+        DRAFT is being written. QUEUED and GRADING are the pending states
+        TCCN-203-3 requires the screen to show. FAILED keeps the essay and
+        offers a free retry (TCCN-203-4). AWAITING_QUOTA keeps the essay when
+        the month's allowance is spent (TCCN-207-2).
+      enum: [DRAFT, QUEUED, GRADING, GRADED, FAILED, AWAITING_QUOTA]
+
+    WritingCriterion:
+      type: string
+      description: |
+        The three criteria a real examiner marks against. They are reported
+        separately and never summed on the wire (TCCN-203-1): "your writing was
+        63" tells a learner nothing they can act on, while "language use 24 of
+        40" does.
+      enum: [CONTENT_COMPLETION, STRUCTURE_DEVELOPMENT, LANGUAGE_USE]
+
+    WritingCriterionScore:
+      type: object
+      required: [criterion, score, maxScore]
+      properties:
+        criterion: { $ref: '#/components/schemas/WritingCriterion' }
+        score: { type: number }
+        maxScore: { type: number }
+
+    WritingBlankResult:
+      type: object
+      required: [ordinal, answer, score, maxScore, adjudicated, note]
+      properties:
+        ordinal: { type: integer }
+        answer: { type: string }
+        score: { type: integer }
+        maxScore: { type: integer }
+        adjudicated:
+          type: boolean
+          description: |
+            True when the authored list did not contain this answer and the
+            model was asked how close it was (R-16).
+        note: { type: string }
+
+    WritingGrade:
+      type: object
+      description: |
+        `criteria` is populated for an essay (Q53, Q54) and `blanks` for a
+        fill-blank task (Q51, Q52); never both. There is no total on either —
+        see WritingCriterion.
+      required: [criteria, blanks, disclaimer]
+      properties:
+        criteria:
+          type: array
+          items: { $ref: '#/components/schemas/WritingCriterionScore' }
+        blanks:
+          type: array
+          items: { $ref: '#/components/schemas/WritingBlankResult' }
+        disclaimer:
+          type: string
+          description: |
+            Required, so the number cannot reach a screen without the caveat
+            that a machine produced it (điều cấm #1, R-09 constraint 1).
+
+    WritingIssue:
+      type: object
+      description: |
+        One mark on the essay. `charStart`/`charEnd` are offsets in Unicode code
+        points — index with Array.from(text), not with String.prototype.slice,
+        whose UTF-16 units shift on any character outside the BMP.
+      required: [id, kind, charStart, charEnd, originalText, correctedText, explanation, criterion, uncertain]
+      properties:
+        id: { type: string, format: uuid }
+        kind:
+          type: string
+          description: |
+            Only DEFINITE_ERROR affects the score and produces an error-log
+            entry. A STYLE_SUGGESTION is an opinion about good prose, and
+            counting it would inflate every weakness figure in the product with
+            things that were never wrong (TCCN-206-2).
+          enum: [DEFINITE_ERROR, STYLE_SUGGESTION]
+        charStart: { type: integer }
+        charEnd: { type: integer }
+        originalText: { type: string }
+        correctedText: { type: string }
+        explanation: { type: string }
+        criterion: { $ref: '#/components/schemas/WritingCriterion' }
+        uncertain:
+          type: boolean
+          description: |
+            Derived server-side from the marker's confidence, so one threshold
+            governs both the wording on screen and what enters the error log
+            (R-09 constraint 4, TCCN-204-3).
+        topicId: { type: string, format: uuid }
+        topicName: { type: string }
+
+    WritingQuota:
+      type: object
+      required: [bucket, remaining, limit, resetsAt]
+      properties:
+        bucket: { type: string }
+        remaining: { type: integer }
+        limit: { type: integer }
+        resetsAt: { type: string, format: date-time }
+
+    WritingDraft:
+      type: object
+      required: [questionId, content, blankAnswers, charCount, updatedAt]
+      properties:
+        questionId: { type: string, format: uuid }
+        content: { type: string }
+        blankAnswers:
+          type: array
+          items: { $ref: '#/components/schemas/WritingBlankAnswer' }
+        charCount:
+          type: integer
+          description: |
+            Counted the way the editor counts (TCCN-201-2): NFC-normalised code
+            points, spaces and punctuation included, line breaks excluded.
+        updatedAt: { type: string, format: date-time }
+
+    SaveWritingDraftRequest:
+      type: object
+      required: [clientSeq]
+      properties:
+        content: { type: string }
+        blankAnswers:
+          type: array
+          items: { $ref: '#/components/schemas/WritingBlankAnswer' }
+        clientSeq:
+          type: integer
+          format: int64
+          description: Monotonic per attempt. Older writes are discarded.
+
+    WritingSubmission:
+      type: object
+      required: [id, questionId, status, version, charCount, content, blankAnswers, issues]
+      properties:
+        id: { type: string, format: uuid }
+        questionId: { type: string, format: uuid }
+        status: { $ref: '#/components/schemas/WritingStatus' }
+        version: { type: integer }
+        charCount: { type: integer }
+        content: { type: string }
+        blankAnswers:
+          type: array
+          items: { $ref: '#/components/schemas/WritingBlankAnswer' }
+        submittedAt: { type: string, format: date-time }
+        gradedAt: { type: string, format: date-time }
+        grade: { $ref: '#/components/schemas/WritingGrade' }
+        issues:
+          type: array
+          items: { $ref: '#/components/schemas/WritingIssue' }
+        quota:
+          allOf: [{ $ref: '#/components/schemas/WritingQuota' }]
+          description: |
+            Present when the essay was stored but not sent for marking because
+            the allowance was spent, so the screen can say when it returns.
+
+    WritingBatchSubmitResult:
+      type: object
+      description: |
+        The counts are carried rather than left for the screen to derive from
+        the statuses: a mixed outcome — three sent, one held, one left blank —
+        needs one sentence, and three derivations of it are three chances to
+        disagree.
+      required: [submissions, queued, awaitingQuota, skipped]
+      properties:
+        submissions:
+          type: array
+          items: { $ref: '#/components/schemas/WritingSubmission' }
+        queued: { type: integer }
+        awaitingQuota:
+          type: integer
+          description: |
+            Stored but not sent, because the allowance ran out part-way through.
+        skipped:
+          type: integer
+          description: Tasks with nothing written in them. No credit was touched.
+
+    WritingTaskState:
+      type: object
+      required: [questionId, format, maxScore, blanks, quota]
+      properties:
+        questionId: { type: string, format: uuid }
+        format:
+          type: string
+          enum: [FILL_BLANK, ESSAY]
+        maxScore: { type: integer }
+        lengthRange: { $ref: '#/components/schemas/WritingLengthRange' }
+        blanks:
+          type: array
+          items: { $ref: '#/components/schemas/WritingBlank' }
+        draft: { $ref: '#/components/schemas/WritingDraft' }
+        latestSubmission:
+          allOf: [{ $ref: '#/components/schemas/WritingSubmissionRef' }]
+          description: |
+            A pointer to the mark, not the mark itself. This screen is reachable
+            while the attempt is still open, and a mark on Q51 contains the
+            correction — which is the accepted answer to a question the learner
+            may still be sitting. The result screen fetches the mark by id.
+        quota: { $ref: '#/components/schemas/WritingQuota' }
+
+    WritingSubmissionRef:
+      type: object
+      required: [id, status]
+      properties:
+        id: { type: string, format: uuid }
+        status: { $ref: '#/components/schemas/WritingStatus' }
+
+    # ── weakness ────────────────────────────────────────────────────────────
+
+    WeaknessRow:
+      type: object
+      required: [topic, encounters, wrongCount, mcqWrongCount, writingWrongCount, repeatWrongCount]
+      properties:
+        topic: { $ref: '#/components/schemas/Topic' }
+        encounters:
+          type: integer
+          description: |
+            Every time the learner met this topic, right or wrong. The
+            denominator behind "sai 8 trên 11 lần gặp" (TCCN-108-6).
+        wrongCount: { type: integer }
+        skippedCount: { type: integer }
+        mcqWrongCount:
+          type: integer
+          description: The "5 từ câu trắc nghiệm" half of TCCN-206-1.
+        writingWrongCount:
+          type: integer
+          description: The "3 từ bài viết" half — one row, two attributed sources.
+        repeatWrongCount:
+          type: integer
+          description: Wrong again on a retry. Sorted first (R-08).
+        lastSeenAt: { type: string, format: date-time }
+
+    # ── admin: ngân hàng đề ─────────────────────────────────────────────────
 
     ExamStatus:
       type: string
@@ -633,33 +2543,9 @@ components:
       type: string
       enum: [OFFICIAL, AI_GENERATED]
 
-    TopicCategory:
-      type: string
-      enum: [GRAMMAR, VOCAB, READING_SKILL, LISTENING_SKILL]
-
     QuestionType:
       type: string
       enum: [MCQ, FILL_BLANK, ESSAY]
-
-    Topic:
-      type: object
-      required: [id, category, name, isSystem]
-      properties:
-        id: { type: string, format: uuid }
-        category: { $ref: '#/components/schemas/TopicCategory' }
-        name: { type: string }
-        description: { type: string }
-        isSystem:
-          type: boolean
-          description: Curated. Ranked above author-created topics in autocomplete.
-
-    CreateTopicRequest:
-      type: object
-      required: [category, name]
-      properties:
-        category: { $ref: '#/components/schemas/TopicCategory' }
-        name: { type: string, minLength: 1 }
-        description: { type: string }
 
     BlueprintSection:
       type: object
@@ -668,11 +2554,10 @@ components:
         kind: { $ref: '#/components/schemas/SectionKind' }
         sitting:
           type: integer
-          enum: [1, 2]
           description: |
-            TOPIK II is sat over two sessions — Nghe and Viết in the first,
-            Đọc in the second. Each section keeps its own clock; there is no
-            single timer over all 300 points (TCCN-302-3).
+            TOPIK II is sat over two sessions — Nghe and Viết in the first, Đọc
+            in the second — and each section keeps its own clock. One timer over
+            all 300 points would be a different exam (TCCN-302-3).
         ordinal: { type: integer }
         questionCount: { type: integer }
         timeLimitSeconds: { type: integer }
@@ -686,21 +2571,31 @@ components:
         level: { $ref: '#/components/schemas/ExamLevel' }
         totalScore: { type: integer }
         effectiveFrom: { type: string, format: date }
+        verifiedAt:
+          type: [string, 'null']
+          format: date
+          description: |
+            When this layout was last checked against the official TOPIK
+            publication. Null means it is the BA document's stated structure and
+            nobody has reconciled it yet (GĐ-1).
         sections:
           type: array
           items: { $ref: '#/components/schemas/BlueprintSection' }
 
-    ExamSection:
+    AdminExamSection:
       type: object
       required: [id, kind, sitting, ordinal, questionCount, timeLimitSeconds, maxScore, authoredCount]
       properties:
         id: { type: string, format: uuid }
         kind: { $ref: '#/components/schemas/SectionKind' }
-        sitting: { type: integer, enum: [1, 2] }
+        sitting: { type: integer }
         ordinal: { type: integer }
         questionCount:
           type: integer
-          description: Copied from the blueprint when the paper was created, never re-read.
+          description: |
+            Copied from the blueprint when the paper was created and never
+            re-read, so a later blueprint revision cannot restructure a paper
+            people have already sat.
         timeLimitSeconds: { type: integer }
         maxScore: { type: integer }
         authoredCount:
@@ -709,7 +2604,7 @@ components:
 
     AdminExamListItem:
       type: object
-      required: [id, code, title, level, status, origin, blueprintVersion, questionCount, examReady]
+      required: [id, code, title, level, status, origin, blueprintVersion, questionCount, examReady, missingSections]
       properties:
         id: { type: string, format: uuid }
         code: { type: string }
@@ -718,15 +2613,15 @@ components:
         status: { $ref: '#/components/schemas/ExamStatus' }
         origin: { $ref: '#/components/schemas/ExamOrigin' }
         blueprintVersion: { type: string }
-        year: { type: integer }
+        year: { type: [integer, 'null'] }
         questionCount: { type: integer }
         examReady:
           type: boolean
           description: |
-            False when a section in the blueprint has no questions. Such a
-            paper may still be published for Luyện tập, but is marked as
-            unusable for Thi thử wherever it is listed — before anyone starts
-            it, not after (TCCN-302-4).
+            False when a section in the blueprint has no questions. Such a paper
+            may still be published for Luyện tập, but is marked as unusable for
+            Thi thử wherever it is listed — before anyone starts it, not after
+            (TCCN-302-4).
         missingSections:
           type: array
           items: { $ref: '#/components/schemas/SectionKind' }
@@ -745,37 +2640,15 @@ components:
           properties:
             sections:
               type: array
-              items: { $ref: '#/components/schemas/ExamSection' }
+              items: { $ref: '#/components/schemas/AdminExamSection' }
             blueprint: { $ref: '#/components/schemas/Blueprint' }
             sourceUrl: { type: string }
             licenseNote: { type: string }
             publishedAt: { type: [string, 'null'], format: date-time }
 
-    CreateExamRequest:
-      type: object
-      required: [code, title, level, blueprintVersion]
-      properties:
-        code: { type: string, minLength: 1 }
-        title: { type: string, minLength: 1 }
-        level: { $ref: '#/components/schemas/ExamLevel' }
-        blueprintVersion: { type: string }
-        year: { type: integer }
-        sourceName: { type: string }
-        sourceUrl: { type: string }
-        licenseNote: { type: string }
-
-    UpdateExamRequest:
-      type: object
-      properties:
-        title: { type: string }
-        year: { type: integer }
-        sourceName: { type: string }
-        sourceUrl: { type: string }
-        licenseNote: { type: string }
-
     PublishReport:
       type: object
-      required: [examCode, published, blockers, warnings]
+      required: [examCode, published, blockers, warnings, unassignedDifficultyCount]
       properties:
         examCode: { type: string }
         published:
@@ -784,24 +2657,68 @@ components:
         blockers:
           type: array
           description: |
-            Each refuses the publish. Kept apart from `warnings` because the
-            server keeps them apart, and merging the two on screen destroys
-            the reason both exist (TCCN-301-7).
+            Each refuses the publish, and each names the question it is about —
+            "3 câu hỏng" sends an author back through fifty questions to find
+            which three.
           items: { type: string }
         warnings:
           type: array
-          description: |
-            Reported, never blocking — including questions with no difficulty
-            assigned, which is a count to look at rather than a reason to stop
-            (TCCN-303-3).
+          description: Reported, never blocking.
           items: { type: string }
-        unassignedDifficultyCount: { type: integer }
+        unassignedDifficultyCount:
+          type: integer
+          description: |
+            Questions with no hand-assigned difficulty. A count to look at
+            rather than a reason to stop (TCCN-303-3).
 
-    # ── question authoring ──────────────────────────────────────────────────
+    LayerStatus:
+      type: object
+      description: |
+        Which of the five layers exist. Absent is absent — the review screen
+        hides a layer with no content rather than heading an empty box
+        (TCCN-301-3).
+      required: [layer2, layer3Written, layer3Required, layer4, layer5, translated]
+      properties:
+        layer2: { type: boolean }
+        layer3Written:
+          type: integer
+          description: Distractors that have their own explanation.
+        layer3Required:
+          type: integer
+          description: Distractors on this question.
+        layer4: { type: boolean }
+        layer5: { type: boolean }
+        translated:
+          type: boolean
+          description: Stem and every choice carry Vietnamese (YC-121).
+
+    AdminQuestionRow:
+      type: object
+      required: [id, ordinal, type, stemKo, layerStatus, choiceCount, correctChoiceCount, attemptedCount]
+      properties:
+        id: { type: string, format: uuid }
+        ordinal: { type: integer }
+        displayOrdinal:
+          type: integer
+          description: |
+            The number printed on the paper where it differs from `ordinal` —
+            TOPIK II Reading restarts at 1 after Listening and Writing.
+        sectionKind: { $ref: '#/components/schemas/SectionKind' }
+        type: { $ref: '#/components/schemas/QuestionType' }
+        stemKo: { type: string }
+        layerStatus: { $ref: '#/components/schemas/LayerStatus' }
+        difficultyManual: { type: [integer, 'null'], minimum: 1, maximum: 5 }
+        choiceCount: { type: integer }
+        correctChoiceCount: { type: integer }
+        attemptedCount:
+          type: integer
+          description: |
+            Submitted attempts containing this question. Zero means the answer
+            key is still free to change (TCCN-301-9).
 
     AdminChoice:
       type: object
-      required: [ordinal, textKo, isCorrect]
+      required: [ordinal, textKo, textVi, isCorrect]
       properties:
         ordinal: { type: integer, minimum: 1, maximum: 4 }
         textKo: { type: string }
@@ -816,16 +2733,17 @@ components:
           type: [string, 'null']
           description: |
             Layer 3, per choice. Three distractors get three boxes — an
-            explanation shared across all of them cannot say anything about
-            any one of them (TCCN-301-2).
+            explanation shared across all of them cannot say anything about any
+            one of them (TCCN-301-2).
         whyWrongVi: { type: [string, 'null'] }
 
-    Evidence:
+    AdminEvidence:
       type: object
       description: |
         Layer 4. A reading span is character offsets into the passage; a
         listening span is milliseconds into the clip. One of the two must be
         present — evidence that does not locate itself is not evidence.
+      required: [quoteKo, quoteVi]
       properties:
         id: { type: string, format: uuid }
         passageId: { type: [string, 'null'], format: uuid }
@@ -836,14 +2754,14 @@ components:
         quoteKo:
           type: string
           description: |
-            The text the offsets pointed at when they were saved. Kept so an
-            edit to the passage can be detected as having moved the span,
-            rather than silently re-aiming it (TCCN-301-4).
+            The text the offsets pointed at when they were saved, so an edit to
+            the passage can be detected as having moved the span rather than
+            silently re-aiming it (TCCN-301-4).
         quoteVi: { type: string }
 
-    QuestionTopic:
+    AdminQuestionTopic:
       type: object
-      required: [topicId, name, category]
+      required: [topicId, name, category, note]
       properties:
         topicId: { type: string, format: uuid }
         name: { type: string }
@@ -858,51 +2776,12 @@ components:
         kind: { $ref: '#/components/schemas/SectionKind' }
         textKo: { type: [string, 'null'] }
         textVi: { type: [string, 'null'] }
-        audioUrl: { type: [string, 'null'] }
+        audioAssetId: { type: [string, 'null'], format: uuid }
         audioDurationMs: { type: [integer, 'null'] }
-
-    AdminQuestionRow:
-      type: object
-      required: [id, ordinal, type, stemKo, layerStatus, choiceCount, correctChoiceCount, attemptedCount]
-      properties:
-        id: { type: string, format: uuid }
-        ordinal: { type: integer }
-        displayOrdinal:
-          type: integer
-          description: |
-            The number printed on the paper, where it differs from `ordinal` —
-            TOPIK II Reading restarts at 1 after Listening and Writing.
-        sectionKind: { $ref: '#/components/schemas/SectionKind' }
-        type: { $ref: '#/components/schemas/QuestionType' }
-        stemKo: { type: string }
-        layerStatus: { $ref: '#/components/schemas/LayerStatus' }
-        difficultyManual: { type: [integer, 'null'], minimum: 1, maximum: 5 }
-        choiceCount: { type: integer }
-        correctChoiceCount: { type: integer }
-        attemptedCount:
-          type: integer
-          description: Submitted attempts containing this question. Zero means the answer key is still free to change.
-
-    LayerStatus:
-      type: object
-      description: |
-        Which of the five layers exist. Absent is absent — the review screen
-        hides a layer with no content rather than heading an empty box
-        (TCCN-301-3).
-      required: [layer2, layer3Written, layer3Required, layer4, layer5]
-      properties:
-        layer2: { type: boolean }
-        layer3Written: { type: integer, description: Distractors with their own explanation. }
-        layer3Required: { type: integer, description: Distractors on this question. }
-        layer4: { type: boolean }
-        layer5: { type: boolean }
-        translated:
-          type: boolean
-          description: Stem and all four choices carry Vietnamese.
 
     AdminQuestion:
       type: object
-      required: [id, examId, ordinal, type, stemKo, choices, topics, evidence, attemptedCount, layerStatus]
+      required: [id, examId, ordinal, type, stemKo, stemVi, maxScore, choices, topics, evidence, attemptedCount, layerStatus]
       properties:
         id: { type: string, format: uuid }
         examId: { type: string, format: uuid }
@@ -917,16 +2796,21 @@ components:
         explanationCorrectKo:
           type: [string, 'null']
           description: |
-            Layer 2 — why the right answer is right. Shown for every question,
-            including ones answered correctly: right by elimination is a wrong
-            answer that has not happened yet (R-07, YC-112).
+            Layer 2 — why the right answer is right. Authored for every
+            question, including ones answered correctly: right by elimination is
+            a wrong answer that has not happened yet (R-07, YC-112).
+
+            Null, never `""`. An empty string renders on the learner's review
+            screen as a layer heading with nothing under it, which reads as "the
+            author had nothing to say" rather than "this is not written yet"
+            (TCCN-301-3).
         explanationCorrectVi: { type: [string, 'null'] }
         explanationWrongGenericKo:
           type: [string, 'null']
           description: |
             The layer-3 fallback for an author who wrote one shared note. It
-            exists because imported papers have it; the editor does not offer
-            it as a way to avoid writing three (TCCN-301-2).
+            exists because imported papers have it; the editor does not offer it
+            as a way to avoid writing three.
         explanationWrongGenericVi: { type: [string, 'null'] }
         difficultyManual:
           type: [integer, 'null']
@@ -938,18 +2822,18 @@ components:
         difficultyObserved:
           type: [number, 'null']
           description: |
-            Derived from real attempt data. Read-only here and kept apart from
-            the manual value on purpose: ver1.0 uses only the manual one, and
+            Derived from real attempt data. Read-only, and kept apart from the
+            manual value on purpose: ver1.0 uses only the manual one, and
             collapsing the two would mean changing the schema again later.
         choices:
           type: array
           items: { $ref: '#/components/schemas/AdminChoice' }
         topics:
           type: array
-          items: { $ref: '#/components/schemas/QuestionTopic' }
+          items: { $ref: '#/components/schemas/AdminQuestionTopic' }
         evidence:
           type: array
-          items: { $ref: '#/components/schemas/Evidence' }
+          items: { $ref: '#/components/schemas/AdminEvidence' }
         attemptedCount: { type: integer }
         supersededByQuestionId: { type: [string, 'null'], format: uuid }
         layerStatus: { $ref: '#/components/schemas/LayerStatus' }
@@ -973,7 +2857,7 @@ components:
           items: { type: string, format: uuid }
         evidence:
           type: array
-          items: { $ref: '#/components/schemas/Evidence' }
+          items: { $ref: '#/components/schemas/AdminEvidence' }
 
     AnswerLockedProblem:
       allOf:
@@ -990,19 +2874,14 @@ components:
                 save, being told (TCCN-301-8).
             questionOrdinal: { type: integer }
 
-    # ── import ──────────────────────────────────────────────────────────────
-
     ImportRequest:
       type: object
       required: [bundle]
       properties:
         bundle:
-          description: The exam bundle, in the format `cmd/importer` accepts.
           type: object
           additionalProperties: true
-        sourceName: { type: string }
-        sourceUrl: { type: string }
-        licenseNote: { type: string }
+          description: The exam bundle, in the format `cmd/importer` accepts.
 
     ImportIssue:
       type: object
@@ -1011,21 +2890,33 @@ components:
         where:
           type: string
           description: |
-            Where in the bundle, e.g. `questions[14].choices`. The gate reports
-            every problem at once — fixing a thousand-question file one error
-            per run is not a workflow anyone follows.
+            Where in the bundle, e.g. `questions[14].choices`. Not a line
+            number: the gate validates the parsed bundle, and by then the line
+            it came from is gone.
         message: { type: string }
-        line: { type: integer }
 
-    ImportPreview:
+    ImportReport:
       type: object
-      required: [dryRun, examCode, created, updated, skipped, issues]
+      required: [dryRun, examCode, ok, issues]
       properties:
         dryRun: { type: boolean }
         examCode: { type: string }
-        created: { type: integer }
-        updated: { type: integer }
-        skipped: { type: integer }
+        ok:
+          type: boolean
+          description: False when the gate refused; `issues` says why.
+        examId: { type: [string, 'null'], format: uuid }
+        batchId: { type: [string, 'null'], format: uuid }
+        passages: { type: integer }
+        questions: { type: integer }
+        choices: { type: integer }
+        topics: { type: integer }
+        topicsNew:
+          type: integer
+          description: |
+            Topics this bundle added to the catalogue. Worth seeing on its own:
+            a bundle that invents thirty new topics has probably spelled
+            existing ones differently, which is what splits a weakness row in
+            two (R-06).
         issues:
           type: array
           items: { $ref: '#/components/schemas/ImportIssue' }

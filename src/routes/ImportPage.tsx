@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { dryRunImport, runImport } from '../api/gen/kolearn'
-import type { ImportPreview } from '../api/gen/model'
+import type { ImportReport } from '../api/gen/model'
 import { userMessage } from '../lib/problem'
 import {
   Button,
@@ -27,12 +27,20 @@ import {
  * paper ends up in the bank without ever passing the gate.
  *
  * The real-run button does not exist until a dry run has been read. It is a
- * step, not a suggestion: an import that turns out to update two hundred
- * questions the author thought were new is not undoable by hand.
+ * step, not a suggestion: an import that lands a paper nobody previewed is not
+ * undoable from this screen.
+ *
+ * The counts are what the server can honestly report — passages, questions,
+ * choices, topics — not created/updated/skipped. An import whose exam code
+ * already exists is refused outright rather than merged, so there is no diff to
+ * describe, and a three-number summary would be describing a merge that never
+ * happens. Issues carry `where` (`questions[14].choices`) rather than a line
+ * number, because the gate validates the parsed bundle and by then the line it
+ * came from is gone.
  */
 export function ImportPage() {
   const [text, setText] = useState('')
-  const [preview, setPreview] = useState<ImportPreview | null>(null)
+  const [preview, setPreview] = useState<ImportReport | null>(null)
   const [error, setError] = useState<unknown>(null)
   const [busy, setBusy] = useState(false)
 
@@ -60,7 +68,8 @@ export function ImportPage() {
     setPreview(null)
   }
 
-  const blocked = (preview?.issues.length ?? 0) > 0
+  // `ok` is the gate's own verdict rather than a count this screen infers.
+  const blocked = preview != null && !preview.ok
 
   return (
     <PageShell>
@@ -120,11 +129,12 @@ export function ImportPage() {
             </p>
           )}
 
-          <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-5">
             {[
-              ['Tạo mới', preview.created],
-              ['Cập nhật', preview.updated],
-              ['Bỏ qua', preview.skipped],
+              ['Đoạn văn', preview.passages ?? 0],
+              ['Câu hỏi', preview.questions ?? 0],
+              ['Lựa chọn', preview.choices ?? 0],
+              ['Chủ điểm mới', preview.topicsNew ?? 0],
               ['Lỗi', preview.issues.length],
             ].map(([label, value]) => (
               <div key={label} className="rounded-xl border border-line bg-white px-4 py-3">
@@ -152,8 +162,7 @@ export function ImportPage() {
                 caption="Các lỗi trong tệp nhập"
                 head={
                   <tr>
-                    <Th>Vị trí</Th>
-                    <Th className="text-right">Dòng</Th>
+                    <Th>Vị trí trong tệp</Th>
                     <Th>Lỗi</Th>
                   </tr>
                 }
@@ -161,7 +170,6 @@ export function ImportPage() {
                 {preview.issues.map((issue) => (
                   <tr key={`${issue.where}-${issue.message}`}>
                     <Td className="font-mono text-xs">{issue.where}</Td>
-                    <Td className="text-right tabular-nums">{issue.line ?? '—'}</Td>
                     <Td>{issue.message}</Td>
                   </tr>
                 ))}

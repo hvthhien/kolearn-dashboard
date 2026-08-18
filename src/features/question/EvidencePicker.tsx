@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { useGetAdminPassage } from '../../api/gen/kolearn'
-import type { Evidence } from '../../api/gen/model'
+import type { AdminEvidence } from '../../api/gen/model'
 import { Button, Field, WarnNote } from '../../components/ui'
 
 /**
@@ -25,8 +25,8 @@ export function EvidencePicker({
   onChange,
 }: {
   passageId: string | null | undefined
-  evidence: Evidence[]
-  onChange: (evidence: Evidence[]) => void
+  evidence: AdminEvidence[]
+  onChange: (evidence: AdminEvidence[]) => void
 }) {
   const passageRef = useRef<HTMLParagraphElement>(null)
   const [pending, setPending] = useState<{ start: number; end: number; quote: string } | null>(null)
@@ -47,10 +47,10 @@ export function EvidencePicker({
   }
 
   const text = passage?.textKo ?? null
-  const isAudio = !!passage?.audioUrl
+  const isAudio = !!passage?.audioAssetId
 
   /** The stored quote against what the offsets point at in the passage today. */
-  function drifted(e: Evidence): boolean {
+  function drifted(e: AdminEvidence): boolean {
     if (text == null || e.charStart == null || e.charEnd == null) return false
     if (!e.quoteKo) return false
     return text.slice(e.charStart, e.charEnd) !== e.quoteKo

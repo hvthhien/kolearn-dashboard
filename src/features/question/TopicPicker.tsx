@@ -1,6 +1,6 @@
 import { useId, useState } from 'react'
-import { useSearchAdminTopics } from '../../api/gen/kolearn'
-import type { QuestionTopic, Topic } from '../../api/gen/model'
+import { useListTopics } from '../../api/gen/kolearn'
+import type { AdminQuestionTopic, Topic } from '../../api/gen/model'
 import { Field } from '../../components/ui'
 
 const CATEGORY_LABEL: Record<Topic['category'], string> = {
@@ -23,17 +23,22 @@ const CATEGORY_LABEL: Record<Topic['category'], string> = {
  * "create «what you typed»" affordance here; widening the catalogue is
  * `topic:manage`, a permission an author does not have, and it is a decision
  * about the taxonomy rather than a step in tagging one question.
+ *
+ * It reads `GET /topics`, the same normalised catalogue a learner tags from,
+ * rather than an admin-only copy of it. R-06 counts weakness by topic across
+ * both, so two lists would be two spellings waiting to happen — the exact
+ * failure this control exists to prevent.
  */
 export function TopicPicker({
   selected,
   onChange,
 }: {
-  selected: QuestionTopic[]
-  onChange: (topics: QuestionTopic[]) => void
+  selected: AdminQuestionTopic[]
+  onChange: (topics: AdminQuestionTopic[]) => void
 }) {
   const inputId = useId()
   const [query, setQuery] = useState('')
-  const { data } = useSearchAdminTopics({ q: query })
+  const { data } = useListTopics({ q: query })
 
   const selectedIds = selected.map((t) => t.topicId)
   const suggestions = (data?.items ?? []).filter((t) => !selectedIds.includes(t.id))

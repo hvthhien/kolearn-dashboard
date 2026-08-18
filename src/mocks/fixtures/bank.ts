@@ -23,7 +23,7 @@ export const READING_PASSAGE: AdminPassage = {
     '저는 어릴 때부터 자전거를 좋아했습니다. 동생은 자전거를 타고 학교에 다녔지만, 저는 걸어서 다녔습니다. 집에서 학교까지 걸어서 이십 분쯤 걸렸는데, 그 길에 있는 작은 서점에 매일 들르는 것이 즐거웠습니다.',
   textVi:
     'Tôi thích xe đạp từ khi còn nhỏ. Em trai tôi đi học bằng xe đạp, còn tôi thì đi bộ. Từ nhà đến trường đi bộ mất khoảng hai mươi phút, và tôi rất thích ghé vào hiệu sách nhỏ trên đường đó mỗi ngày.',
-  audioUrl: null,
+  audioAssetId: null,
   audioDurationMs: null,
 }
 
@@ -32,7 +32,7 @@ export const LISTENING_PASSAGE: AdminPassage = {
   kind: 'LISTENING',
   textKo: null,
   textVi: null,
-  audioUrl: '/mock-audio/clip-1.mp3',
+  audioAssetId: 'asset-listening-1',
   audioDurationMs: 42_000,
 }
 

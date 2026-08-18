@@ -14,80 +14,91 @@ read from blueprint configuration, both TOPIK II sittings), and **YC-303**
 
 ## Running it
 
-There is no backend to run against yet — see below — so the app serves itself
-from the in-repo mock:
+Needs `kolearn-server` on `:8080` with a migrated, seeded database:
 
 ```bash
-npm install
-VITE_MOCK_API=1 npm run dev
+cd ../kolearn-server && make db-create && make migrate && make seed && make run
 ```
 
-Sign in with any email and password; the mock returns a `content_admin`
-session. Against a real server, drop `VITE_MOCK_API` and start
-`kolearn-server` on `:8080`; Vite proxies `/api` to it so the refresh cookie is
-a same-origin httpOnly cookie in development exactly as in production.
+```bash
+npm install && npm run dev
+```
+
+Vite proxies `/api` to `localhost:8080`, so the refresh cookie is a same-origin
+httpOnly cookie in development exactly as it is in production.
+
+Signing in needs an account with `exam:read`, which means a `content_editor`,
+`content_admin` or `admin` role. Registration assigns `learner` and nothing
+else, so a new account is granted its role in SQL:
+
+```bash
+psql -d kolearn -c "INSERT INTO user_roles (user_id, role_code) SELECT id, 'content_admin' FROM users WHERE email = 'you@example.com' ON CONFLICT DO NOTHING;"
+```
+
+`content_admin` rather than `admin`: the `admin` role is systems
+administration and holds `exam:read` but none of `exam:write`,
+`question:write` or `exam:publish`, so it opens this app and then cannot save a
+question.
+
+To work without a backend — offline, or on a screen the server does not serve
+yet — set `VITE_MOCK_API=1` and the in-repo MSW handlers answer instead.
 
 ```bash
 npm run check      # api:check + lint + typecheck + test
 ```
 
-## The contract is authored here, not vendored
+## The API client is generated
 
-This is the one real difference from `kolearn-web`, and it decides how several
-other things in the repo are arranged.
-
-`kolearn-web` vendors `kolearn-server/api/openapi.yaml` byte for byte and
-generates its client from the copy. This repo cannot: **the server has no admin
-API.** All 38 paths in its spec are auth and learner-facing, and authoring
-today happens only through `cmd/importer`. So `api/openapi.yaml` here is a
-*proposal* — the contract this app is built against and the server is expected
-to implement.
-
-What is not proposed is anything underneath it. The permissions each operation
-names (`exam:write`, `exam:publish`, `question:write`, `topic:manage`,
-`import:manage`), the publish report's split into blockers and warnings, and
-the column each field maps to all exist already, in
-`db/migrations/00003_rbac.sql`, `internal/bank/publish.go` and
-`db/migrations/00005_question_bank.sql`. The spec is written to fit them rather
-than the other way round.
+`src/api/gen/` is orval output and is committed. `api/openapi.yaml` is a
+**vendored copy** of the server's spec, so this repo builds on its own.
 
 ```bash
-npm run api:gen    # regenerate after editing the spec
-npm run api:check  # fails on a stale client, or on drift in the shared half
+npm run api:gen    # regenerate after copying a new spec
+npm run api:check  # fails on a stale client, or on drift from the server's spec
 ```
 
-`api:check` compares only the blocks the server already owns — `/auth/login`,
-`/auth/refresh`, `/auth/logout`, `/me`, and the `Problem`, `AuthTokens` and
-`CurrentUser` schemas — against `../kolearn-server/api/openapi.yaml`, and skips
-when that checkout is absent. An admin signs in through the learner's own
-endpoints, and a login client generated from last week's copy of somebody
-else's contract compiles perfectly and fails at runtime.
+This app was built contract-first, against an `/admin` surface the server did
+not have: the spec here was authored as a proposal and served by MSW. The
+server implements it now, so the direction has reversed and the spec is
+vendored like `kolearn-web`'s. Three things the proposal got wrong are worth
+knowing, because each is a place where writing a contract without reading the
+implementation produced something plausible and false:
 
-**When the server implements `/admin`, the direction reverses.** This file
-becomes vendored, `scripts/api-check.sh` becomes `kolearn-web`'s, and the
-proposal stops being a proposal. Until then, a change here is a change to a
-document two repositories are supposed to agree on.
+- Problem codes are `snake_case` and `type` is a full URL
+  (`https://kolearn.vn/problems/question_answer_locked`).
+- The import report counts what the gate produces — passages, questions,
+  choices, new topics — not created/updated/skipped. An import whose exam code
+  already exists is refused outright rather than merged, so there is no diff to
+  describe.
+- Import issues carry `where` (`questions[14].choices`), not a line number. The
+  gate validates the parsed bundle; by then the line is gone.
 
-`/auth/register` is deliberately absent. Admin accounts are provisioned with a
-role; a console that lets a visitor create their own account is not an admin
+`/auth/register` is not used here. Admin accounts are provisioned with a role;
+a console that lets a visitor create their own account is not an admin
 console.
 
 ## Why MSW is here
 
 `kolearn-web` fakes the network with a hand-rolled `vi.stubGlobal('fetch')`
-harness, and that works because a real server exists to run against. Here it
-does not, so the mock has to serve two consumers — `npm run dev` in a browser
-and the test suite — and two mock layers would drift, with the one that
-disagrees with the eventual server being whichever nobody was looking at.
+harness. This repo uses MSW because it was built before the server had an
+`/admin` surface, and the mock had to serve both `npm run dev` and the test
+suite — two mock layers would have drifted, with the one that disagreed with
+the eventual server being whichever nobody was looking at.
 
-So `src/mocks/handlers.ts` is the single set, used by `setupWorker` in the
-browser and `setupServer` in tests. It holds mutable state on purpose: three of
-the criteria are statements about what happens *after* a write, and a save that
-does not change what the next GET returns cannot demonstrate that a save works.
+It stays now that the server is real, for the tests: they need no database, no
+running API and no seeded content, so the suite is a few seconds rather than a
+migration away. `src/mocks/handlers.ts` is the single set, used by
+`setupWorker` in the browser behind `VITE_MOCK_API` and `setupServer` in tests.
+It holds mutable state on purpose — several criteria are statements about what
+happens *after* a write, and a save that does not change what the next GET
+returns cannot demonstrate that a save works.
 
 Fixtures are lifted from `kolearn-server/db/seed/exam-topik-ii-83.json`, so the
 Korean, the Vietnamese, the evidence offsets and the topic names are shapes the
 real importer produces.
+
+The tests are therefore a check on this app against the *agreed* contract, not
+on the server. `npm run api:check` is what keeps the two honest.
 
 ## Three things that are load-bearing
 
@@ -119,26 +130,21 @@ cannot pass.
 
 ## What this repo does not prove
 
-**TCCN-301-8 is only half-covered here, and the missing half is the important
-one.** The criterion says the block on changing a sat question's answer key
-must sit *at the data layer, not the admin UI* — the other four prohibitions
-are enforced beneath the layer that could regress, precisely because the layer
-above them is a screen like this one. `kolearn-server` has no such trigger:
-nothing in `db/migrations` guards `question_choices.is_correct`. The tests in
-`src/routes/answerLock.test.tsx` cover the client half — that the refusal is
-surfaced with its reason and the versioning path offered — and they are not
-evidence that the answer key cannot be changed.
+**TCCN-301-8 is now enforced below this app, which is what the criterion
+asked for.** Migration `00016` adds a trigger refusing any change to
+`question_choices.is_correct` once the question appears in a SUBMITTED attempt,
+and `internal/prohibitions` asserts it — the same two-layer shape as điều cấm
+#2 and #3. The tests in `src/routes/answerLock.test.tsx` cover this side of it:
+that the 409 is surfaced with its reason and the versioning path offered.
+Neither half is evidence for the other, and both exist.
 
-The drafted criteria propose this as the product's **fifth prohibition**. It
-needs a migration in `kolearn-server` before it is true.
-
-**TCCN-303-2 is checked indirectly and skips without a sibling checkout.** The
-criterion is about *kolearn-web*'s screens, which no test here can look at.
-`src/api/learnerSpecGuard.test.ts` checks the layer underneath — that no
-learner-facing schema in the server's spec carries a difficulty field — and
-skips when `../kolearn-server` is absent, the same posture `api-check.sh`
-takes. A skipped test proves nothing; the full check belongs in `kolearn-web`,
-beside the screens.
+**TCCN-303-2 is still checked indirectly.** The criterion is about
+*kolearn-web*'s screens, which no test here can look at.
+`src/api/learnerSpecGuard.test.ts` checks one layer down — that only the
+authoring schemas in the vendored spec carry a difficulty field — and
+recognises "authoring schema" by the `Admin` name prefix, which is a convention
+rather than a proof of reachability. The real guarantee belongs in
+`kolearn-web`, beside the screens.
 
 ## Acceptance criteria
 
@@ -158,8 +164,17 @@ waiting on an answer.
 
 ## What is not here yet
 
-Creating an exam from scratch (the contract has `POST /admin/exams`; the screen
-does not), editing passages and uploading assets, the topic catalogue's own
-management screen, question versions beyond the one the answer lock creates,
-and Playwright. Difficulty is authored but nothing reads it — its user is the
-ver1.1 placement test.
+Creating an exam from scratch, editing exam metadata, editing passages and
+uploading assets, and adding to the topic catalogue: all three are permissions
+the server grants (`exam:write`, `passage:write`, `topic:manage`) with no
+screen behind them. Bulk import through the API cannot carry audio or images —
+a paper with media still goes through `cmd/importer -assets`. No Playwright.
+
+Difficulty is authored but nothing reads it; its user is the ver1.1 placement
+test.
+
+Two gaps in the server are worth knowing about from here. `roles.requires_mfa`
+is `true` for every staff role and **nothing reads it** — TOTP returns
+`ErrNotImplemented` — so this console is protected by a password alone. And
+`audit_logs` exists, is append-only, and has no writer, while this app
+publishes and supersedes questions.

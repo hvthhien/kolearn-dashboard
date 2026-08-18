@@ -6,7 +6,7 @@ import type { Topic } from '../../api/gen/model'
  */
 export const TOPICS: Topic[] = [
   { id: 't-1', category: 'READING_SKILL', name: 'đối chiếu chi tiết với bài đọc', isSystem: true },
-  { id: 't-2', category: 'GRAMMAR', name: '-지만', isSystem: true, description: 'Mệnh đề tương phản' },
+  { id: 't-2', category: 'GRAMMAR', name: '-지만', isSystem: true },
   { id: 't-3', category: 'GRAMMAR', name: '-(으)려고 하다', isSystem: true },
   { id: 't-4', category: 'GRAMMAR', name: '-기 때문에', isSystem: true },
   { id: 't-5', category: 'VOCAB', name: 'từ chỉ thời gian', isSystem: true },
