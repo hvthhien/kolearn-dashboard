@@ -97,6 +97,8 @@ export * from './listExams200';
 export * from './listExamsParams';
 export * from './listMyCards200';
 export * from './listMyCardsParams';
+export * from './listStudyCards200';
+export * from './listStudyCardsParams';
 export * from './listTopics200';
 export * from './listTopicsParams';
 export * from './localisedText';

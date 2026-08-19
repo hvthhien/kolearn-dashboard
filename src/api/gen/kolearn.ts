@@ -80,6 +80,8 @@ import type {
   ListExamsParams,
   ListMyCards200,
   ListMyCardsParams,
+  ListStudyCards200,
+  ListStudyCardsParams,
   ListTopics200,
   ListTopicsParams,
   LoginRequest,
@@ -3547,6 +3549,134 @@ export function useListMyCards<TData = Awaited<ReturnType<typeof listMyCards>>, 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getListMyCardsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListStudyCardsUrl = (params?: ListStudyCardsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/me/cards/study?${stringifiedParams}` : `/api/v1/me/cards/study`
+}
+
+/**
+ * Every card the learner has not yet marked Đã nhớ, with Đang học before
+ * Mới — R-15's "Ưu tiên thứ đang dở hơn thứ chưa bắt đầu". Nothing is
+ * scheduled and nothing is computed: the rule is explicit that there is
+ * no interval, no ease factor and no next review date.
+ *
+ * Its own operation rather than a flag on `GET /me/cards`, because the
+ * two differ in their *ordering policy* and a rule with an exception
+ * threaded through it is a rule with a bug waiting in the exception —
+ * the same reason `getReviewAudio` is not a mode of `getQuestionAudio`.
+ *
+ * Deliberately not named `/due` or `/today`: both would name machinery
+ * R-15 removed. There is no due date and no daily rollover — this list is
+ * identical every day until the learner marks something. R-15 calls it
+ * "danh sách ôn hằng ngày" for how it is used, not how it is computed.
+ *
+ * **One response is one session.** `limit` is the learner's configured
+ * session size rather than a page size, and there is no cursor. That is
+ * deliberate: the sort key includes `state`, which reviewing is the act
+ * of changing, so a card marked Mới → Đang học moves backwards past any
+ * cursor and would never be seen again that day.
+ * @summary The cards to review now (R-15)
+ */
+export const listStudyCards = async (params?: ListStudyCardsParams, options?: Parameters<typeof apiFetch>[1]): Promise<ListStudyCards200> => {
+
+  return apiFetch<ListStudyCards200>(getListStudyCardsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListStudyCardsQueryKey = (params?: ListStudyCardsParams,) => {
+    return [
+    `/api/v1/me/cards/study`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListStudyCardsQueryOptions = <TData = Awaited<ReturnType<typeof listStudyCards>>, TError = UnauthorizedResponse>(params?: ListStudyCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listStudyCards>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListStudyCardsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listStudyCards>>> = ({ signal }) => listStudyCards(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listStudyCards>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListStudyCardsQueryResult = NonNullable<Awaited<ReturnType<typeof listStudyCards>>>
+export type ListStudyCardsQueryError = UnauthorizedResponse
+
+
+export function useListStudyCards<TData = Awaited<ReturnType<typeof listStudyCards>>, TError = UnauthorizedResponse>(
+ params: undefined |  ListStudyCardsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listStudyCards>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listStudyCards>>,
+          TError,
+          Awaited<ReturnType<typeof listStudyCards>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListStudyCards<TData = Awaited<ReturnType<typeof listStudyCards>>, TError = UnauthorizedResponse>(
+ params?: ListStudyCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listStudyCards>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listStudyCards>>,
+          TError,
+          Awaited<ReturnType<typeof listStudyCards>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListStudyCards<TData = Awaited<ReturnType<typeof listStudyCards>>, TError = UnauthorizedResponse>(
+ params?: ListStudyCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listStudyCards>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary The cards to review now (R-15)
+ */
+
+export function useListStudyCards<TData = Awaited<ReturnType<typeof listStudyCards>>, TError = UnauthorizedResponse>(
+ params?: ListStudyCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listStudyCards>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListStudyCardsQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

@@ -1144,6 +1144,57 @@ paths:
                     items: { $ref: '#/components/schemas/MyCard' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  /me/cards/study:
+    get:
+      tags: [cards]
+      operationId: listStudyCards
+      summary: The cards to review now (R-15)
+      description: |
+        Every card the learner has not yet marked Đã nhớ, with Đang học before
+        Mới — R-15's "Ưu tiên thứ đang dở hơn thứ chưa bắt đầu". Nothing is
+        scheduled and nothing is computed: the rule is explicit that there is
+        no interval, no ease factor and no next review date.
+
+        Its own operation rather than a flag on `GET /me/cards`, because the
+        two differ in their *ordering policy* and a rule with an exception
+        threaded through it is a rule with a bug waiting in the exception —
+        the same reason `getReviewAudio` is not a mode of `getQuestionAudio`.
+
+        Deliberately not named `/due` or `/today`: both would name machinery
+        R-15 removed. There is no due date and no daily rollover — this list is
+        identical every day until the learner marks something. R-15 calls it
+        "danh sách ôn hằng ngày" for how it is used, not how it is computed.
+
+        **One response is one session.** `limit` is the learner's configured
+        session size rather than a page size, and there is no cursor. That is
+        deliberate: the sort key includes `state`, which reviewing is the act
+        of changing, so a card marked Mới → Đang học moves backwards past any
+        cursor and would never be seen again that day.
+      parameters:
+        - name: limit
+          in: query
+          description: |
+            The learner's cards-per-session setting. Out of range falls back to
+            the default rather than erroring — a stale client is not worth a
+            422 on a read.
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        '200':
+          description: |
+            The session, always as an array. Nothing left to review is a
+            designed state with its own copy (R-13) — and on this screen it is
+            good news, not an absence.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/MyCard' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
   # ── weakness ──────────────────────────────────────────────────────────────
 
   /me/weakness:
