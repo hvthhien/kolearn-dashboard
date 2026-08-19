@@ -1071,6 +1071,79 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '422': { $ref: '#/components/responses/Unprocessable' }
 
+  /cards/{cardId}/state:
+    put:
+      tags: [cards]
+      operationId: setCardState
+      summary: Mark a card Mới, Đang học or Đã nhớ (R-15)
+      description: |
+        The learner decides, and nothing computes anything on their behalf:
+        R-15 is explicit that there is no interval, no ease factor and no next
+        review date. Marking a card Đã nhớ is the only way it leaves the daily
+        list, and marking it back to Đang học is allowed at any time.
+
+        PUT rather than PATCH because the body is the whole value of one thing,
+        which makes a replay harmless — marking is a tap on a phone, and the
+        retry of a request that already landed must not mean anything different
+        the second time.
+
+        Reachable from the collection screen, not only from a review session
+        (R-15, ràng buộc 3).
+      parameters:
+        - $ref: '#/components/parameters/CardId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [state]
+              properties:
+                state: { $ref: '#/components/schemas/CardState' }
+      responses:
+        '200':
+          description: The card, with the state it now has.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MyCard' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /me/cards:
+    get:
+      tags: [cards]
+      operationId: listMyCards
+      summary: The cards this learner has collected (YC-109)
+      description: |
+        Newest first. The read half of YC-109: until this existed,
+        TCCN-109-2's "đã có trong bộ X" had no X to link to, and every card the
+        app created went somewhere nobody could look.
+
+        **No scheduling state is returned** — not `intervalDays`, not
+        `easeFactor`, not `dueAt`. R-15 forbids the algorithm that would move
+        them, so the columns exist and nothing writes them; every card would
+        report the same three constants, and a constant on the wire is a field
+        a client renders as though it meant something. `state` is here because
+        R-15 makes it the learner's own answer rather than a scheduler's.
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+      responses:
+        '200':
+          description: |
+            The learner's cards, always as an array — an empty collection is a
+            designed state with its own copy (R-13), not an absence.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/MyCard' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
   # ── weakness ──────────────────────────────────────────────────────────────
 
   /me/weakness:
@@ -1609,6 +1682,11 @@ components:
       schema: { type: string, format: uuid }
     QuestionId:
       name: questionId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    CardId:
+      name: cardId
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -2428,6 +2506,73 @@ components:
         cards:
           type: array
           items: { $ref: '#/components/schemas/CardResult' }
+
+    CardState:
+      type: string
+      enum: [NEW, LEARNING, KNOWN]
+      description: |
+        R-15's three states — Mới, Đang học, Đã nhớ. Set by the learner and
+        never computed. Only NEW and LEARNING appear in the daily list; KNOWN
+        is what takes a card out of it.
+
+    MyCard:
+      type: object
+      description: |
+        One card as it appears in the learner's own collection.
+
+        Carries no review schedule; see the note on `GET /me/cards`.
+      required: [id, type, front, deckId, deckName, state, topics, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        type:
+          type: string
+          enum: [VOCAB, GRAMMAR, STRUCTURE_TEMPLATE]
+        front: { type: string }
+        back:
+          type: string
+          description: |
+            Absent when the learner saved no meaning, rather than an empty
+            string — the client renders nothing instead of a blank second line,
+            which is R-07 constraint 3's rule applied to a card.
+        deckId: { type: string, format: uuid }
+        deckName: { type: string }
+        state: { $ref: '#/components/schemas/CardState' }
+        topics:
+          type: array
+          description: |
+            The chủ điểm this card inherited when it was made (TCCN-115-1).
+            Empty is meaningful rather than missing: the card is not connected
+            to the weakness picture, and the screen says so in those words.
+          items: { $ref: '#/components/schemas/Topic' }
+        createdAt: { type: string, format: date-time }
+        source:
+          allOf: [{ $ref: '#/components/schemas/MyCardSource' }]
+          description: |
+            Absent when the card has no source question, or when the exam it
+            came from has been removed — `cards.source_question_id` is
+            ON DELETE SET NULL. Absent rather than a placeholder, so the row
+            shows nothing instead of "không rõ" (TCCN-109-5).
+
+    MyCardSource:
+      type: object
+      description: |
+        The paper a card came from — the *exam*, not the attempt.
+
+        `cards` stores `source_question_id` and `source_submission_id` and
+        never an attempt id, so there is no lượt làm bài to send the learner
+        back to and this must not pretend there is. R-15 asks for "câu làm sai
+        nào"; this is as close as the data goes.
+      required: [questionId, examId, examTitle, examCode, questionOrdinal]
+      properties:
+        questionId: { type: string, format: uuid }
+        examId: { type: string, format: uuid }
+        examTitle: { type: string }
+        examCode: { type: string }
+        questionOrdinal:
+          type: integer
+          description: |
+            The learner-facing number in that paper — `display_ordinal`, the
+            same one the review screen shows, not the storage ordinal.
 
     # ── writing ─────────────────────────────────────────────────────────────
 

@@ -78,9 +78,12 @@ import type {
   ListBlueprints200,
   ListExams200,
   ListExamsParams,
+  ListMyCards200,
+  ListMyCardsParams,
   ListTopics200,
   ListTopicsParams,
   LoginRequest,
+  MyCard,
   NotFoundResponse,
   Problem,
   PublishAdminExamParams,
@@ -94,6 +97,7 @@ import type {
   SaveQuestionRequest,
   SaveWritingDraftRequest,
   SectionKind,
+  SetCardStateBody,
   SetQuestionTopicsBody,
   StartAttemptRequest,
   StreamTicketedAudioParams,
@@ -3352,6 +3356,208 @@ export const useCreateCardsBatch = <TError = UnauthorizedResponse | Unprocessabl
       > => {
       return useMutation(getCreateCardsBatchMutationOptions(options), queryClient);
     }
+
+export const getSetCardStateUrl = (cardId: string,) => {
+
+
+
+
+  return `/api/v1/cards/${cardId}/state`
+}
+
+/**
+ * The learner decides, and nothing computes anything on their behalf:
+ * R-15 is explicit that there is no interval, no ease factor and no next
+ * review date. Marking a card Đã nhớ is the only way it leaves the daily
+ * list, and marking it back to Đang học is allowed at any time.
+ *
+ * PUT rather than PATCH because the body is the whole value of one thing,
+ * which makes a replay harmless — marking is a tap on a phone, and the
+ * retry of a request that already landed must not mean anything different
+ * the second time.
+ *
+ * Reachable from the collection screen, not only from a review session
+ * (R-15, ràng buộc 3).
+ * @summary Mark a card Mới, Đang học or Đã nhớ (R-15)
+ */
+export const setCardState = async (cardId: string,
+    setCardStateBody: SetCardStateBody, options?: Parameters<typeof apiFetch>[1]): Promise<MyCard> => {
+
+  return apiFetch<MyCard>(getSetCardStateUrl(cardId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(setCardStateBody)
+  }
+);}
+
+
+
+
+
+export const getSetCardStateMutationOptions = <TError = UnauthorizedResponse | NotFoundResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setCardState>>, TError,{cardId: string;data: SetCardStateBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setCardState>>, TError,{cardId: string;data: SetCardStateBody}, TContext> => {
+
+const mutationKey = ['setCardState'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setCardState>>, {cardId: string;data: SetCardStateBody}> = (props) => {
+          const {cardId,data} = props ?? {};
+
+          return  setCardState(cardId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetCardStateMutationResult = NonNullable<Awaited<ReturnType<typeof setCardState>>>
+    export type SetCardStateMutationBody = SetCardStateBody
+    export type SetCardStateMutationError = UnauthorizedResponse | NotFoundResponse | UnprocessableResponse
+
+    /**
+ * @summary Mark a card Mới, Đang học or Đã nhớ (R-15)
+ */
+export const useSetCardState = <TError = UnauthorizedResponse | NotFoundResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setCardState>>, TError,{cardId: string;data: SetCardStateBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof setCardState>>,
+        TError,
+        {cardId: string;data: SetCardStateBody},
+        TContext
+      > => {
+      return useMutation(getSetCardStateMutationOptions(options), queryClient);
+    }
+
+export const getListMyCardsUrl = (params?: ListMyCardsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/me/cards?${stringifiedParams}` : `/api/v1/me/cards`
+}
+
+/**
+ * Newest first. The read half of YC-109: until this existed,
+ * TCCN-109-2's "đã có trong bộ X" had no X to link to, and every card the
+ * app created went somewhere nobody could look.
+ *
+ * **No scheduling state is returned** — not `intervalDays`, not
+ * `easeFactor`, not `dueAt`. R-15 forbids the algorithm that would move
+ * them, so the columns exist and nothing writes them; every card would
+ * report the same three constants, and a constant on the wire is a field
+ * a client renders as though it meant something. `state` is here because
+ * R-15 makes it the learner's own answer rather than a scheduler's.
+ * @summary The cards this learner has collected (YC-109)
+ */
+export const listMyCards = async (params?: ListMyCardsParams, options?: Parameters<typeof apiFetch>[1]): Promise<ListMyCards200> => {
+
+  return apiFetch<ListMyCards200>(getListMyCardsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMyCardsQueryKey = (params?: ListMyCardsParams,) => {
+    return [
+    `/api/v1/me/cards`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListMyCardsQueryOptions = <TData = Awaited<ReturnType<typeof listMyCards>>, TError = UnauthorizedResponse>(params?: ListMyCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyCards>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMyCardsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyCards>>> = ({ signal }) => listMyCards(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyCards>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListMyCardsQueryResult = NonNullable<Awaited<ReturnType<typeof listMyCards>>>
+export type ListMyCardsQueryError = UnauthorizedResponse
+
+
+export function useListMyCards<TData = Awaited<ReturnType<typeof listMyCards>>, TError = UnauthorizedResponse>(
+ params: undefined |  ListMyCardsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyCards>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMyCards>>,
+          TError,
+          Awaited<ReturnType<typeof listMyCards>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListMyCards<TData = Awaited<ReturnType<typeof listMyCards>>, TError = UnauthorizedResponse>(
+ params?: ListMyCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyCards>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMyCards>>,
+          TError,
+          Awaited<ReturnType<typeof listMyCards>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListMyCards<TData = Awaited<ReturnType<typeof listMyCards>>, TError = UnauthorizedResponse>(
+ params?: ListMyCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyCards>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary The cards this learner has collected (YC-109)
+ */
+
+export function useListMyCards<TData = Awaited<ReturnType<typeof listMyCards>>, TError = UnauthorizedResponse>(
+ params?: ListMyCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyCards>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListMyCardsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetWeaknessUrl = (params?: GetWeaknessParams,) => {
   const normalizedParams = new URLSearchParams();
