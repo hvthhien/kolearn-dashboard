@@ -23,33 +23,20 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { LayerStatus } from './layerStatus';
-import type { QuestionType } from './questionType';
-import type { SectionKind } from './sectionKind';
+import type { PlacementRecommendationKind } from './placementRecommendationKind';
 
-export interface AdminQuestionRow {
-  id: string;
-  ordinal: number;
+export interface PlacementRecommendation {
+  kind: PlacementRecommendationKind;
+  topicId: string;
+  topicName: string;
+  /** How much is behind the link — questions, or cards. */
+  count: number;
   /**
-     * The number printed on the paper where it differs from `ordinal` —
-     * TOPIK II Reading restarts at 1 after Listening and Writing.
+     * The numbers the reason points at (TCCN-343-2). The sentence itself
+     * is composed on the client, where the rest of this product's
+     * Vietnamese copy lives; what the server guarantees is that a reason
+     * cannot be written which the measurements do not support.
      */
-  displayOrdinal?: number;
-  sectionKind?: SectionKind;
-  type: QuestionType;
-  stemKo: string;
-  layerStatus: LayerStatus;
-  /**
-     * @minimum 1
-     * @maximum 6
-     * @nullable
-     */
-  difficultyManual?: number | null;
-  choiceCount: number;
-  correctChoiceCount: number;
-  /**
-     * Submitted attempts containing this question. Zero means the answer
-     * key is still free to change (TCCN-301-9).
-     */
-  attemptedCount: number;
+  wrongCount: number;
+  encounters: number;
 }

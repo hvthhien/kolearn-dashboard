@@ -23,33 +23,28 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { LayerStatus } from './layerStatus';
-import type { QuestionType } from './questionType';
-import type { SectionKind } from './sectionKind';
+import type { PlacementChoice } from './placementChoice';
+import type { PlacementPassage } from './placementPassage';
+import type { PlacementSectionKind } from './placementSectionKind';
 
-export interface AdminQuestionRow {
+/**
+ * Carries no difficulty and no band, deliberately. TCCN-303-2 keeps
+ * difficulty off every learner screen — "không nhãn, không lọc, không sắp
+ * xếp" — and showing it would invite the learner to steer toward the easy
+ * questions, which ruins both the measurement and the studying.
+ *
+ * Carries no answer key and no explanation either, for the same reason
+ * `RunnerQuestion` does not.
+ */
+export interface PlacementQuestion {
   id: string;
+  /** Position within this test, 1-based. Not the question's number in its original paper. */
   ordinal: number;
-  /**
-     * The number printed on the paper where it differs from `ordinal` —
-     * TOPIK II Reading restarts at 1 after Listening and Writing.
-     */
-  displayOrdinal?: number;
-  sectionKind?: SectionKind;
-  type: QuestionType;
+  sectionKind: PlacementSectionKind;
   stemKo: string;
-  layerStatus: LayerStatus;
-  /**
-     * @minimum 1
-     * @maximum 6
-     * @nullable
-     */
-  difficultyManual?: number | null;
-  choiceCount: number;
-  correctChoiceCount: number;
-  /**
-     * Submitted attempts containing this question. Zero means the answer
-     * key is still free to change (TCCN-301-9).
-     */
-  attemptedCount: number;
+  stemVi: string;
+  passage?: PlacementPassage;
+  choices: PlacementChoice[];
+  /** Present only on a listening question that has a clip. */
+  audioUrl?: string;
 }

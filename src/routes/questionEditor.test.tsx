@@ -177,6 +177,24 @@ describe('YC-303: độ khó', () => {
     })
   })
 
+  // TOPIK6 is the band that did not exist before migration 00021, when the
+  // scale ran 1-5. A control that still stops at five would leave the top of
+  // the ladder unreachable for every question in the bank, and the placement
+  // test would quietly never suggest it.
+  it('TCCN-303-1: gắn được TOPIK6, cấp cao nhất của thang', async () => {
+    const user = userEvent.setup()
+    renderRoute(Q16)
+    await stemKo()
+
+    await user.selectOptions(screen.getByLabelText('Độ khó'), '6')
+    await user.click(screen.getByRole('button', { name: 'Lưu nháp' }))
+    await screen.findByText('Đã lưu.')
+
+    await waitFor(() => {
+      expect(mockQuestion('q-16')?.difficultyManual).toBe(6)
+    })
+  })
+
   it('TCCN-303-1: độ khó suy từ dữ liệu hiện tách khỏi độ khó gắn tay', async () => {
     renderRoute(Q15)
     await stemKo()

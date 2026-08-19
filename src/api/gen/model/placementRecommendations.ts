@@ -23,33 +23,18 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { LayerStatus } from './layerStatus';
-import type { QuestionType } from './questionType';
-import type { SectionKind } from './sectionKind';
+import type { PlacementRecommendation } from './placementRecommendation';
 
-export interface AdminQuestionRow {
-  id: string;
-  ordinal: number;
-  /**
-     * The number printed on the paper where it differs from `ordinal` —
-     * TOPIK II Reading restarts at 1 after Listening and Writing.
-     */
-  displayOrdinal?: number;
-  sectionKind?: SectionKind;
-  type: QuestionType;
-  stemKo: string;
-  layerStatus: LayerStatus;
+export interface PlacementRecommendations {
   /**
      * @minimum 1
      * @maximum 6
-     * @nullable
      */
-  difficultyManual?: number | null;
-  choiceCount: number;
-  correctChoiceCount: number;
+  suggestedLevel: number;
   /**
-     * Submitted attempts containing this question. Zero means the answer
-     * key is still free to change (TCCN-301-9).
+     * Empty is a real answer, and the screen shows TCCN-343-5's empty
+     * state — "Chưa có nội dung ở cấp độ này" plus one thing that can be
+     * done right now — rather than an empty list or off-level filler.
      */
-  attemptedCount: number;
+  items: PlacementRecommendation[];
 }

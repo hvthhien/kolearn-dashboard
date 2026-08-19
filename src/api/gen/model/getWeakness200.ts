@@ -23,8 +23,24 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { WeaknessCategoryRow } from './weaknessCategoryRow';
 import type { WeaknessRow } from './weaknessRow';
 
 export type GetWeakness200 = {
   items: WeaknessRow[];
+  /**
+     * One row per nhóm the learner has weaknesses in, totalled
+     * over every chủ điểm rather than the ones `limit` let
+     * through. Never affected by `limit`.
+     *
+     * Optional in the schema although this server always sends
+     * it. The learner app deploys separately from this one, so
+     * there is a window where a new client reaches an old
+     * instance; declaring it required would have the generated
+     * type assert something false for the length of a rolling
+     * deploy, and push the client's fallback outside what the
+     * types can check. Summing `items` is that fallback, and it
+     * is correct whenever the response was not truncated.
+     */
+  categories?: WeaknessCategoryRow[];
 };

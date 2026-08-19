@@ -34,6 +34,7 @@ tags:
   - name: topics
   - name: cards
   - name: weakness
+  - name: placement
   - name: writing
   - name: admin
 
@@ -1207,6 +1208,12 @@ paths:
         writing counts attributed separately on the same row (TCCN-206-1).
         Topics with repeat wrong answers sort first — a mistake that survived a
         retry is the highest-value thing to study next (R-08).
+
+        `items` is a *ranked cut*, so `categories` is returned beside it with the
+        same totals gathered per nhóm over the whole table. Summing `items` is
+        not equivalent whenever `limit` truncated: the ordering puts the wrong
+        answers first, so a group keeps its numerator and loses part of its
+        denominator, and every severity bar drawn from it reads high.
       parameters:
         - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
       responses:
@@ -1221,7 +1228,299 @@ paths:
                   items:
                     type: array
                     items: { $ref: '#/components/schemas/WeaknessRow' }
+                  categories:
+                    type: array
+                    description: |
+                      One row per nhóm the learner has weaknesses in, totalled
+                      over every chủ điểm rather than the ones `limit` let
+                      through. Never affected by `limit`.
+
+                      Optional in the schema although this server always sends
+                      it. The learner app deploys separately from this one, so
+                      there is a window where a new client reaches an old
+                      instance; declaring it required would have the generated
+                      type assert something false for the length of a rolling
+                      deploy, and push the client's fallback outside what the
+                      types can check. Summing `items` is that fallback, and it
+                      is correct whenever the response was not truncated.
+                    items: { $ref: '#/components/schemas/WeaknessCategoryRow' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ── placement: kiểm tra đầu vào (SC-PLACEMENT) ────────────────────────────
+
+  /placement/availability:
+    get:
+      tags: [placement]
+      operationId: getPlacementAvailability
+      summary: Can the placement test run, and what does it promise (TCCN-341-1, TCCN-341-4)
+      description: |
+        The entry screen asks this before offering anything. `available` is
+        false when the bank holds no difficulty-tagged question, and the screen
+        then says "Chưa bật được bài kiểm tra đầu vào." and offers another way
+        to start studying (TCCN-341-4).
+
+        A refusal, never a degraded test. Choosing questions with no difficulty
+        on them would produce a level from what is effectively a random draw,
+        and nothing on the screen would tell the learner the difference.
+
+        `maxQuestions` and `estimatedMinutes` are shown before the learner
+        commits (TCCN-341-1): someone who does not know how long a test runs
+        either never starts it or abandons it halfway, and both yield no result.
+      responses:
+        '200':
+          description: Whether the test can run.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlacementAvailability' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /placement/sessions:
+    post:
+      tags: [placement]
+      operationId: startPlacement
+      summary: Pick a level and start the test (YC-345 → YC-341)
+      description: |
+        Step 1 handing over to step 2. `selfAssessedLevel` is 1-6, or **null**
+        for "Tôi chưa biết" — a first-class answer, not a missing one
+        (TCCN-345-2), which starts the ladder at the bottom and switches the
+        comparison off at step 3 (TCCN-342-9).
+
+        The first question sits at the level just chosen (TCCN-341-7), and that
+        level is a starting point only: it is neither a ceiling nor a floor
+        (TCCN-341-8), and it gates no content anywhere (TCCN-345-3).
+
+        Any session left in progress is abandoned here. That is TCCN-341-5: an
+        unfinished placement test leaves no result and is never offered back —
+        deliberately the opposite of R-03's resume, because a half-done
+        practice attempt still measures work done while a half-done placement
+        test has nothing to estimate from.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StartPlacementRequest' }
+      responses:
+        '201':
+          description: The session, with its first question.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlacementRunner' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422':
+          description: |
+            `placement_unavailable` when the bank has no difficulty-tagged
+            questions (TCCN-341-4), or `invalid_level` when the level is
+            outside 1-6.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /placement/sessions/{sessionId}:
+    get:
+      tags: [placement]
+      operationId: getPlacementSession
+      summary: The question currently on screen
+      description: |
+        What a reload of the runner reads.
+
+        This does not soften TCCN-341-5. That criterion's trigger is reopening
+        the *entry* screen — "mở lại màn Kiểm tra đầu vào" — and starting from
+        there still abandons whatever was running and deals a new test. What is
+        refused is a half-finished test offered back as a choice, and a partial
+        result; continuing a session the learner never left is neither.
+
+        `question` is absent once the session is finished or abandoned, which
+        sends the client to the result.
+      parameters:
+        - { name: sessionId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: The session state.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlacementRunner' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /placement/sessions/{sessionId}/answers:
+    post:
+      tags: [placement]
+      operationId: answerPlacement
+      summary: Answer the question on screen, get the next one (TCCN-341-2)
+      description: |
+        Correct means the next question is harder, wrong means easier, and
+        every question served carries a difficulty assigned by hand under
+        YC-303 — never a random pick.
+
+        `question` is absent from the response once the ladder stops, which is
+        the client's signal to go to the result. The ladder stops on the
+        question count or once the answers have settled around one band; the
+        learner never works through the whole bank (TCCN-341-3).
+
+        One round trip per question, because which question comes next is not
+        known until this one is answered. Nothing in the response reveals the
+        difficulty (TCCN-303-2).
+      parameters:
+        - { name: sessionId, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PlacementAnswerRequest' }
+      responses:
+        '200':
+          description: The next question, or a finished session.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlacementRunner' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: |
+            `placement_finished` when the test has already ended, or
+            `placement_question_moved` when the answer is for a question that
+            is no longer on screen — almost always a double submit racing
+            itself.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /placement/sessions/{sessionId}/result:
+    get:
+      tags: [placement]
+      operationId: getPlacementResult
+      summary: The four parts of the result (TCCN-342-1)
+      description: |
+        So với cấp độ đã chọn, cấp độ gợi ý, Nghe and Đọc separately, and the
+        topics missed most.
+
+        `suggestedLevel` is a level **to choose lessons with**. Điều cấm số 5
+        allows this screen to name a level — it is what the feature is for —
+        and forbids it reading as a verdict on ability or a prediction of the
+        real exam (TCCN-342-2). It is deliberately not an `EstimatedBand`:
+        that type means an estimated exam band off a complete paper, which is
+        the claim this must not make. `note` carries the caveat and is
+        required, so a client cannot render the level without it.
+
+        `comparison` and `selfAssessedLevel` are both absent when the learner
+        chose "Tôi chưa biết" — the section is gone rather than blank
+        (TCCN-342-9).
+
+        `listening` and `reading` are never averaged into one figure: the gap
+        between them is itself the finding (TCCN-342-3).
+      parameters:
+        - { name: sessionId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: The result.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlacementResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /placement/sessions/{sessionId}/recommendations:
+    get:
+      tags: [placement]
+      operationId: getPlacementRecommendations
+      summary: Đề xuất bài tập tương tự (YC-343)
+      description: |
+        Every item carries the numbers a reason is built from — `wrongCount`
+        out of `encounters` on a named topic — because a recommendation with no
+        reason is a list nobody trusts and nobody taps (TCCN-343-2).
+
+        **No AI call, and no R-11 quota is charged** (TCCN-343-6). Everything
+        here is a count over topics already attached to questions (R-06) and
+        difficulties already assigned by hand (YC-303), so reopening the list
+        costs nothing however many times it happens.
+
+        R-32 names four sources. Two of them — video nhại theo (R-19) and tình
+        huống hội thoại (R-21) — have no table anywhere in this system yet, and
+        TCCN-343-1 is explicit that an empty source is dropped rather than
+        padded. They will appear as those features land.
+
+        Recommendations order content; they never lock it (TCCN-343-4).
+      parameters:
+        - { name: sessionId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: The recommendation list, possibly empty (TCCN-343-5).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlacementRecommendations' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /placement/sessions/{sessionId}/questions/{questionId}/audio:
+    get:
+      tags: [placement]
+      operationId: getPlacementAudio
+      summary: The listening clip for a placement question
+      description: |
+        Plain authenticated bytes, fetched into a Blob by the client — none of
+        the ticket machinery `/attempts` uses. Tickets exist to buy back the
+        seconds a Blob costs while an exam clock runs, and to ration a listen
+        to one under R-01. The placement test has neither a countdown nor a
+        ration, so it would be paying that complexity for nothing.
+      parameters:
+        - { name: sessionId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: questionId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: The audio bytes.
+          content:
+            audio/mpeg:
+              schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /me/placement:
+    get:
+      tags: [placement]
+      operationId: getMyPlacement
+      summary: Current level and every past sitting (TCCN-344-1)
+      description: |
+        `history` is newest first, and both halves matter: the newest entry's
+        `suggestedLevel` is the suggestion a retake replaces, and the older
+        entries stay readable so the learner can see which skill moved and
+        which did not.
+
+        `currentLevel` is a different thing from the newest suggestion. It is
+        "cấp độ đang dùng" — the level content is ordered by — and it changes
+        only when the learner says so (TCCN-342-6), never downward on its own
+        (TCCN-342-8). Absent until they have chosen one.
+      responses:
+        '200':
+          description: The learner's placement state.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MyPlacement' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /me/level:
+    put:
+      tags: [placement]
+      operationId: setMyLevel
+      summary: Change the level content is ordered by (TCCN-342-6)
+      description: |
+        Only ever called from an explicit tap. The result screen offers the
+        change and asks; nothing on the server applies it, and nothing lowers
+        it because one twelve-question test came out under the learner's own
+        guess (TCCN-342-8).
+
+        The level orders content. It never gates it — every video and every
+        question at every level stays open regardless (TCCN-345-3,
+        TCCN-343-4).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SetLevelRequest' }
+      responses:
+        '204': { description: The level was changed. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
 
   # ── writing ───────────────────────────────────────────────────────────────
 
@@ -2902,7 +3201,303 @@ components:
           description: Wrong again on a retry. Sorted first (R-08).
         lastSeenAt: { type: string, format: date-time }
 
+    WeaknessCategoryRow:
+      type: object
+      description: |
+        One nhóm chủ điểm, totalled over the learner's whole table.
+
+        Exists because `items` is a ranked cut and summing a cut is where that
+        stops being harmless. Nothing here obeys `limit`.
+      required: [category, topicCount, encounters, wrongCount, skippedCount,
+                 mcqWrongCount, writingWrongCount, repeatWrongCount,
+                 distinctWrongQuestions, distinctEncounteredQuestions]
+      properties:
+        category: { $ref: '#/components/schemas/TopicCategory' }
+        topicCount:
+          type: integer
+          description: |
+            Every chủ điểm of this category the table is about, not only those
+            inside `limit`. A client listing fewer rows than this has to say so
+            — otherwise the count above the list reads as a miscount.
+        encounters: { type: integer }
+        wrongCount: { type: integer }
+        skippedCount: { type: integer }
+        mcqWrongCount: { type: integer }
+        writingWrongCount: { type: integer }
+        repeatWrongCount: { type: integer }
+        distinctWrongQuestions:
+          type: integer
+          description: |
+            Questions counted once each, rather than log entries — the count a
+            client cannot derive, because the rollup hands it no question ids.
+
+            Two things collapse. The log writes one entry per (question, topic)
+            pair, so a question carrying two chủ điểm of this category is two
+            entries and one question. And a question met again in a later
+            sitting is a further entry each time, so a learner who sat one paper
+            twice has double the entries and the same questions.
+
+            `mcqWrongCount` answers "how many times"; this answers "how many
+            questions", which is what a list of them is long. `repeatWrongCount`
+            still carries the survived-a-retry signal (R-08).
+        distinctEncounteredQuestions:
+          type: integer
+          description: |
+            The denominator that matches the numerator above — every question
+            met with a chủ điểm of this category attached, right or wrong.
+            Writing entries carry no question and are excluded from both, which
+            is why `writingWrongCount` stays attributed separately.
+
     # ── admin: ngân hàng đề ─────────────────────────────────────────────────
+
+    # ── placement (SC-PLACEMENT) ──────────────────────────────────────────
+
+    PlacementSectionKind:
+      type: string
+      description: |
+        Only the two sections a machine can mark. R-32 keeps phần Viết out of
+        the placement test because grading an essay is one AI call under R-09,
+        which is not worth spending on a warm-up nobody has committed to yet.
+      enum: [LISTENING, READING]
+
+    PlacementComparison:
+      type: string
+      description: Where the test landed relative to the learner's own guess at step 1.
+      enum: [HIGHER, SAME, LOWER]
+
+    PlacementAvailability:
+      type: object
+      required: [available, maxQuestions, estimatedMinutes]
+      properties:
+        available:
+          type: boolean
+          description: False when no question in the bank carries a difficulty (TCCN-341-4).
+        maxQuestions: { type: integer }
+        estimatedMinutes: { type: integer }
+
+    StartPlacementRequest:
+      type: object
+      required: [selfAssessedLevel]
+      properties:
+        selfAssessedLevel:
+          type: [integer, 'null']
+          minimum: 1
+          maximum: 6
+          description: |
+            The level the learner thinks they are at, or **null** for "Tôi chưa
+            biết". Null is a real answer and ranks equal with the six levels on
+            screen (TCCN-345-2) — the learners who cannot name a TOPIK level
+            are the ones this feature exists for.
+
+    PlacementAnswerRequest:
+      type: object
+      required: [questionId, choiceId]
+      properties:
+        questionId: { type: string, format: uuid }
+        choiceId: { type: string, format: uuid }
+
+    SetLevelRequest:
+      type: object
+      required: [level]
+      properties:
+        level: { type: integer, minimum: 1, maximum: 6 }
+
+    PlacementRunner:
+      type: object
+      required: [sessionId, status, answered, maxQuestions]
+      properties:
+        sessionId: { type: string, format: uuid }
+        status:
+          type: string
+          enum: [IN_PROGRESS, SUBMITTED, ABANDONED]
+        answered: { type: integer }
+        maxQuestions: { type: integer }
+        question:
+          description: |
+            Absent once the ladder has stopped — the client's signal to go to
+            the result. An omitted field rather than a sentinel question with
+            empty strings in it.
+          $ref: '#/components/schemas/PlacementQuestion'
+
+    PlacementQuestion:
+      type: object
+      required: [id, ordinal, sectionKind, stemKo, stemVi, choices]
+      description: |
+        Carries no difficulty and no band, deliberately. TCCN-303-2 keeps
+        difficulty off every learner screen — "không nhãn, không lọc, không sắp
+        xếp" — and showing it would invite the learner to steer toward the easy
+        questions, which ruins both the measurement and the studying.
+
+        Carries no answer key and no explanation either, for the same reason
+        `RunnerQuestion` does not.
+      properties:
+        id: { type: string, format: uuid }
+        ordinal:
+          type: integer
+          description: Position within this test, 1-based. Not the question's number in its original paper.
+        sectionKind: { $ref: '#/components/schemas/PlacementSectionKind' }
+        stemKo: { type: string }
+        stemVi: { type: string }
+        passage: { $ref: '#/components/schemas/PlacementPassage' }
+        choices:
+          type: array
+          items: { $ref: '#/components/schemas/PlacementChoice' }
+        audioUrl:
+          type: string
+          description: Present only on a listening question that has a clip.
+
+    PlacementPassage:
+      type: object
+      required: [id, bodyKo, bodyVi]
+      properties:
+        id: { type: string, format: uuid }
+        bodyKo: { type: string }
+        bodyVi: { type: string }
+
+    PlacementChoice:
+      type: object
+      required: [id, ordinal, textKo, textVi]
+      properties:
+        id: { type: string, format: uuid }
+        ordinal: { type: integer, minimum: 1, maximum: 4 }
+        textKo: { type: string }
+        textVi: { type: string }
+
+    PlacementSectionScore:
+      type: object
+      required: [correct, total]
+      description: |
+        Kept as a pair rather than a rate. R-06 makes the same point about
+        topics: "sai 8 trên 11 lần gặp" is a fact, and a percentage is a claim
+        about a sample whose size the reader cannot see.
+      properties:
+        correct: { type: integer }
+        total: { type: integer }
+
+    PlacementTopicMistake:
+      type: object
+      required: [topic, wrongCount, encounters]
+      description: |
+        Both halves, always — "sai 3 trên 4 lần gặp" (TCCN-342-1). The topic
+        comes from the one already attached to the question under R-06; nothing
+        here generates or infers one.
+      properties:
+        topic: { $ref: '#/components/schemas/Topic' }
+        wrongCount: { type: integer }
+        encounters: { type: integer }
+
+    PlacementResult:
+      type: object
+      required: [sessionId, completedAt, suggestedLevel, note, listening, reading, topics, totalQuestions]
+      properties:
+        sessionId: { type: string, format: uuid }
+        completedAt: { type: string, format: date-time }
+        selfAssessedLevel:
+          type: integer
+          minimum: 1
+          maximum: 6
+          description: Absent when the learner chose "Tôi chưa biết".
+        comparison:
+          description: |
+            Absent when there is nothing to compare against. The section is
+            gone from the screen rather than rendered empty with a dash in it
+            (TCCN-342-9).
+          $ref: '#/components/schemas/PlacementComparison'
+        suggestedLevel:
+          type: integer
+          minimum: 1
+          maximum: 6
+          description: |
+            A level **to choose lessons with**, always shown with the word
+            "gợi ý" beside it. Not an exam band, and not an `EstimatedBand`
+            (TCCN-342-2, điều cấm số 5).
+        note:
+          type: string
+          description: |
+            The caveat that must appear beside the level. Required rather than
+            optional for the same reason `EstimatedBand.disclaimer` is: a
+            caveat a client may omit is one that gets omitted.
+        listening: { $ref: '#/components/schemas/PlacementSectionScore' }
+        reading: { $ref: '#/components/schemas/PlacementSectionScore' }
+        weakerSection:
+          description: |
+            The skill to lean recommendations toward (TCCN-342-3). Absent when
+            the two came out level — a difference read off a twelve-item sample
+            that is not there would be noise reported as a finding.
+          $ref: '#/components/schemas/PlacementSectionKind'
+        topics:
+          type: array
+          items: { $ref: '#/components/schemas/PlacementTopicMistake' }
+        totalQuestions: { type: integer }
+
+    PlacementHistoryEntry:
+      type: object
+      required: [sessionId, completedAt, suggestedLevel, listening, reading]
+      properties:
+        sessionId: { type: string, format: uuid }
+        completedAt: { type: string, format: date-time }
+        suggestedLevel: { type: integer, minimum: 1, maximum: 6 }
+        selfAssessedLevel: { type: integer, minimum: 1, maximum: 6 }
+        listening: { $ref: '#/components/schemas/PlacementSectionScore' }
+        reading: { $ref: '#/components/schemas/PlacementSectionScore' }
+
+    MyPlacement:
+      type: object
+      required: [history]
+      properties:
+        currentLevel:
+          type: integer
+          minimum: 1
+          maximum: 6
+          description: |
+            "Cấp độ đang dùng" — the level content is ordered by, changed only
+            on an explicit tap (TCCN-342-6) and never lowered automatically
+            (TCCN-342-8). Absent until the learner has chosen one.
+        history:
+          type: array
+          description: Newest first. Old results stay readable after a retake (TCCN-344-1).
+          items: { $ref: '#/components/schemas/PlacementHistoryEntry' }
+
+    PlacementRecommendationKind:
+      type: string
+      description: |
+        Which of R-32's four sources a row came from. Only the two with
+        anything behind them today: video nhại theo (R-19) and tình huống hội
+        thoại (R-21) have no table in this system yet, and TCCN-343-1 drops an
+        empty source rather than padding it.
+      enum: [PRACTICE_QUESTIONS, CARDS]
+
+    PlacementRecommendation:
+      type: object
+      required: [kind, topicId, topicName, count, wrongCount, encounters]
+      properties:
+        kind: { $ref: '#/components/schemas/PlacementRecommendationKind' }
+        topicId: { type: string, format: uuid }
+        topicName: { type: string }
+        count:
+          type: integer
+          description: How much is behind the link — questions, or cards.
+        wrongCount:
+          type: integer
+          description: |
+            The numbers the reason points at (TCCN-343-2). The sentence itself
+            is composed on the client, where the rest of this product's
+            Vietnamese copy lives; what the server guarantees is that a reason
+            cannot be written which the measurements do not support.
+        encounters: { type: integer }
+
+    PlacementRecommendations:
+      type: object
+      required: [suggestedLevel, items]
+      properties:
+        suggestedLevel: { type: integer, minimum: 1, maximum: 6 }
+        items:
+          type: array
+          description: |
+            Empty is a real answer, and the screen shows TCCN-343-5's empty
+            state — "Chưa có nội dung ở cấp độ này" plus one thing that can be
+            done right now — rather than an empty list or off-level filler.
+          items: { $ref: '#/components/schemas/PlacementRecommendation' }
 
     ExamStatus:
       type: string
@@ -3076,7 +3671,7 @@ components:
         type: { $ref: '#/components/schemas/QuestionType' }
         stemKo: { type: string }
         layerStatus: { $ref: '#/components/schemas/LayerStatus' }
-        difficultyManual: { type: [integer, 'null'], minimum: 1, maximum: 5 }
+        difficultyManual: { type: [integer, 'null'], minimum: 1, maximum: 6 }
         choiceCount: { type: integer }
         correctChoiceCount: { type: integer }
         attemptedCount:
@@ -3184,10 +3779,13 @@ components:
         difficultyManual:
           type: [integer, 'null']
           minimum: 1
-          maximum: 5
+          maximum: 6
           description: |
-            YC-303, assigned by hand while authoring. Never rendered to a
-            learner in ver1.0 — no label, no filter, no sort (TCCN-303-2).
+            YC-303, assigned by hand while authoring. A TOPIK band, 1-6:
+            widened from 1-5 in migration 00021 because R-32 addresses
+            difficulty in bands ("độ khó ở TOPIK4", TCCN-341-7) and the
+            placement test is this value's only reader. Never rendered to a
+            learner — no label, no filter, no sort (TCCN-303-2).
         difficultyObserved:
           type: [number, 'null']
           description: |
@@ -3217,7 +3815,7 @@ components:
         explanationCorrectVi: { type: [string, 'null'] }
         explanationWrongGenericKo: { type: [string, 'null'] }
         explanationWrongGenericVi: { type: [string, 'null'] }
-        difficultyManual: { type: [integer, 'null'], minimum: 1, maximum: 5 }
+        difficultyManual: { type: [integer, 'null'], minimum: 1, maximum: 6 }
         choices:
           type: array
           items: { $ref: '#/components/schemas/AdminChoice' }

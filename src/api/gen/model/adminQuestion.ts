@@ -66,10 +66,13 @@ export interface AdminQuestion {
   /** @nullable */
   explanationWrongGenericVi?: string | null;
   /**
-     * YC-303, assigned by hand while authoring. Never rendered to a
-     * learner in ver1.0 — no label, no filter, no sort (TCCN-303-2).
+     * YC-303, assigned by hand while authoring. A TOPIK band, 1-6:
+     * widened from 1-5 in migration 00021 because R-32 addresses
+     * difficulty in bands ("độ khó ở TOPIK4", TCCN-341-7) and the
+     * placement test is this value's only reader. Never rendered to a
+     * learner — no label, no filter, no sort (TCCN-303-2).
      * @minimum 1
-     * @maximum 5
+     * @maximum 6
      * @nullable
      */
   difficultyManual?: number | null;

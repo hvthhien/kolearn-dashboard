@@ -86,7 +86,13 @@ import type {
   ListTopicsParams,
   LoginRequest,
   MyCard,
+  MyPlacement,
   NotFoundResponse,
+  PlacementAnswerRequest,
+  PlacementAvailability,
+  PlacementRecommendations,
+  PlacementResult,
+  PlacementRunner,
   Problem,
   PublishAdminExamParams,
   PublishReport,
@@ -100,8 +106,10 @@ import type {
   SaveWritingDraftRequest,
   SectionKind,
   SetCardStateBody,
+  SetLevelRequest,
   SetQuestionTopicsBody,
   StartAttemptRequest,
+  StartPlacementRequest,
   StreamTicketedAudioParams,
   SubmitSection200,
   TooManyRequestsResponse,
@@ -3709,6 +3717,12 @@ export const getGetWeaknessUrl = (params?: GetWeaknessParams,) => {
  * writing counts attributed separately on the same row (TCCN-206-1).
  * Topics with repeat wrong answers sort first — a mistake that survived a
  * retry is the highest-value thing to study next (R-08).
+ *
+ * `items` is a *ranked cut*, so `categories` is returned beside it with the
+ * same totals gathered per nhóm over the whole table. Summing `items` is
+ * not equivalent whenever `limit` truncated: the ordering puts the wrong
+ * answers first, so a group keeps its numerator and loses part of its
+ * denominator, and every severity bar drawn from it reads high.
  * @summary Cumulative weakness by topic (TCCN-108-6)
  */
 export const getWeakness = async (params?: GetWeaknessParams, options?: Parameters<typeof apiFetch>[1]): Promise<GetWeakness200> => {
@@ -3800,6 +3814,936 @@ export function useGetWeakness<TData = Awaited<ReturnType<typeof getWeakness>>, 
 
 
 
+
+export const getGetPlacementAvailabilityUrl = () => {
+
+
+
+
+  return `/api/v1/placement/availability`
+}
+
+/**
+ * The entry screen asks this before offering anything. `available` is
+ * false when the bank holds no difficulty-tagged question, and the screen
+ * then says "Chưa bật được bài kiểm tra đầu vào." and offers another way
+ * to start studying (TCCN-341-4).
+ *
+ * A refusal, never a degraded test. Choosing questions with no difficulty
+ * on them would produce a level from what is effectively a random draw,
+ * and nothing on the screen would tell the learner the difference.
+ *
+ * `maxQuestions` and `estimatedMinutes` are shown before the learner
+ * commits (TCCN-341-1): someone who does not know how long a test runs
+ * either never starts it or abandons it halfway, and both yield no result.
+ * @summary Can the placement test run, and what does it promise (TCCN-341-1, TCCN-341-4)
+ */
+export const getPlacementAvailability = async ( options?: Parameters<typeof apiFetch>[1]): Promise<PlacementAvailability> => {
+
+  return apiFetch<PlacementAvailability>(getGetPlacementAvailabilityUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPlacementAvailabilityQueryKey = () => {
+    return [
+    `/api/v1/placement/availability`
+    ] as const;
+    }
+
+
+export const getGetPlacementAvailabilityQueryOptions = <TData = Awaited<ReturnType<typeof getPlacementAvailability>>, TError = UnauthorizedResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementAvailability>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPlacementAvailabilityQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPlacementAvailability>>> = ({ signal }) => getPlacementAvailability({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPlacementAvailability>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetPlacementAvailabilityQueryResult = NonNullable<Awaited<ReturnType<typeof getPlacementAvailability>>>
+export type GetPlacementAvailabilityQueryError = UnauthorizedResponse
+
+
+export function useGetPlacementAvailability<TData = Awaited<ReturnType<typeof getPlacementAvailability>>, TError = UnauthorizedResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementAvailability>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPlacementAvailability>>,
+          TError,
+          Awaited<ReturnType<typeof getPlacementAvailability>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPlacementAvailability<TData = Awaited<ReturnType<typeof getPlacementAvailability>>, TError = UnauthorizedResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementAvailability>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPlacementAvailability>>,
+          TError,
+          Awaited<ReturnType<typeof getPlacementAvailability>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPlacementAvailability<TData = Awaited<ReturnType<typeof getPlacementAvailability>>, TError = UnauthorizedResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementAvailability>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Can the placement test run, and what does it promise (TCCN-341-1, TCCN-341-4)
+ */
+
+export function useGetPlacementAvailability<TData = Awaited<ReturnType<typeof getPlacementAvailability>>, TError = UnauthorizedResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementAvailability>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetPlacementAvailabilityQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getStartPlacementUrl = () => {
+
+
+
+
+  return `/api/v1/placement/sessions`
+}
+
+/**
+ * Step 1 handing over to step 2. `selfAssessedLevel` is 1-6, or **null**
+ * for "Tôi chưa biết" — a first-class answer, not a missing one
+ * (TCCN-345-2), which starts the ladder at the bottom and switches the
+ * comparison off at step 3 (TCCN-342-9).
+ *
+ * The first question sits at the level just chosen (TCCN-341-7), and that
+ * level is a starting point only: it is neither a ceiling nor a floor
+ * (TCCN-341-8), and it gates no content anywhere (TCCN-345-3).
+ *
+ * Any session left in progress is abandoned here. That is TCCN-341-5: an
+ * unfinished placement test leaves no result and is never offered back —
+ * deliberately the opposite of R-03's resume, because a half-done
+ * practice attempt still measures work done while a half-done placement
+ * test has nothing to estimate from.
+ * @summary Pick a level and start the test (YC-345 → YC-341)
+ */
+export const startPlacement = async (startPlacementRequest: StartPlacementRequest, options?: Parameters<typeof apiFetch>[1]): Promise<PlacementRunner> => {
+
+  return apiFetch<PlacementRunner>(getStartPlacementUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(startPlacementRequest)
+  }
+);}
+
+
+
+
+
+export const getStartPlacementMutationOptions = <TError = UnauthorizedResponse | Problem,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startPlacement>>, TError,{data: StartPlacementRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof startPlacement>>, TError,{data: StartPlacementRequest}, TContext> => {
+
+const mutationKey = ['startPlacement'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof startPlacement>>, {data: StartPlacementRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  startPlacement(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StartPlacementMutationResult = NonNullable<Awaited<ReturnType<typeof startPlacement>>>
+    export type StartPlacementMutationBody = StartPlacementRequest
+    export type StartPlacementMutationError = UnauthorizedResponse | Problem
+
+    /**
+ * @summary Pick a level and start the test (YC-345 → YC-341)
+ */
+export const useStartPlacement = <TError = UnauthorizedResponse | Problem,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startPlacement>>, TError,{data: StartPlacementRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof startPlacement>>,
+        TError,
+        {data: StartPlacementRequest},
+        TContext
+      > => {
+      return useMutation(getStartPlacementMutationOptions(options), queryClient);
+    }
+
+export const getGetPlacementSessionUrl = (sessionId: string,) => {
+
+
+
+
+  return `/api/v1/placement/sessions/${sessionId}`
+}
+
+/**
+ * What a reload of the runner reads.
+ *
+ * This does not soften TCCN-341-5. That criterion's trigger is reopening
+ * the *entry* screen — "mở lại màn Kiểm tra đầu vào" — and starting from
+ * there still abandons whatever was running and deals a new test. What is
+ * refused is a half-finished test offered back as a choice, and a partial
+ * result; continuing a session the learner never left is neither.
+ *
+ * `question` is absent once the session is finished or abandoned, which
+ * sends the client to the result.
+ * @summary The question currently on screen
+ */
+export const getPlacementSession = async (sessionId: string, options?: Parameters<typeof apiFetch>[1]): Promise<PlacementRunner> => {
+
+  return apiFetch<PlacementRunner>(getGetPlacementSessionUrl(sessionId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPlacementSessionQueryKey = (sessionId: string,) => {
+    return [
+    `/api/v1/placement/sessions/${sessionId}`
+    ] as const;
+    }
+
+
+export const getGetPlacementSessionQueryOptions = <TData = Awaited<ReturnType<typeof getPlacementSession>>, TError = UnauthorizedResponse | NotFoundResponse>(sessionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementSession>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPlacementSessionQueryKey(sessionId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPlacementSession>>> = ({ signal }) => getPlacementSession(sessionId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: sessionId !== null && sessionId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPlacementSession>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetPlacementSessionQueryResult = NonNullable<Awaited<ReturnType<typeof getPlacementSession>>>
+export type GetPlacementSessionQueryError = UnauthorizedResponse | NotFoundResponse
+
+
+export function useGetPlacementSession<TData = Awaited<ReturnType<typeof getPlacementSession>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ sessionId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementSession>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPlacementSession>>,
+          TError,
+          Awaited<ReturnType<typeof getPlacementSession>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPlacementSession<TData = Awaited<ReturnType<typeof getPlacementSession>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ sessionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementSession>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPlacementSession>>,
+          TError,
+          Awaited<ReturnType<typeof getPlacementSession>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPlacementSession<TData = Awaited<ReturnType<typeof getPlacementSession>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ sessionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementSession>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary The question currently on screen
+ */
+
+export function useGetPlacementSession<TData = Awaited<ReturnType<typeof getPlacementSession>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ sessionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementSession>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetPlacementSessionQueryOptions(sessionId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAnswerPlacementUrl = (sessionId: string,) => {
+
+
+
+
+  return `/api/v1/placement/sessions/${sessionId}/answers`
+}
+
+/**
+ * Correct means the next question is harder, wrong means easier, and
+ * every question served carries a difficulty assigned by hand under
+ * YC-303 — never a random pick.
+ *
+ * `question` is absent from the response once the ladder stops, which is
+ * the client's signal to go to the result. The ladder stops on the
+ * question count or once the answers have settled around one band; the
+ * learner never works through the whole bank (TCCN-341-3).
+ *
+ * One round trip per question, because which question comes next is not
+ * known until this one is answered. Nothing in the response reveals the
+ * difficulty (TCCN-303-2).
+ * @summary Answer the question on screen, get the next one (TCCN-341-2)
+ */
+export const answerPlacement = async (sessionId: string,
+    placementAnswerRequest: PlacementAnswerRequest, options?: Parameters<typeof apiFetch>[1]): Promise<PlacementRunner> => {
+
+  return apiFetch<PlacementRunner>(getAnswerPlacementUrl(sessionId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(placementAnswerRequest)
+  }
+);}
+
+
+
+
+
+export const getAnswerPlacementMutationOptions = <TError = UnauthorizedResponse | NotFoundResponse | Problem | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof answerPlacement>>, TError,{sessionId: string;data: PlacementAnswerRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof answerPlacement>>, TError,{sessionId: string;data: PlacementAnswerRequest}, TContext> => {
+
+const mutationKey = ['answerPlacement'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof answerPlacement>>, {sessionId: string;data: PlacementAnswerRequest}> = (props) => {
+          const {sessionId,data} = props ?? {};
+
+          return  answerPlacement(sessionId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AnswerPlacementMutationResult = NonNullable<Awaited<ReturnType<typeof answerPlacement>>>
+    export type AnswerPlacementMutationBody = PlacementAnswerRequest
+    export type AnswerPlacementMutationError = UnauthorizedResponse | NotFoundResponse | Problem | UnprocessableResponse
+
+    /**
+ * @summary Answer the question on screen, get the next one (TCCN-341-2)
+ */
+export const useAnswerPlacement = <TError = UnauthorizedResponse | NotFoundResponse | Problem | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof answerPlacement>>, TError,{sessionId: string;data: PlacementAnswerRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof answerPlacement>>,
+        TError,
+        {sessionId: string;data: PlacementAnswerRequest},
+        TContext
+      > => {
+      return useMutation(getAnswerPlacementMutationOptions(options), queryClient);
+    }
+
+export const getGetPlacementResultUrl = (sessionId: string,) => {
+
+
+
+
+  return `/api/v1/placement/sessions/${sessionId}/result`
+}
+
+/**
+ * So với cấp độ đã chọn, cấp độ gợi ý, Nghe and Đọc separately, and the
+ * topics missed most.
+ *
+ * `suggestedLevel` is a level **to choose lessons with**. Điều cấm số 5
+ * allows this screen to name a level — it is what the feature is for —
+ * and forbids it reading as a verdict on ability or a prediction of the
+ * real exam (TCCN-342-2). It is deliberately not an `EstimatedBand`:
+ * that type means an estimated exam band off a complete paper, which is
+ * the claim this must not make. `note` carries the caveat and is
+ * required, so a client cannot render the level without it.
+ *
+ * `comparison` and `selfAssessedLevel` are both absent when the learner
+ * chose "Tôi chưa biết" — the section is gone rather than blank
+ * (TCCN-342-9).
+ *
+ * `listening` and `reading` are never averaged into one figure: the gap
+ * between them is itself the finding (TCCN-342-3).
+ * @summary The four parts of the result (TCCN-342-1)
+ */
+export const getPlacementResult = async (sessionId: string, options?: Parameters<typeof apiFetch>[1]): Promise<PlacementResult> => {
+
+  return apiFetch<PlacementResult>(getGetPlacementResultUrl(sessionId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPlacementResultQueryKey = (sessionId: string,) => {
+    return [
+    `/api/v1/placement/sessions/${sessionId}/result`
+    ] as const;
+    }
+
+
+export const getGetPlacementResultQueryOptions = <TData = Awaited<ReturnType<typeof getPlacementResult>>, TError = UnauthorizedResponse | NotFoundResponse>(sessionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementResult>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPlacementResultQueryKey(sessionId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPlacementResult>>> = ({ signal }) => getPlacementResult(sessionId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: sessionId !== null && sessionId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPlacementResult>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetPlacementResultQueryResult = NonNullable<Awaited<ReturnType<typeof getPlacementResult>>>
+export type GetPlacementResultQueryError = UnauthorizedResponse | NotFoundResponse
+
+
+export function useGetPlacementResult<TData = Awaited<ReturnType<typeof getPlacementResult>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ sessionId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementResult>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPlacementResult>>,
+          TError,
+          Awaited<ReturnType<typeof getPlacementResult>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPlacementResult<TData = Awaited<ReturnType<typeof getPlacementResult>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ sessionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementResult>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPlacementResult>>,
+          TError,
+          Awaited<ReturnType<typeof getPlacementResult>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPlacementResult<TData = Awaited<ReturnType<typeof getPlacementResult>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ sessionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementResult>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary The four parts of the result (TCCN-342-1)
+ */
+
+export function useGetPlacementResult<TData = Awaited<ReturnType<typeof getPlacementResult>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ sessionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementResult>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetPlacementResultQueryOptions(sessionId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetPlacementRecommendationsUrl = (sessionId: string,) => {
+
+
+
+
+  return `/api/v1/placement/sessions/${sessionId}/recommendations`
+}
+
+/**
+ * Every item carries the numbers a reason is built from — `wrongCount`
+ * out of `encounters` on a named topic — because a recommendation with no
+ * reason is a list nobody trusts and nobody taps (TCCN-343-2).
+ *
+ * **No AI call, and no R-11 quota is charged** (TCCN-343-6). Everything
+ * here is a count over topics already attached to questions (R-06) and
+ * difficulties already assigned by hand (YC-303), so reopening the list
+ * costs nothing however many times it happens.
+ *
+ * R-32 names four sources. Two of them — video nhại theo (R-19) and tình
+ * huống hội thoại (R-21) — have no table anywhere in this system yet, and
+ * TCCN-343-1 is explicit that an empty source is dropped rather than
+ * padded. They will appear as those features land.
+ *
+ * Recommendations order content; they never lock it (TCCN-343-4).
+ * @summary Đề xuất bài tập tương tự (YC-343)
+ */
+export const getPlacementRecommendations = async (sessionId: string, options?: Parameters<typeof apiFetch>[1]): Promise<PlacementRecommendations> => {
+
+  return apiFetch<PlacementRecommendations>(getGetPlacementRecommendationsUrl(sessionId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPlacementRecommendationsQueryKey = (sessionId: string,) => {
+    return [
+    `/api/v1/placement/sessions/${sessionId}/recommendations`
+    ] as const;
+    }
+
+
+export const getGetPlacementRecommendationsQueryOptions = <TData = Awaited<ReturnType<typeof getPlacementRecommendations>>, TError = UnauthorizedResponse | NotFoundResponse>(sessionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementRecommendations>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPlacementRecommendationsQueryKey(sessionId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPlacementRecommendations>>> = ({ signal }) => getPlacementRecommendations(sessionId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: sessionId !== null && sessionId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPlacementRecommendations>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetPlacementRecommendationsQueryResult = NonNullable<Awaited<ReturnType<typeof getPlacementRecommendations>>>
+export type GetPlacementRecommendationsQueryError = UnauthorizedResponse | NotFoundResponse
+
+
+export function useGetPlacementRecommendations<TData = Awaited<ReturnType<typeof getPlacementRecommendations>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ sessionId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementRecommendations>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPlacementRecommendations>>,
+          TError,
+          Awaited<ReturnType<typeof getPlacementRecommendations>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPlacementRecommendations<TData = Awaited<ReturnType<typeof getPlacementRecommendations>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ sessionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementRecommendations>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPlacementRecommendations>>,
+          TError,
+          Awaited<ReturnType<typeof getPlacementRecommendations>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPlacementRecommendations<TData = Awaited<ReturnType<typeof getPlacementRecommendations>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ sessionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementRecommendations>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Đề xuất bài tập tương tự (YC-343)
+ */
+
+export function useGetPlacementRecommendations<TData = Awaited<ReturnType<typeof getPlacementRecommendations>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ sessionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementRecommendations>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetPlacementRecommendationsQueryOptions(sessionId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetPlacementAudioUrl = (sessionId: string,
+    questionId: string,) => {
+
+
+
+
+  return `/api/v1/placement/sessions/${sessionId}/questions/${questionId}/audio`
+}
+
+/**
+ * Plain authenticated bytes, fetched into a Blob by the client — none of
+ * the ticket machinery `/attempts` uses. Tickets exist to buy back the
+ * seconds a Blob costs while an exam clock runs, and to ration a listen
+ * to one under R-01. The placement test has neither a countdown nor a
+ * ration, so it would be paying that complexity for nothing.
+ * @summary The listening clip for a placement question
+ */
+export const getPlacementAudio = async (sessionId: string,
+    questionId: string, options?: Parameters<typeof apiFetch>[1]): Promise<Blob> => {
+
+  return apiFetch<Blob>(getGetPlacementAudioUrl(sessionId,questionId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPlacementAudioQueryKey = (sessionId: string,
+    questionId: string,) => {
+    return [
+    `/api/v1/placement/sessions/${sessionId}/questions/${questionId}/audio`
+    ] as const;
+    }
+
+
+export const getGetPlacementAudioQueryOptions = <TData = Awaited<ReturnType<typeof getPlacementAudio>>, TError = UnauthorizedResponse | NotFoundResponse>(sessionId: string,
+    questionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementAudio>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPlacementAudioQueryKey(sessionId,questionId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPlacementAudio>>> = ({ signal }) => getPlacementAudio(sessionId,questionId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: sessionId !== null && sessionId !== undefined && questionId !== null && questionId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPlacementAudio>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetPlacementAudioQueryResult = NonNullable<Awaited<ReturnType<typeof getPlacementAudio>>>
+export type GetPlacementAudioQueryError = UnauthorizedResponse | NotFoundResponse
+
+
+export function useGetPlacementAudio<TData = Awaited<ReturnType<typeof getPlacementAudio>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ sessionId: string,
+    questionId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementAudio>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPlacementAudio>>,
+          TError,
+          Awaited<ReturnType<typeof getPlacementAudio>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPlacementAudio<TData = Awaited<ReturnType<typeof getPlacementAudio>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ sessionId: string,
+    questionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementAudio>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPlacementAudio>>,
+          TError,
+          Awaited<ReturnType<typeof getPlacementAudio>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPlacementAudio<TData = Awaited<ReturnType<typeof getPlacementAudio>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ sessionId: string,
+    questionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementAudio>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary The listening clip for a placement question
+ */
+
+export function useGetPlacementAudio<TData = Awaited<ReturnType<typeof getPlacementAudio>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ sessionId: string,
+    questionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementAudio>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetPlacementAudioQueryOptions(sessionId,questionId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetMyPlacementUrl = () => {
+
+
+
+
+  return `/api/v1/me/placement`
+}
+
+/**
+ * `history` is newest first, and both halves matter: the newest entry's
+ * `suggestedLevel` is the suggestion a retake replaces, and the older
+ * entries stay readable so the learner can see which skill moved and
+ * which did not.
+ *
+ * `currentLevel` is a different thing from the newest suggestion. It is
+ * "cấp độ đang dùng" — the level content is ordered by — and it changes
+ * only when the learner says so (TCCN-342-6), never downward on its own
+ * (TCCN-342-8). Absent until they have chosen one.
+ * @summary Current level and every past sitting (TCCN-344-1)
+ */
+export const getMyPlacement = async ( options?: Parameters<typeof apiFetch>[1]): Promise<MyPlacement> => {
+
+  return apiFetch<MyPlacement>(getGetMyPlacementUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyPlacementQueryKey = () => {
+    return [
+    `/api/v1/me/placement`
+    ] as const;
+    }
+
+
+export const getGetMyPlacementQueryOptions = <TData = Awaited<ReturnType<typeof getMyPlacement>>, TError = UnauthorizedResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyPlacement>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyPlacementQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyPlacement>>> = ({ signal }) => getMyPlacement({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyPlacement>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMyPlacementQueryResult = NonNullable<Awaited<ReturnType<typeof getMyPlacement>>>
+export type GetMyPlacementQueryError = UnauthorizedResponse
+
+
+export function useGetMyPlacement<TData = Awaited<ReturnType<typeof getMyPlacement>>, TError = UnauthorizedResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyPlacement>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyPlacement>>,
+          TError,
+          Awaited<ReturnType<typeof getMyPlacement>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyPlacement<TData = Awaited<ReturnType<typeof getMyPlacement>>, TError = UnauthorizedResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyPlacement>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyPlacement>>,
+          TError,
+          Awaited<ReturnType<typeof getMyPlacement>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyPlacement<TData = Awaited<ReturnType<typeof getMyPlacement>>, TError = UnauthorizedResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyPlacement>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Current level and every past sitting (TCCN-344-1)
+ */
+
+export function useGetMyPlacement<TData = Awaited<ReturnType<typeof getMyPlacement>>, TError = UnauthorizedResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyPlacement>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMyPlacementQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSetMyLevelUrl = () => {
+
+
+
+
+  return `/api/v1/me/level`
+}
+
+/**
+ * Only ever called from an explicit tap. The result screen offers the
+ * change and asks; nothing on the server applies it, and nothing lowers
+ * it because one twelve-question test came out under the learner's own
+ * guess (TCCN-342-8).
+ *
+ * The level orders content. It never gates it — every video and every
+ * question at every level stays open regardless (TCCN-345-3,
+ * TCCN-343-4).
+ * @summary Change the level content is ordered by (TCCN-342-6)
+ */
+export const setMyLevel = async (setLevelRequest: SetLevelRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getSetMyLevelUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(setLevelRequest)
+  }
+);}
+
+
+
+
+
+export const getSetMyLevelMutationOptions = <TError = UnauthorizedResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setMyLevel>>, TError,{data: SetLevelRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setMyLevel>>, TError,{data: SetLevelRequest}, TContext> => {
+
+const mutationKey = ['setMyLevel'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setMyLevel>>, {data: SetLevelRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  setMyLevel(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetMyLevelMutationResult = NonNullable<Awaited<ReturnType<typeof setMyLevel>>>
+    export type SetMyLevelMutationBody = SetLevelRequest
+    export type SetMyLevelMutationError = UnauthorizedResponse | UnprocessableResponse
+
+    /**
+ * @summary Change the level content is ordered by (TCCN-342-6)
+ */
+export const useSetMyLevel = <TError = UnauthorizedResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setMyLevel>>, TError,{data: SetLevelRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof setMyLevel>>,
+        TError,
+        {data: SetLevelRequest},
+        TContext
+      > => {
+      return useMutation(getSetMyLevelMutationOptions(options), queryClient);
+    }
 
 export const getOpenWritingTaskUrl = (attemptId: string,
     questionId: string,) => {

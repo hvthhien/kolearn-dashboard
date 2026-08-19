@@ -23,33 +23,21 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { LayerStatus } from './layerStatus';
-import type { QuestionType } from './questionType';
-import type { SectionKind } from './sectionKind';
+import type { PlacementSectionScore } from './placementSectionScore';
 
-export interface AdminQuestionRow {
-  id: string;
-  ordinal: number;
-  /**
-     * The number printed on the paper where it differs from `ordinal` —
-     * TOPIK II Reading restarts at 1 after Listening and Writing.
-     */
-  displayOrdinal?: number;
-  sectionKind?: SectionKind;
-  type: QuestionType;
-  stemKo: string;
-  layerStatus: LayerStatus;
+export interface PlacementHistoryEntry {
+  sessionId: string;
+  completedAt: string;
   /**
      * @minimum 1
      * @maximum 6
-     * @nullable
      */
-  difficultyManual?: number | null;
-  choiceCount: number;
-  correctChoiceCount: number;
+  suggestedLevel: number;
   /**
-     * Submitted attempts containing this question. Zero means the answer
-     * key is still free to change (TCCN-301-9).
+     * @minimum 1
+     * @maximum 6
      */
-  attemptedCount: number;
+  selfAssessedLevel?: number;
+  listening: PlacementSectionScore;
+  reading: PlacementSectionScore;
 }

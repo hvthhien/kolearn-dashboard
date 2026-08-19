@@ -238,8 +238,12 @@ the server grants (`exam:write`, `passage:write`, `topic:manage`) with no
 screen behind them. Bulk import through the API cannot carry audio or images —
 a paper with media still goes through `cmd/importer -assets`. No Playwright.
 
-Difficulty is authored but nothing reads it; its user is the ver1.1 placement
-test.
+Difficulty is a TOPIK band, 1–6, and the ver1.1 placement test is what reads
+it — the first and so far only reader. It ran 1–5 until migration 00021; the
+scale changed because R-32 addresses difficulty in bands ("độ khó ở TOPIK4"),
+and it changed while it was still cheap, with no real paper tagged yet. It
+stays off every learner screen (TCCN-303-2), which `learnerSpecGuard` checks
+from here and `leak_test.go` checks again on the server.
 
 Two gaps in the server are worth knowing about from here. `roles.requires_mfa`
 is `true` for every staff role and **nothing reads it** — TOTP returns

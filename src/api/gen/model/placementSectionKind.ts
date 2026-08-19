@@ -23,33 +23,16 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { LayerStatus } from './layerStatus';
-import type { QuestionType } from './questionType';
-import type { SectionKind } from './sectionKind';
 
-export interface AdminQuestionRow {
-  id: string;
-  ordinal: number;
-  /**
-     * The number printed on the paper where it differs from `ordinal` —
-     * TOPIK II Reading restarts at 1 after Listening and Writing.
-     */
-  displayOrdinal?: number;
-  sectionKind?: SectionKind;
-  type: QuestionType;
-  stemKo: string;
-  layerStatus: LayerStatus;
-  /**
-     * @minimum 1
-     * @maximum 6
-     * @nullable
-     */
-  difficultyManual?: number | null;
-  choiceCount: number;
-  correctChoiceCount: number;
-  /**
-     * Submitted attempts containing this question. Zero means the answer
-     * key is still free to change (TCCN-301-9).
-     */
-  attemptedCount: number;
-}
+/**
+ * Only the two sections a machine can mark. R-32 keeps phần Viết out of
+ * the placement test because grading an essay is one AI call under R-09,
+ * which is not worth spending on a warm-up nobody has committed to yet.
+ */
+export type PlacementSectionKind = typeof PlacementSectionKind[keyof typeof PlacementSectionKind];
+
+
+export const PlacementSectionKind = {
+  LISTENING: 'LISTENING',
+  READING: 'READING',
+} as const;

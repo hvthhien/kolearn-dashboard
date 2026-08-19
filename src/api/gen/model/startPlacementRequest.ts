@@ -23,33 +23,16 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { LayerStatus } from './layerStatus';
-import type { QuestionType } from './questionType';
-import type { SectionKind } from './sectionKind';
 
-export interface AdminQuestionRow {
-  id: string;
-  ordinal: number;
+export interface StartPlacementRequest {
   /**
-     * The number printed on the paper where it differs from `ordinal` —
-     * TOPIK II Reading restarts at 1 after Listening and Writing.
-     */
-  displayOrdinal?: number;
-  sectionKind?: SectionKind;
-  type: QuestionType;
-  stemKo: string;
-  layerStatus: LayerStatus;
-  /**
+     * The level the learner thinks they are at, or **null** for "Tôi chưa
+     * biết". Null is a real answer and ranks equal with the six levels on
+     * screen (TCCN-345-2) — the learners who cannot name a TOPIK level
+     * are the ones this feature exists for.
      * @minimum 1
      * @maximum 6
      * @nullable
      */
-  difficultyManual?: number | null;
-  choiceCount: number;
-  correctChoiceCount: number;
-  /**
-     * Submitted attempts containing this question. Zero means the answer
-     * key is still free to change (TCCN-301-9).
-     */
-  attemptedCount: number;
+  selfAssessedLevel: number | null;
 }

@@ -23,33 +23,18 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { LayerStatus } from './layerStatus';
-import type { QuestionType } from './questionType';
-import type { SectionKind } from './sectionKind';
+import type { PlacementQuestion } from './placementQuestion';
+import type { PlacementRunnerStatus } from './placementRunnerStatus';
 
-export interface AdminQuestionRow {
-  id: string;
-  ordinal: number;
+export interface PlacementRunner {
+  sessionId: string;
+  status: PlacementRunnerStatus;
+  answered: number;
+  maxQuestions: number;
   /**
-     * The number printed on the paper where it differs from `ordinal` —
-     * TOPIK II Reading restarts at 1 after Listening and Writing.
+     * Absent once the ladder has stopped — the client's signal to go to
+     * the result. An omitted field rather than a sentinel question with
+     * empty strings in it.
      */
-  displayOrdinal?: number;
-  sectionKind?: SectionKind;
-  type: QuestionType;
-  stemKo: string;
-  layerStatus: LayerStatus;
-  /**
-     * @minimum 1
-     * @maximum 6
-     * @nullable
-     */
-  difficultyManual?: number | null;
-  choiceCount: number;
-  correctChoiceCount: number;
-  /**
-     * Submitted attempts containing this question. Zero means the answer
-     * key is still free to change (TCCN-301-9).
-     */
-  attemptedCount: number;
+  question?: PlacementQuestion;
 }

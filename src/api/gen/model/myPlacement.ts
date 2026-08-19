@@ -23,33 +23,17 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { LayerStatus } from './layerStatus';
-import type { QuestionType } from './questionType';
-import type { SectionKind } from './sectionKind';
+import type { PlacementHistoryEntry } from './placementHistoryEntry';
 
-export interface AdminQuestionRow {
-  id: string;
-  ordinal: number;
+export interface MyPlacement {
   /**
-     * The number printed on the paper where it differs from `ordinal` —
-     * TOPIK II Reading restarts at 1 after Listening and Writing.
-     */
-  displayOrdinal?: number;
-  sectionKind?: SectionKind;
-  type: QuestionType;
-  stemKo: string;
-  layerStatus: LayerStatus;
-  /**
+     * "Cấp độ đang dùng" — the level content is ordered by, changed only
+     * on an explicit tap (TCCN-342-6) and never lowered automatically
+     * (TCCN-342-8). Absent until the learner has chosen one.
      * @minimum 1
      * @maximum 6
-     * @nullable
      */
-  difficultyManual?: number | null;
-  choiceCount: number;
-  correctChoiceCount: number;
-  /**
-     * Submitted attempts containing this question. Zero means the answer
-     * key is still free to change (TCCN-301-9).
-     */
-  attemptedCount: number;
+  currentLevel?: number;
+  /** Newest first. Old results stay readable after a retake (TCCN-344-1). */
+  history: PlacementHistoryEntry[];
 }

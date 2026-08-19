@@ -23,33 +23,15 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { LayerStatus } from './layerStatus';
-import type { QuestionType } from './questionType';
-import type { SectionKind } from './sectionKind';
+import type { Topic } from './topic';
 
-export interface AdminQuestionRow {
-  id: string;
-  ordinal: number;
-  /**
-     * The number printed on the paper where it differs from `ordinal` —
-     * TOPIK II Reading restarts at 1 after Listening and Writing.
-     */
-  displayOrdinal?: number;
-  sectionKind?: SectionKind;
-  type: QuestionType;
-  stemKo: string;
-  layerStatus: LayerStatus;
-  /**
-     * @minimum 1
-     * @maximum 6
-     * @nullable
-     */
-  difficultyManual?: number | null;
-  choiceCount: number;
-  correctChoiceCount: number;
-  /**
-     * Submitted attempts containing this question. Zero means the answer
-     * key is still free to change (TCCN-301-9).
-     */
-  attemptedCount: number;
+/**
+ * Both halves, always — "sai 3 trên 4 lần gặp" (TCCN-342-1). The topic
+ * comes from the one already attached to the question under R-06; nothing
+ * here generates or infers one.
+ */
+export interface PlacementTopicMistake {
+  topic: Topic;
+  wrongCount: number;
+  encounters: number;
 }

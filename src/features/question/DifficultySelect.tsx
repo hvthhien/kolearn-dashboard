@@ -22,6 +22,18 @@ import { Field } from '../../components/ui'
  * looks. Difficulty's user is the ver1.1 placement test; showing it early just
  * invites a learner to filter for the easy questions, which ruins both the
  * measurement and the studying.
+ *
+ * # Why the scale is TOPIK1-6 and not 1-5
+ *
+ * It was 1-5 until migration 00021, which was the team's placeholder: the BA
+ * left the method open ("Cách gán độ khó chưa được chốt") and never named a
+ * range. R-32 then turned out to address difficulty purely in bands —
+ * TCCN-341-7 promises a learner who says TOPIK4 a TOPIK4 question, TCCN-343-1
+ * wants practice "độ khó quanh TOPIK3". Five buckets cannot address six bands,
+ * and the placement test is the only thing that will ever read this value.
+ *
+ * Changed while the change was still cheap: the two real papers carry no
+ * difficulty at all, so nothing but seed fixtures had to be reinterpreted.
  */
 export function DifficultySelect({
   value,
@@ -46,9 +58,9 @@ export function DifficultySelect({
           className="tap rounded-xl border border-line bg-white px-4 text-base text-ink"
         >
           <option value="">Chưa gắn</option>
-          {[1, 2, 3, 4, 5].map((n) => (
+          {[1, 2, 3, 4, 5, 6].map((n) => (
             <option key={n} value={n}>
-              {n} / 5
+              TOPIK{n}
             </option>
           ))}
         </select>
