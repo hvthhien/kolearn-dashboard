@@ -31,6 +31,17 @@ export interface RunnerPassage {
   kind: RunnerPassageKind;
   bodyKo?: string;
   bodyVi?: string;
+  /**
+     * Fetch the whole clip, recording the play as it serves. Needs the
+     * bearer token, so a browser client has to buffer the file before
+     * anything can sound.
+     */
   audioUrl?: string;
+  /**
+     * POST here instead to spend the same single listen and get back a URL
+     * an `<audio>` element can read, which starts playing on the first
+     * chunk. Both paths record one `AUDIO_PLAYED`; using both spends two.
+     */
+  audioTicketUrl?: string;
   images?: ExamImage[];
 }

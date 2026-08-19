@@ -52,6 +52,7 @@ import type {
   AttemptInProgressProblem,
   AttemptResult,
   AttemptRunner,
+  AudioTicket,
   AuthTokens,
   BadRequestResponse,
   CardBatchResult,
@@ -95,6 +96,7 @@ import type {
   SectionKind,
   SetQuestionTopicsBody,
   StartAttemptRequest,
+  StreamTicketedAudioParams,
   SubmitSection200,
   TooManyRequestsResponse,
   Topic,
@@ -1623,6 +1625,11 @@ export const getGetQuestionAudioUrl = (attemptId: string,
  *
  * PRACTICE mode is unlimited and answers range requests, so the player
  * can seek.
+ *
+ * This route serves the bytes and records the play in one request, which
+ * is what makes a browser client wait for the whole file before anything
+ * sounds — see `createAudioTicket` for the split-in-two path that does
+ * not.
  * @summary Stream the listening audio for one question (YC-110, R-01)
  */
 export const getQuestionAudio = async (attemptId: string,
@@ -1710,6 +1717,247 @@ export function useGetQuestionAudio<TData = Awaited<ReturnType<typeof getQuestio
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetQuestionAudioQueryOptions(attemptId,questionId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateAudioTicketUrl = (attemptId: string,
+    questionId: string,) => {
+
+
+
+
+  return `/api/v1/attempts/${attemptId}/questions/${questionId}/audio-ticket`
+}
+
+/**
+ * The same single listen as `getQuestionAudio`, bought so that playback can
+ * begin before the clip has finished downloading.
+ *
+ * `getQuestionAudio` needs a bearer token, and an `<audio>` element cannot
+ * send one — so a browser client has to `fetch()` the clip into a Blob
+ * first, and a Blob has no first chunk to play. On a phone on mobile data
+ * that wait runs on the section's clock, and it grows with the length of
+ * the recording.
+ *
+ * **POST, because this is the state change.** This call is what records
+ * `AUDIO_PLAYED`, in exactly the place the first byte-serve recorded it
+ * before, and everything that used to hang off "the first request" hangs
+ * off this one: the passage-scoped count, the 409 on the second listen,
+ * R-12's retry after a reported `AUDIO_LOAD_FAILED`, and the stalled-clock
+ * grant. The byte route it points at records nothing.
+ *
+ * The play is therefore charged before a single byte is asked for. That is
+ * deliberate: a byte route that served without a play on record would let
+ * anyone with a network tab download every clip in the paper and replay
+ * them locally for the rest of the section, and the one-play rule would
+ * still be in the code without being true.
+ *
+ * The returned URL is redeemable **many times** inside its window. One
+ * playback is not one HTTP request — a browser probes with a tiny range
+ * first, fetches the body, then asks again on every buffer refill.
+ *
+ * PRACTICE mode may mint as many tickets as it likes, as it may replay
+ * freely.
+ * @summary Spend the listen and get a streamable URL (YC-110, R-01)
+ */
+export const createAudioTicket = async (attemptId: string,
+    questionId: string, options?: Parameters<typeof apiFetch>[1]): Promise<AudioTicket> => {
+
+  return apiFetch<AudioTicket>(getCreateAudioTicketUrl(attemptId,questionId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCreateAudioTicketMutationOptions = <TError = UnauthorizedResponse | Problem,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAudioTicket>>, TError,{attemptId: string;questionId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAudioTicket>>, TError,{attemptId: string;questionId: string}, TContext> => {
+
+const mutationKey = ['createAudioTicket'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAudioTicket>>, {attemptId: string;questionId: string}> = (props) => {
+          const {attemptId,questionId} = props ?? {};
+
+          return  createAudioTicket(attemptId,questionId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateAudioTicketMutationResult = NonNullable<Awaited<ReturnType<typeof createAudioTicket>>>
+
+    export type CreateAudioTicketMutationError = UnauthorizedResponse | Problem
+
+    /**
+ * @summary Spend the listen and get a streamable URL (YC-110, R-01)
+ */
+export const useCreateAudioTicket = <TError = UnauthorizedResponse | Problem,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAudioTicket>>, TError,{attemptId: string;questionId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createAudioTicket>>,
+        TError,
+        {attemptId: string;questionId: string},
+        TContext
+      > => {
+      return useMutation(getCreateAudioTicketMutationOptions(options), queryClient);
+    }
+
+export const getStreamTicketedAudioUrl = (attemptId: string,
+    questionId: string,
+    params: StreamTicketedAudioParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/attempts/${attemptId}/questions/${questionId}/audio-stream?${stringifiedParams}` : `/api/v1/attempts/${attemptId}/questions/${questionId}/audio-stream`
+}
+
+/**
+ * Authenticated by the ticket alone — no bearer token — so the URL can go
+ * straight into `<audio src>`. Nothing here records a play: the listen was
+ * spent by `createAudioTicket`, which is why this can answer the several
+ * requests one playback actually makes.
+ *
+ * Answers `Range` with `206` and `Content-Range`, and sends
+ * `Cache-Control: no-store`. The no-store is load-bearing rather than
+ * hygiene: R-01 used to be enforced partly by accident, because the client
+ * held the clip in an object URL that a reload dropped. A URL in
+ * `<audio src>` would otherwise sit in the browser's HTTP cache, where a
+ * reload inside the ticket window could replay it without asking anyone.
+ *
+ * A ticket presented against another attempt's or another passage's URL is
+ * `404`, the same answer as a question with no audio. An expired ticket is
+ * `410` and never `409`: a spent listen and a stale link mean opposite
+ * things to the learner, and only one of them offers a retry.
+ * @summary The bytes a play ticket was minted for (YC-110)
+ */
+export const streamTicketedAudio = async (attemptId: string,
+    questionId: string,
+    params: StreamTicketedAudioParams, options?: Parameters<typeof apiFetch>[1]): Promise<Blob> => {
+
+  return apiFetch<Blob>(getStreamTicketedAudioUrl(attemptId,questionId,params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getStreamTicketedAudioQueryKey = (attemptId: string,
+    questionId: string,
+    params?: StreamTicketedAudioParams,) => {
+    return [
+    `/api/v1/attempts/${attemptId}/questions/${questionId}/audio-stream`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getStreamTicketedAudioQueryOptions = <TData = Awaited<ReturnType<typeof streamTicketedAudio>>, TError = Problem>(attemptId: string,
+    questionId: string,
+    params: StreamTicketedAudioParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof streamTicketedAudio>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getStreamTicketedAudioQueryKey(attemptId,questionId,params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof streamTicketedAudio>>> = ({ signal }) => streamTicketedAudio(attemptId,questionId,params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: attemptId !== null && attemptId !== undefined && questionId !== null && questionId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof streamTicketedAudio>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type StreamTicketedAudioQueryResult = NonNullable<Awaited<ReturnType<typeof streamTicketedAudio>>>
+export type StreamTicketedAudioQueryError = Problem
+
+
+export function useStreamTicketedAudio<TData = Awaited<ReturnType<typeof streamTicketedAudio>>, TError = Problem>(
+ attemptId: string,
+    questionId: string,
+    params: StreamTicketedAudioParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof streamTicketedAudio>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof streamTicketedAudio>>,
+          TError,
+          Awaited<ReturnType<typeof streamTicketedAudio>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useStreamTicketedAudio<TData = Awaited<ReturnType<typeof streamTicketedAudio>>, TError = Problem>(
+ attemptId: string,
+    questionId: string,
+    params: StreamTicketedAudioParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof streamTicketedAudio>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof streamTicketedAudio>>,
+          TError,
+          Awaited<ReturnType<typeof streamTicketedAudio>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useStreamTicketedAudio<TData = Awaited<ReturnType<typeof streamTicketedAudio>>, TError = Problem>(
+ attemptId: string,
+    questionId: string,
+    params: StreamTicketedAudioParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof streamTicketedAudio>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary The bytes a play ticket was minted for (YC-110)
+ */
+
+export function useStreamTicketedAudio<TData = Awaited<ReturnType<typeof streamTicketedAudio>>, TError = Problem>(
+ attemptId: string,
+    questionId: string,
+    params: StreamTicketedAudioParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof streamTicketedAudio>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getStreamTicketedAudioQueryOptions(attemptId,questionId,params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

@@ -23,22 +23,18 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { CreateCardRequestType } from './createCardRequestType';
 
-export interface CreateCardRequest {
-  type: CreateCardRequestType;
-  /** @minLength 1 */
-  front: string;
-  back?: string;
-  /** The question the card was made from (TCCN-109-1). */
-  sourceQuestionId?: string;
+export interface AudioTicket {
   /**
-     * The attempt it was made from. Send it with `sourceQuestionId` and
-     * the card inherits the chủ điểm the learner actually has on that
-     * question — the error log minus retractions, the same set the review
-     * screen shows — instead of only the ones the author attached.
-     * Without it the card falls back to the authored topics, which is
-     * weaker but still connected (TCCN-115-1).
+     * Put this straight into `<audio src>`. It carries the ticket in its
+     * query string, because an audio element cannot send an
+     * `Authorization` header.
      */
-  sourceAttemptId?: string;
+  url: string;
+  /**
+     * Minutes away. Long enough to cover the clip plus a stall — a ticket
+     * that expired mid-sentence would cost the learner the listen they
+     * already paid for.
+     */
+  expiresAt: string;
 }

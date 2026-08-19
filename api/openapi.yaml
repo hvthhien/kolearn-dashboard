@@ -445,6 +445,11 @@ paths:
 
         PRACTICE mode is unlimited and answers range requests, so the player
         can seek.
+
+        This route serves the bytes and records the play in one request, which
+        is what makes a browser client wait for the whole file before anything
+        sounds — see `createAudioTicket` for the split-in-two path that does
+        not.
       parameters:
         - $ref: '#/components/parameters/AttemptId'
         - $ref: '#/components/parameters/QuestionId'
@@ -452,7 +457,11 @@ paths:
         '200':
           description: The audio stream.
           content:
-            audio/*:
+            audio/mpeg:
+              schema: { type: string, format: binary }
+            audio/mp4:
+              schema: { type: string, format: binary }
+            audio/wav:
               schema: { type: string, format: binary }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404':
@@ -462,6 +471,128 @@ paths:
               schema: { $ref: '#/components/schemas/Problem' }
         '409':
           description: Already played once, and this attempt is in EXAM mode.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /attempts/{attemptId}/questions/{questionId}/audio-ticket:
+    post:
+      tags: [attempt]
+      operationId: createAudioTicket
+      summary: Spend the listen and get a streamable URL (YC-110, R-01)
+      description: |
+        The same single listen as `getQuestionAudio`, bought so that playback can
+        begin before the clip has finished downloading.
+
+        `getQuestionAudio` needs a bearer token, and an `<audio>` element cannot
+        send one — so a browser client has to `fetch()` the clip into a Blob
+        first, and a Blob has no first chunk to play. On a phone on mobile data
+        that wait runs on the section's clock, and it grows with the length of
+        the recording.
+
+        **POST, because this is the state change.** This call is what records
+        `AUDIO_PLAYED`, in exactly the place the first byte-serve recorded it
+        before, and everything that used to hang off "the first request" hangs
+        off this one: the passage-scoped count, the 409 on the second listen,
+        R-12's retry after a reported `AUDIO_LOAD_FAILED`, and the stalled-clock
+        grant. The byte route it points at records nothing.
+
+        The play is therefore charged before a single byte is asked for. That is
+        deliberate: a byte route that served without a play on record would let
+        anyone with a network tab download every clip in the paper and replay
+        them locally for the rest of the section, and the one-play rule would
+        still be in the code without being true.
+
+        The returned URL is redeemable **many times** inside its window. One
+        playback is not one HTTP request — a browser probes with a tiny range
+        first, fetches the body, then asks again on every buffer refill.
+
+        PRACTICE mode may mint as many tickets as it likes, as it may replay
+        freely.
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+        - $ref: '#/components/parameters/QuestionId'
+      responses:
+        '200':
+          description: The ticket, and when it stops working.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AudioTicket' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: No audio for this question, or the attempt is not the caller's.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '409':
+          description: |
+            Already played once, and this attempt is in EXAM mode. The same
+            problem body `getQuestionAudio` answers with.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /attempts/{attemptId}/questions/{questionId}/audio-stream:
+    get:
+      tags: [attempt]
+      operationId: streamTicketedAudio
+      security: []
+      summary: The bytes a play ticket was minted for (YC-110)
+      description: |
+        Authenticated by the ticket alone — no bearer token — so the URL can go
+        straight into `<audio src>`. Nothing here records a play: the listen was
+        spent by `createAudioTicket`, which is why this can answer the several
+        requests one playback actually makes.
+
+        Answers `Range` with `206` and `Content-Range`, and sends
+        `Cache-Control: no-store`. The no-store is load-bearing rather than
+        hygiene: R-01 used to be enforced partly by accident, because the client
+        held the clip in an object URL that a reload dropped. A URL in
+        `<audio src>` would otherwise sit in the browser's HTTP cache, where a
+        reload inside the ticket window could replay it without asking anyone.
+
+        A ticket presented against another attempt's or another passage's URL is
+        `404`, the same answer as a question with no audio. An expired ticket is
+        `410` and never `409`: a spent listen and a stale link mean opposite
+        things to the learner, and only one of them offers a retry.
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+        - $ref: '#/components/parameters/QuestionId'
+        - name: ticket
+          in: query
+          required: true
+          description: The opaque value from `createAudioTicket`.
+          schema: { type: string }
+      responses:
+        '200':
+          description: The whole clip.
+          content:
+            audio/mpeg:
+              schema: { type: string, format: binary }
+            audio/mp4:
+              schema: { type: string, format: binary }
+            audio/wav:
+              schema: { type: string, format: binary }
+        '206':
+          description: The requested byte range.
+          content:
+            audio/mpeg:
+              schema: { type: string, format: binary }
+            audio/mp4:
+              schema: { type: string, format: binary }
+            audio/wav:
+              schema: { type: string, format: binary }
+        '404':
+          description: |
+            No audio for this question, or the ticket was issued for a different
+            attempt or passage.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '410':
+          description: |
+            The ticket has expired, or is unknown. Distinct from the 409 a
+            refused replay answers with — this one is worth pressing play again.
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
@@ -493,7 +624,11 @@ paths:
         '200':
           description: The audio stream.
           content:
-            audio/*:
+            audio/mpeg:
+              schema: { type: string, format: binary }
+            audio/mp4:
+              schema: { type: string, format: binary }
+            audio/wav:
               schema: { type: string, format: binary }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404':
@@ -899,12 +1034,11 @@ paths:
             schema: { $ref: '#/components/schemas/CreateCardRequest' }
       responses:
         '200':
-          description: A matching card already existed.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/CardResult' }
-        '201':
-          description: Created.
+          description: |
+            The card, whether it was just created or already existed —
+            `alreadyExisted` is what tells the two apart. One status for both
+            because the caller does the same thing either way, and a 201 here
+            would be a second signal carrying no extra information.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/CardResult' }
@@ -1821,6 +1955,24 @@ components:
             answer key and never leave the server (TCCN-202-1).
           items: { $ref: '#/components/schemas/WritingBlank' }
 
+    AudioTicket:
+      type: object
+      required: [url, expiresAt]
+      properties:
+        url:
+          type: string
+          description: |
+            Put this straight into `<audio src>`. It carries the ticket in its
+            query string, because an audio element cannot send an
+            `Authorization` header.
+        expiresAt:
+          type: string
+          format: date-time
+          description: |
+            Minutes away. Long enough to cover the clip plus a stall — a ticket
+            that expired mid-sentence would cost the learner the listen they
+            already paid for.
+
     RunnerPassage:
       type: object
       required: [id, kind]
@@ -1831,7 +1983,18 @@ components:
           enum: [TEXT, AUDIO]
         bodyKo: { type: string }
         bodyVi: { type: string }
-        audioUrl: { type: string }
+        audioUrl:
+          type: string
+          description: |
+            Fetch the whole clip, recording the play as it serves. Needs the
+            bearer token, so a browser client has to buffer the file before
+            anything can sound.
+        audioTicketUrl:
+          type: string
+          description: |
+            POST here instead to spend the same single listen and get back a URL
+            an `<audio>` element can read, which starts playing on the first
+            chunk. Both paths record one `AUDIO_PLAYED`; using both spends two.
         images:
           type: array
           items: { $ref: '#/components/schemas/ExamImage' }
@@ -2227,7 +2390,17 @@ components:
         sourceQuestionId:
           type: string
           format: uuid
-          description: The card inherits this question's topics (TCCN-109-1).
+          description: The question the card was made from (TCCN-109-1).
+        sourceAttemptId:
+          type: string
+          format: uuid
+          description: |
+            The attempt it was made from. Send it with `sourceQuestionId` and
+            the card inherits the chủ điểm the learner actually has on that
+            question — the error log minus retractions, the same set the review
+            screen shows — instead of only the ones the author attached.
+            Without it the card falls back to the authored topics, which is
+            weaker but still connected (TCCN-115-1).
 
     CardResult:
       type: object
