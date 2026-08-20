@@ -4556,6 +4556,124 @@ export function useGetPlacementAudio<TData = Awaited<ReturnType<typeof getPlacem
 
 
 
+export const getGetPlacementImageUrl = (sessionId: string,
+    assetId: string,) => {
+
+
+
+
+  return `/api/v1/placement/sessions/${sessionId}/media/${assetId}`
+}
+
+/**
+ * The asset must belong to a question this session actually served.
+ *
+ * Not rationed, unlike the listening clip: there is no per-view rule on
+ * images anywhere in the product, and a learner comparing four pictures
+ * will look at each of them more than once.
+ *
+ * These carry the question on the picture-choice items, where the four
+ * choices have no text at all — so a failure here is not cosmetic, it is
+ * a question that cannot be answered.
+ * @summary Fetch a picture used by a passage or an answer choice
+ */
+export const getPlacementImage = async (sessionId: string,
+    assetId: string, options?: Parameters<typeof apiFetch>[1]): Promise<Blob> => {
+
+  return apiFetch<Blob>(getGetPlacementImageUrl(sessionId,assetId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPlacementImageQueryKey = (sessionId: string,
+    assetId: string,) => {
+    return [
+    `/api/v1/placement/sessions/${sessionId}/media/${assetId}`
+    ] as const;
+    }
+
+
+export const getGetPlacementImageQueryOptions = <TData = Awaited<ReturnType<typeof getPlacementImage>>, TError = UnauthorizedResponse | void>(sessionId: string,
+    assetId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementImage>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPlacementImageQueryKey(sessionId,assetId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPlacementImage>>> = ({ signal }) => getPlacementImage(sessionId,assetId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: sessionId !== null && sessionId !== undefined && assetId !== null && assetId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPlacementImage>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetPlacementImageQueryResult = NonNullable<Awaited<ReturnType<typeof getPlacementImage>>>
+export type GetPlacementImageQueryError = UnauthorizedResponse | void
+
+
+export function useGetPlacementImage<TData = Awaited<ReturnType<typeof getPlacementImage>>, TError = UnauthorizedResponse | void>(
+ sessionId: string,
+    assetId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementImage>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPlacementImage>>,
+          TError,
+          Awaited<ReturnType<typeof getPlacementImage>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPlacementImage<TData = Awaited<ReturnType<typeof getPlacementImage>>, TError = UnauthorizedResponse | void>(
+ sessionId: string,
+    assetId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementImage>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPlacementImage>>,
+          TError,
+          Awaited<ReturnType<typeof getPlacementImage>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPlacementImage<TData = Awaited<ReturnType<typeof getPlacementImage>>, TError = UnauthorizedResponse | void>(
+ sessionId: string,
+    assetId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementImage>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Fetch a picture used by a passage or an answer choice
+ */
+
+export function useGetPlacementImage<TData = Awaited<ReturnType<typeof getPlacementImage>>, TError = UnauthorizedResponse | void>(
+ sessionId: string,
+    assetId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementImage>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetPlacementImageQueryOptions(sessionId,assetId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getGetMyPlacementUrl = () => {
 
 

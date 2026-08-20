@@ -1475,6 +1475,38 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /placement/sessions/{sessionId}/media/{assetId}:
+    get:
+      tags: [placement]
+      operationId: getPlacementImage
+      summary: Fetch a picture used by a passage or an answer choice
+      description: |
+        The asset must belong to a question this session actually served.
+
+        Not rationed, unlike the listening clip: there is no per-view rule on
+        images anywhere in the product, and a learner comparing four pictures
+        will look at each of them more than once.
+
+        These carry the question on the picture-choice items, where the four
+        choices have no text at all — so a failure here is not cosmetic, it is
+        a question that cannot be answered.
+      parameters:
+        - { name: sessionId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: assetId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: The image bytes.
+          content:
+            image/png:
+              schema: { type: string, format: binary }
+            image/jpeg:
+              schema: { type: string, format: binary }
+            image/webp:
+              schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: The image is absent, is not an image, or belongs to no question in this session.
+
   /me/placement:
     get:
       tags: [placement]
@@ -3321,7 +3353,7 @@ components:
 
     PlacementQuestion:
       type: object
-      required: [id, ordinal, sectionKind, stemKo, stemVi, choices]
+      required: [id, ordinal, sectionKind, stemKo, choices]
       description: |
         Carries no difficulty and no band, deliberately. TCCN-303-2 keeps
         difficulty off every learner screen — "không nhãn, không lọc, không sắp
@@ -3336,8 +3368,17 @@ components:
           type: integer
           description: Position within this test, 1-based. Not the question's number in its original paper.
         sectionKind: { $ref: '#/components/schemas/PlacementSectionKind' }
-        stemKo: { type: string }
-        stemVi: { type: string }
+        stemKo:
+          type: string
+          description: |
+            Korean only. There is no Vietnamese anywhere in this payload, and
+            no toggle to reveal any.
+
+            The attempt runner states the rule for a Thi thử and it holds here
+            for the same reason: the real paper has no Vietnamese on it, and a
+            learner who glossed their way through would be handed a level that
+            measures someone who will not exist once the gloss is gone. The
+            gloss is a Luyện tập aid; this test has no practice mode to be in.
         passage: { $ref: '#/components/schemas/PlacementPassage' }
         choices:
           type: array
@@ -3348,20 +3389,43 @@ components:
 
     PlacementPassage:
       type: object
-      required: [id, bodyKo, bodyVi]
+      required: [id, bodyKo]
+      description: |
+        Present only when there is something to show. A listening question
+        hangs off an AUDIO passage whose only text is the script, so it is
+        absent there and the clip arrives through `audioUrl` instead — sending
+        it anyway drew an empty box above the player.
+
+        There is no transcript field, and that is deliberate: the script is the
+        answer to the question being asked, and a field that cannot be sent
+        cannot be leaked by a later edit.
       properties:
         id: { type: string, format: uuid }
         bodyKo: { type: string }
-        bodyVi: { type: string }
+        images:
+          type: array
+          description: |
+            A reading passage is sometimes a picture rather than prose — a
+            notice, a timetable, an invitation. On those the picture *is* the
+            reading material, so a passage with images and no text is still
+            worth rendering.
+          items: { $ref: '#/components/schemas/ExamImage' }
 
     PlacementChoice:
       type: object
-      required: [id, ordinal, textKo, textVi]
+      required: [id, ordinal, textKo]
       properties:
         id: { type: string, format: uuid }
         ordinal: { type: integer, minimum: 1, maximum: 4 }
-        textKo: { type: string }
-        textVi: { type: string }
+        textKo:
+          type: string
+          description: |
+            Empty on a picture question. TOPIK II listening 1-3 and TOPIK I
+            15-16 print four pictures and no words at all, and `images` carries
+            them — without it those questions render as four blank buttons.
+        images:
+          type: array
+          items: { $ref: '#/components/schemas/ExamImage' }
 
     PlacementSectionScore:
       type: object

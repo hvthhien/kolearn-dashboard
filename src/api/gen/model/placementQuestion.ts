@@ -41,8 +41,17 @@ export interface PlacementQuestion {
   /** Position within this test, 1-based. Not the question's number in its original paper. */
   ordinal: number;
   sectionKind: PlacementSectionKind;
+  /**
+     * Korean only. There is no Vietnamese anywhere in this payload, and
+     * no toggle to reveal any.
+     *
+     * The attempt runner states the rule for a Thi thử and it holds here
+     * for the same reason: the real paper has no Vietnamese on it, and a
+     * learner who glossed their way through would be handed a level that
+     * measures someone who will not exist once the gloss is gone. The
+     * gloss is a Luyện tập aid; this test has no practice mode to be in.
+     */
   stemKo: string;
-  stemVi: string;
   passage?: PlacementPassage;
   choices: PlacementChoice[];
   /** Present only on a listening question that has a clip. */

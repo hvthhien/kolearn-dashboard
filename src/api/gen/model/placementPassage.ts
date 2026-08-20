@@ -23,9 +23,26 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { ExamImage } from './examImage';
 
+/**
+ * Present only when there is something to show. A listening question
+ * hangs off an AUDIO passage whose only text is the script, so it is
+ * absent there and the clip arrives through `audioUrl` instead — sending
+ * it anyway drew an empty box above the player.
+ *
+ * There is no transcript field, and that is deliberate: the script is the
+ * answer to the question being asked, and a field that cannot be sent
+ * cannot be leaked by a later edit.
+ */
 export interface PlacementPassage {
   id: string;
   bodyKo: string;
-  bodyVi: string;
+  /**
+     * A reading passage is sometimes a picture rather than prose — a
+     * notice, a timetable, an invitation. On those the picture *is* the
+     * reading material, so a passage with images and no text is still
+     * worth rendering.
+     */
+  images?: ExamImage[];
 }

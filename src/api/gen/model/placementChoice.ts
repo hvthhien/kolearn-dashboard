@@ -23,6 +23,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { ExamImage } from './examImage';
 
 export interface PlacementChoice {
   id: string;
@@ -31,6 +32,11 @@ export interface PlacementChoice {
      * @maximum 4
      */
   ordinal: number;
+  /**
+     * Empty on a picture question. TOPIK II listening 1-3 and TOPIK I
+     * 15-16 print four pictures and no words at all, and `images` carries
+     * them — without it those questions render as four blank buttons.
+     */
   textKo: string;
-  textVi: string;
+  images?: ExamImage[];
 }
