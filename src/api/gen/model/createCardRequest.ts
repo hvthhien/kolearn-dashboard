@@ -41,4 +41,14 @@ export interface CreateCardRequest {
      * weaker but still connected (TCCN-115-1).
      */
   sourceAttemptId?: string;
+  /**
+     * The shadowing line this word was saved from (R-19, TCCN-353-5).
+     * R-15 lists "video nào" among the three answers to "thẻ này từ đâu
+     * ra" and calls it the line authors forget.
+     *
+     * It is also what makes the card shadowable: SC-SHADOW-LIST's card
+     * tab is exactly the rows carrying this, because a card made from a
+     * reading question has no sentence anyone can hear.
+     */
+  sourceShadowLineId?: string;
 }

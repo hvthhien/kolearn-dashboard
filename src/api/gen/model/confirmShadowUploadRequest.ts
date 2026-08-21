@@ -24,17 +24,14 @@
  * OpenAPI spec version: 0.1.0
  */
 
-/**
- * Which of R-32's four sources a row came from. Three have something
- * behind them today; tình huống hội thoại (R-21) still has no table in
- * this system, and TCCN-343-1 drops an empty source rather than padding
- * it.
- */
-export type PlacementRecommendationKind = typeof PlacementRecommendationKind[keyof typeof PlacementRecommendationKind];
-
-
-export const PlacementRecommendationKind = {
-  PRACTICE_QUESTIONS: 'PRACTICE_QUESTIONS',
-  CARDS: 'CARDS',
-  SHADOWING_VIDEO: 'SHADOWING_VIDEO',
-} as const;
+export interface ConfirmShadowUploadRequest {
+  /** @minLength 1 */
+  objectKey: string;
+  /**
+     * Measured by the browser from the file it just uploaded. Trusted
+     * only as far as the publish gate, which refuses a video whose last
+     * line ends after this — so a wrong duration cannot ship.
+     * @minimum 1
+     */
+  durationMs: number;
+}

@@ -23,18 +23,28 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { ShadowTerm } from './shadowTerm';
 
-/**
- * Which of R-32's four sources a row came from. Three have something
- * behind them today; tình huống hội thoại (R-21) still has no table in
- * this system, and TCCN-343-1 drops an empty source rather than padding
- * it.
- */
-export type PlacementRecommendationKind = typeof PlacementRecommendationKind[keyof typeof PlacementRecommendationKind];
-
-
-export const PlacementRecommendationKind = {
-  PRACTICE_QUESTIONS: 'PRACTICE_QUESTIONS',
-  CARDS: 'CARDS',
-  SHADOWING_VIDEO: 'SHADOWING_VIDEO',
-} as const;
+export interface ShadowLine {
+  id: string;
+  /** @minimum 1 */
+  ordinal: number;
+  /** @minimum 0 */
+  startMs: number;
+  /** @minimum 1 */
+  endMs: number;
+  textKo: string;
+  /**
+     * Required, and the opposite of PlacementQuestion's rule. There a
+     * gloss would let a learner read their way to a level measuring
+     * someone who will not exist on exam day. Here the gloss under the
+     * current line **is** the screen: shadowing a sentence you do not
+     * understand is parroting (TCCN-352-9). The publish gate is what
+     * makes "required" true.
+     */
+  textVi: string;
+  /** 민수 / 지수. Absent when the material has no named speakers. */
+  speaker?: string;
+  terms: ShadowTerm[];
+  practised: boolean;
+}

@@ -25,16 +25,15 @@
  */
 
 /**
- * Which of R-32's four sources a row came from. Three have something
- * behind them today; tình huống hội thoại (R-21) still has no table in
- * this system, and TCCN-343-1 drops an empty source rather than padding
- * it.
+ * Three values rather than a boolean, because "chưa nghe" and "chưa đạt"
+ * send the author to different places: one needs an ear, the other needs
+ * a fix.
  */
-export type PlacementRecommendationKind = typeof PlacementRecommendationKind[keyof typeof PlacementRecommendationKind];
+export type ShadowApprovalVerdict = typeof ShadowApprovalVerdict[keyof typeof ShadowApprovalVerdict];
 
 
-export const PlacementRecommendationKind = {
-  PRACTICE_QUESTIONS: 'PRACTICE_QUESTIONS',
-  CARDS: 'CARDS',
-  SHADOWING_VIDEO: 'SHADOWING_VIDEO',
+export const ShadowApprovalVerdict = {
+  UNREVIEWED: 'UNREVIEWED',
+  APPROVED: 'APPROVED',
+  REJECTED: 'REJECTED',
 } as const;

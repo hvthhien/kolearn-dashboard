@@ -24,17 +24,16 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export type ListShadowVideosParams = {
 /**
- * Which of R-32's four sources a row came from. Three have something
- * behind them today; tình huống hội thoại (R-21) still has no table in
- * this system, and TCCN-343-1 drops an empty source rather than padding
- * it.
+ * Clamped rather than refused, as everywhere else here.
+ * @minimum 1
+ * @maximum 200
  */
-export type PlacementRecommendationKind = typeof PlacementRecommendationKind[keyof typeof PlacementRecommendationKind];
-
-
-export const PlacementRecommendationKind = {
-  PRACTICE_QUESTIONS: 'PRACTICE_QUESTIONS',
-  CARDS: 'CARDS',
-  SHADOWING_VIDEO: 'SHADOWING_VIDEO',
-} as const;
+limit?: number;
+/**
+ * Arrives from a placement recommendation. Unlike level this really
+ * does filter — the learner asked for this topic.
+ */
+topicId?: string;
+};

@@ -24,17 +24,18 @@
  * OpenAPI spec version: 0.1.0
  */
 
-/**
- * Which of R-32's four sources a row came from. Three have something
- * behind them today; tình huống hội thoại (R-21) still has no table in
- * this system, and TCCN-343-1 drops an empty source rather than padding
- * it.
- */
-export type PlacementRecommendationKind = typeof PlacementRecommendationKind[keyof typeof PlacementRecommendationKind];
-
-
-export const PlacementRecommendationKind = {
-  PRACTICE_QUESTIONS: 'PRACTICE_QUESTIONS',
-  CARDS: 'CARDS',
-  SHADOWING_VIDEO: 'SHADOWING_VIDEO',
-} as const;
+export interface CreateShadowUploadTargetRequest {
+  /** @minLength 1 */
+  fileName: string;
+  mimeType: string;
+  /** @minimum 1 */
+  byteSize: number;
+  /**
+     * Lower-case hex of the file's SHA-256, when the client computed one.
+     * Signed into the PUT so R2 verifies the digest on write and rejects
+     * a mismatch — which is a stronger integrity check than a
+     * self-reported number, and saves the server re-reading 30 MB to
+     * measure it.
+     */
+  sha256?: string;
+}

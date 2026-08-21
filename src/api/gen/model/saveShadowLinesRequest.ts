@@ -23,18 +23,9 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { SaveShadowLineInput } from './saveShadowLineInput';
 
-/**
- * Which of R-32's four sources a row came from. Three have something
- * behind them today; tình huống hội thoại (R-21) still has no table in
- * this system, and TCCN-343-1 drops an empty source rather than padding
- * it.
- */
-export type PlacementRecommendationKind = typeof PlacementRecommendationKind[keyof typeof PlacementRecommendationKind];
-
-
-export const PlacementRecommendationKind = {
-  PRACTICE_QUESTIONS: 'PRACTICE_QUESTIONS',
-  CARDS: 'CARDS',
-  SHADOWING_VIDEO: 'SHADOWING_VIDEO',
-} as const;
+export interface SaveShadowLinesRequest {
+  /** Ordinals come from this array's order, not from the client. */
+  lines: SaveShadowLineInput[];
+}

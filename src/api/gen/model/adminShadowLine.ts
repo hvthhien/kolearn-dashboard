@@ -23,18 +23,20 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { AdminShadowApproval } from './adminShadowApproval';
 
-/**
- * Which of R-32's four sources a row came from. Three have something
- * behind them today; tình huống hội thoại (R-21) still has no table in
- * this system, and TCCN-343-1 drops an empty source rather than padding
- * it.
- */
-export type PlacementRecommendationKind = typeof PlacementRecommendationKind[keyof typeof PlacementRecommendationKind];
-
-
-export const PlacementRecommendationKind = {
-  PRACTICE_QUESTIONS: 'PRACTICE_QUESTIONS',
-  CARDS: 'CARDS',
-  SHADOWING_VIDEO: 'SHADOWING_VIDEO',
-} as const;
+export interface AdminShadowLine {
+  id: string;
+  /** @minimum 1 */
+  ordinal: number;
+  /** @minimum 0 */
+  startMs: number;
+  /** @minimum 1 */
+  endMs: number;
+  textKo: string;
+  textVi: string;
+  speaker: string;
+  /** Bumped whenever the timing, the Korean, or the video asset changes. */
+  revision: number;
+  approval: AdminShadowApproval;
+}

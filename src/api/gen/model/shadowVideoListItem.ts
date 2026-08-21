@@ -25,16 +25,21 @@
  */
 
 /**
- * Which of R-32's four sources a row came from. Three have something
- * behind them today; tình huống hội thoại (R-21) still has no table in
- * this system, and TCCN-343-1 drops an empty source rather than padding
- * it.
+ * Carries no level, deliberately. The list is ordered by level on the
+ * server and the screen never shows one; a field on the wire is one
+ * refactor away from a screen, and this is the screen TCCN-345-3's "không
+ * khoá nội dung" is about.
  */
-export type PlacementRecommendationKind = typeof PlacementRecommendationKind[keyof typeof PlacementRecommendationKind];
-
-
-export const PlacementRecommendationKind = {
-  PRACTICE_QUESTIONS: 'PRACTICE_QUESTIONS',
-  CARDS: 'CARDS',
-  SHADOWING_VIDEO: 'SHADOWING_VIDEO',
-} as const;
+export interface ShadowVideoListItem {
+  id: string;
+  title: string;
+  durationMs: number;
+  lineCount: number;
+  wordCount: number;
+  /**
+     * With lineCount this is the whole progress pill. `chưa luyện` is
+     * zero and `18 / 18 câu` is equality — both composed on the client,
+     * where the rest of this product's Vietnamese lives.
+     */
+  practisedCount: number;
+}

@@ -148,17 +148,31 @@ export function Field({
   )
 }
 
+/**
+ * `korean` switches on `.ko`, exactly as it does on `Textarea` below and for
+ * the same reason: an author proof-reads the same Hangul the learner will read,
+ * so the box they read it in obeys the same R-14 floor. A single-line field
+ * needs it for a dictionary headword — one word of Korean is still Korean.
+ */
 export function TextField({
   label,
   hint,
   id,
+  korean = false,
   ...props
-}: InputHTMLAttributes<HTMLInputElement> & { label: string; hint?: string; id: string }) {
+}: InputHTMLAttributes<HTMLInputElement> & {
+  label: string
+  hint?: string
+  id: string
+  korean?: boolean
+}) {
   return (
     <Field label={label} hint={hint} htmlFor={id}>
       <input
         id={id}
-        className="tap rounded-xl border border-line bg-white px-4 text-base text-ink"
+        className={`tap rounded-xl border border-line bg-white px-4 text-ink ${
+          korean ? 'ko' : 'text-base'
+        }`}
         {...props}
       />
     </Field>

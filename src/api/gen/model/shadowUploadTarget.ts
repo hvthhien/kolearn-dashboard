@@ -23,18 +23,19 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { ShadowUploadTargetHeaders } from './shadowUploadTargetHeaders';
+import type { ShadowUploadTargetMethod } from './shadowUploadTargetMethod';
 
-/**
- * Which of R-32's four sources a row came from. Three have something
- * behind them today; tình huống hội thoại (R-21) still has no table in
- * this system, and TCCN-343-1 drops an empty source rather than padding
- * it.
- */
-export type PlacementRecommendationKind = typeof PlacementRecommendationKind[keyof typeof PlacementRecommendationKind];
-
-
-export const PlacementRecommendationKind = {
-  PRACTICE_QUESTIONS: 'PRACTICE_QUESTIONS',
-  CARDS: 'CARDS',
-  SHADOWING_VIDEO: 'SHADOWING_VIDEO',
-} as const;
+export interface ShadowUploadTarget {
+  url: string;
+  method: ShadowUploadTargetMethod;
+  /**
+     * Send these verbatim and add nothing. They are the headers that were
+     * signed; altering or omitting one is a signature mismatch, and
+     * adding an unsigned one is fine but pointless. Opaque on purpose —
+     * the dashboard should not learn R2 header names.
+     */
+  headers: ShadowUploadTargetHeaders;
+  objectKey: string;
+  expiresAt: string;
+}

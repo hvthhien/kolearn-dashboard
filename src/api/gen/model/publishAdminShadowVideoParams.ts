@@ -24,17 +24,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export type PublishAdminShadowVideoParams = {
+dryRun?: boolean;
 /**
- * Which of R-32's four sources a row came from. Three have something
- * behind them today; tình huống hội thoại (R-21) still has no table in
- * this system, and TCCN-343-1 drops an empty source rather than padding
- * it.
+ * Required when warnings stand and nothing blocks. A warning nobody has to acknowledge is a warning nobody reads.
  */
-export type PlacementRecommendationKind = typeof PlacementRecommendationKind[keyof typeof PlacementRecommendationKind];
-
-
-export const PlacementRecommendationKind = {
-  PRACTICE_QUESTIONS: 'PRACTICE_QUESTIONS',
-  CARDS: 'CARDS',
-  SHADOWING_VIDEO: 'SHADOWING_VIDEO',
-} as const;
+acceptWarnings?: boolean;
+};

@@ -20,6 +20,8 @@ import { ExamListPage } from './routes/ExamListPage'
 import { ExamDetailPage } from './routes/ExamDetailPage'
 import { QuestionEditorPage } from './routes/QuestionEditorPage'
 import { ImportPage } from './routes/ImportPage'
+import { VideoListPage } from './routes/VideoListPage'
+import { VideoStudioPage } from './routes/VideoStudioPage'
 
 interface RouterContext {
   queryClient: QueryClient
@@ -145,12 +147,32 @@ const importRoute = createRoute({
   component: ImportPage,
 })
 
+/* ── Xưởng video (SC-VIDEO-STUDIO) ────────────────────────────────────────
+   One route for the whole studio rather than one per block: the line editor,
+   the approval pass and the dictionary all address the same <video> element,
+   and splitting them would mean three players, three loads of the same thirty
+   megabytes, and a reviewer who cannot see the timing they are approving. */
+
+const videosRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/videos',
+  component: VideoListPage,
+})
+
+const videoStudioRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/videos/$videoId',
+  component: VideoStudioPage,
+})
+
 export const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
   examsRoute,
   examDetailRoute,
   questionEditorRoute,
+  videosRoute,
+  videoStudioRoute,
   importRoute,
 ])
 

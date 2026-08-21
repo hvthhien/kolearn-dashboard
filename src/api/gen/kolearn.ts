@@ -46,6 +46,9 @@ import type {
   AdminExamDetail,
   AdminPassage,
   AdminQuestion,
+  AdminShadowLine,
+  AdminShadowVideoDetail,
+  AdminShadowVideoList,
   AnswerLockedProblem,
   AnswerState,
   AttemptEventRequest,
@@ -57,9 +60,12 @@ import type {
   BadRequestResponse,
   CardBatchResult,
   CardResult,
+  ConfirmShadowUploadRequest,
   ConflictResponse,
   CreateCardRequest,
   CreateCardsBatchBody,
+  CreateShadowUploadTargetRequest,
+  CreateShadowVideoRequest,
   CreateTopicBody,
   CurrentUser,
   ExamDetail,
@@ -73,6 +79,7 @@ import type {
   ListAdminExams200,
   ListAdminExamsParams,
   ListAdminQuestions200,
+  ListAdminShadowVideosParams,
   ListAttemptHistory200,
   ListAttemptHistoryParams,
   ListBlueprints200,
@@ -80,6 +87,8 @@ import type {
   ListExamsParams,
   ListMyCards200,
   ListMyCardsParams,
+  ListShadowCardsParams,
+  ListShadowVideosParams,
   ListStudyCards200,
   ListStudyCardsParams,
   ListTopics200,
@@ -95,6 +104,7 @@ import type {
   PlacementRunner,
   Problem,
   PublishAdminExamParams,
+  PublishAdminShadowVideoParams,
   PublishReport,
   QuestionTopicsResult,
   RecordAnswerRequest,
@@ -103,11 +113,21 @@ import type {
   ReviewAttempt200,
   ReviewAttemptParams,
   SaveQuestionRequest,
+  SaveShadowGlossaryRequest,
+  SaveShadowLinesRequest,
+  SaveShadowVideoRequest,
   SaveWritingDraftRequest,
   SectionKind,
   SetCardStateBody,
   SetLevelRequest,
   SetQuestionTopicsBody,
+  SetShadowLineApprovalRequest,
+  ShadowCardList,
+  ShadowProgress,
+  ShadowPublishReport,
+  ShadowUploadTarget,
+  ShadowVideoDetail,
+  ShadowVideoList,
   StartAttemptRequest,
   StartPlacementRequest,
   StreamTicketedAudioParams,
@@ -5505,6 +5525,435 @@ export function useGetWritingQuota<TData = Awaited<ReturnType<typeof getWritingQ
 
 
 
+export const getListShadowVideosUrl = (params?: ListShadowVideosParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/shadowing/videos?${stringifiedParams}` : `/api/v1/shadowing/videos`
+}
+
+/**
+ * Published videos **that have at least one line**. A video with no
+ * segmented transcript is not in this list and is not greyed out either
+ * (TCCN-351-1): there is no unit to repeat, so there is nothing to
+ * practise.
+ *
+ * The filter is the server's and belongs there. Filtering on the client
+ * means the count on the chip is computed from rows the interface throws
+ * away, and "Video 8" over seven rows is a number nobody can trust.
+ *
+ * Ordered by distance from the learner's own level, never filtered by it
+ * — a level orders content and does not gate it (TCCN-345-3).
+ * @summary Ngữ liệu nhại theo (R-19)
+ */
+export const listShadowVideos = async (params?: ListShadowVideosParams, options?: Parameters<typeof apiFetch>[1]): Promise<ShadowVideoList> => {
+
+  return apiFetch<ShadowVideoList>(getListShadowVideosUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListShadowVideosQueryKey = (params?: ListShadowVideosParams,) => {
+    return [
+    `/api/v1/shadowing/videos`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListShadowVideosQueryOptions = <TData = Awaited<ReturnType<typeof listShadowVideos>>, TError = UnauthorizedResponse>(params?: ListShadowVideosParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowVideos>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListShadowVideosQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listShadowVideos>>> = ({ signal }) => listShadowVideos(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listShadowVideos>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListShadowVideosQueryResult = NonNullable<Awaited<ReturnType<typeof listShadowVideos>>>
+export type ListShadowVideosQueryError = UnauthorizedResponse
+
+
+export function useListShadowVideos<TData = Awaited<ReturnType<typeof listShadowVideos>>, TError = UnauthorizedResponse>(
+ params: undefined |  ListShadowVideosParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowVideos>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listShadowVideos>>,
+          TError,
+          Awaited<ReturnType<typeof listShadowVideos>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListShadowVideos<TData = Awaited<ReturnType<typeof listShadowVideos>>, TError = UnauthorizedResponse>(
+ params?: ListShadowVideosParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowVideos>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listShadowVideos>>,
+          TError,
+          Awaited<ReturnType<typeof listShadowVideos>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListShadowVideos<TData = Awaited<ReturnType<typeof listShadowVideos>>, TError = UnauthorizedResponse>(
+ params?: ListShadowVideosParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowVideos>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Ngữ liệu nhại theo (R-19)
+ */
+
+export function useListShadowVideos<TData = Awaited<ReturnType<typeof listShadowVideos>>, TError = UnauthorizedResponse>(
+ params?: ListShadowVideosParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowVideos>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListShadowVideosQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetShadowVideoUrl = (videoId: string,) => {
+
+
+
+
+  return `/api/v1/shadowing/videos/${videoId}`
+}
+
+/**
+ * Lines, glossary and term anchors arrive together rather than behind
+ * three requests. The screen cannot render without the lines — a
+ * shadowing player with an empty transcript is a video player — and a
+ * second round trip on a phone is a blank pane the learner watches while
+ * the first line plays past them. Twenty-eight lines of Korean, their
+ * Vietnamese and a few dozen anchors is a few kilobytes.
+ *
+ * A draft video 404s here exactly as a nonexistent one does.
+ *
+ * The 0.5 / 1 / 1.5 / 2 speed control has no server surface at all: it is
+ * `playbackRate` over `playbackUrl`, which is a public CDN URL precisely
+ * so that seeking and rate changes are native.
+ * @summary Everything SC-SHADOWING renders
+ */
+export const getShadowVideo = async (videoId: string, options?: Parameters<typeof apiFetch>[1]): Promise<ShadowVideoDetail> => {
+
+  return apiFetch<ShadowVideoDetail>(getGetShadowVideoUrl(videoId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetShadowVideoQueryKey = (videoId: string,) => {
+    return [
+    `/api/v1/shadowing/videos/${videoId}`
+    ] as const;
+    }
+
+
+export const getGetShadowVideoQueryOptions = <TData = Awaited<ReturnType<typeof getShadowVideo>>, TError = UnauthorizedResponse | NotFoundResponse>(videoId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getShadowVideo>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetShadowVideoQueryKey(videoId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getShadowVideo>>> = ({ signal }) => getShadowVideo(videoId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: videoId !== null && videoId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getShadowVideo>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetShadowVideoQueryResult = NonNullable<Awaited<ReturnType<typeof getShadowVideo>>>
+export type GetShadowVideoQueryError = UnauthorizedResponse | NotFoundResponse
+
+
+export function useGetShadowVideo<TData = Awaited<ReturnType<typeof getShadowVideo>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ videoId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getShadowVideo>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getShadowVideo>>,
+          TError,
+          Awaited<ReturnType<typeof getShadowVideo>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetShadowVideo<TData = Awaited<ReturnType<typeof getShadowVideo>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ videoId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getShadowVideo>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getShadowVideo>>,
+          TError,
+          Awaited<ReturnType<typeof getShadowVideo>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetShadowVideo<TData = Awaited<ReturnType<typeof getShadowVideo>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ videoId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getShadowVideo>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Everything SC-SHADOWING renders
+ */
+
+export function useGetShadowVideo<TData = Awaited<ReturnType<typeof getShadowVideo>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ videoId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getShadowVideo>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetShadowVideoQueryOptions(videoId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getMarkShadowLinePractisedUrl = (videoId: string,
+    lineId: string,) => {
+
+
+
+
+  return `/api/v1/shadowing/videos/${videoId}/lines/${lineId}/practised`
+}
+
+/**
+ * PUT with no body, and idempotent: the write is ON CONFLICT DO NOTHING,
+ * so a replay costs nothing. The client fires this on every line that
+ * reaches its end, including one the learner repeats five times, and a
+ * POST would promise creation semantics the handler does not have.
+ *
+ * A line belonging to another video is a 404 — not because it does not
+ * exist, but because it does not exist *here*.
+ * @summary Ghi nhận đã nghe hết một câu (TCCN-352-5)
+ */
+export const markShadowLinePractised = async (videoId: string,
+    lineId: string, options?: Parameters<typeof apiFetch>[1]): Promise<ShadowProgress> => {
+
+  return apiFetch<ShadowProgress>(getMarkShadowLinePractisedUrl(videoId,lineId),
+  {
+    ...options,
+    method: 'PUT'
+
+
+  }
+);}
+
+
+
+
+
+export const getMarkShadowLinePractisedMutationOptions = <TError = UnauthorizedResponse | NotFoundResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markShadowLinePractised>>, TError,{videoId: string;lineId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof markShadowLinePractised>>, TError,{videoId: string;lineId: string}, TContext> => {
+
+const mutationKey = ['markShadowLinePractised'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof markShadowLinePractised>>, {videoId: string;lineId: string}> = (props) => {
+          const {videoId,lineId} = props ?? {};
+
+          return  markShadowLinePractised(videoId,lineId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MarkShadowLinePractisedMutationResult = NonNullable<Awaited<ReturnType<typeof markShadowLinePractised>>>
+
+    export type MarkShadowLinePractisedMutationError = UnauthorizedResponse | NotFoundResponse
+
+    /**
+ * @summary Ghi nhận đã nghe hết một câu (TCCN-352-5)
+ */
+export const useMarkShadowLinePractised = <TError = UnauthorizedResponse | NotFoundResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof markShadowLinePractised>>, TError,{videoId: string;lineId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof markShadowLinePractised>>,
+        TError,
+        {videoId: string;lineId: string},
+        TContext
+      > => {
+      return useMutation(getMarkShadowLinePractisedMutationOptions(options), queryClient);
+    }
+
+export const getListShadowCardsUrl = (params?: ListShadowCardsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/me/shadowing/cards?${stringifiedParams}` : `/api/v1/me/shadowing/cards`
+}
+
+/**
+ * The second tab of SC-SHADOW-LIST. Only the learner's own cards that
+ * came from a shadowing line, because R-15 makes a card shadowable when
+ * it came from "câu nghe ... có ngữ liệu tiếng" — a sentence you can
+ * hear. A card made from a reading question has no audio and no example
+ * sentence, so it is absent rather than disabled (TCCN-351-6).
+ *
+ * Expect `[]` for a while: nothing creates these until a learner saves a
+ * word from a video's dictionary. That is an honest empty state with
+ * designed copy behind it, not a placeholder.
+ * @summary Bộ thẻ của tôi, phần nhại theo được
+ */
+export const listShadowCards = async (params?: ListShadowCardsParams, options?: Parameters<typeof apiFetch>[1]): Promise<ShadowCardList> => {
+
+  return apiFetch<ShadowCardList>(getListShadowCardsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListShadowCardsQueryKey = (params?: ListShadowCardsParams,) => {
+    return [
+    `/api/v1/me/shadowing/cards`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListShadowCardsQueryOptions = <TData = Awaited<ReturnType<typeof listShadowCards>>, TError = UnauthorizedResponse>(params?: ListShadowCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowCards>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListShadowCardsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listShadowCards>>> = ({ signal }) => listShadowCards(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listShadowCards>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListShadowCardsQueryResult = NonNullable<Awaited<ReturnType<typeof listShadowCards>>>
+export type ListShadowCardsQueryError = UnauthorizedResponse
+
+
+export function useListShadowCards<TData = Awaited<ReturnType<typeof listShadowCards>>, TError = UnauthorizedResponse>(
+ params: undefined |  ListShadowCardsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowCards>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listShadowCards>>,
+          TError,
+          Awaited<ReturnType<typeof listShadowCards>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListShadowCards<TData = Awaited<ReturnType<typeof listShadowCards>>, TError = UnauthorizedResponse>(
+ params?: ListShadowCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowCards>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listShadowCards>>,
+          TError,
+          Awaited<ReturnType<typeof listShadowCards>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListShadowCards<TData = Awaited<ReturnType<typeof listShadowCards>>, TError = UnauthorizedResponse>(
+ params?: ListShadowCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowCards>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Bộ thẻ của tôi, phần nhại theo được
+ */
+
+export function useListShadowCards<TData = Awaited<ReturnType<typeof listShadowCards>>, TError = UnauthorizedResponse>(
+ params?: ListShadowCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowCards>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListShadowCardsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getListAdminExamsUrl = (params?: ListAdminExamsParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -6536,4 +6985,869 @@ export const useRunImport = <TError = BadRequestResponse | UnauthorizedResponse 
         TContext
       > => {
       return useMutation(getRunImportMutationOptions(options), queryClient);
+    }
+
+export const getListAdminShadowVideosUrl = (params?: ListAdminShadowVideosParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/admin/shadowing/videos?${stringifiedParams}` : `/api/v1/admin/shadowing/videos`
+}
+
+/**
+ * rbac: `shadowing:read:any`.
+ * @summary Every shadowing video, drafts included
+ */
+export const listAdminShadowVideos = async (params?: ListAdminShadowVideosParams, options?: Parameters<typeof apiFetch>[1]): Promise<AdminShadowVideoList> => {
+
+  return apiFetch<AdminShadowVideoList>(getListAdminShadowVideosUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAdminShadowVideosQueryKey = (params?: ListAdminShadowVideosParams,) => {
+    return [
+    `/api/v1/admin/shadowing/videos`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListAdminShadowVideosQueryOptions = <TData = Awaited<ReturnType<typeof listAdminShadowVideos>>, TError = UnauthorizedResponse | ForbiddenResponse>(params?: ListAdminShadowVideosParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminShadowVideos>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminShadowVideosQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminShadowVideos>>> = ({ signal }) => listAdminShadowVideos(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminShadowVideos>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListAdminShadowVideosQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminShadowVideos>>>
+export type ListAdminShadowVideosQueryError = UnauthorizedResponse | ForbiddenResponse
+
+
+export function useListAdminShadowVideos<TData = Awaited<ReturnType<typeof listAdminShadowVideos>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params: undefined |  ListAdminShadowVideosParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminShadowVideos>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAdminShadowVideos>>,
+          TError,
+          Awaited<ReturnType<typeof listAdminShadowVideos>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListAdminShadowVideos<TData = Awaited<ReturnType<typeof listAdminShadowVideos>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params?: ListAdminShadowVideosParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminShadowVideos>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAdminShadowVideos>>,
+          TError,
+          Awaited<ReturnType<typeof listAdminShadowVideos>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListAdminShadowVideos<TData = Awaited<ReturnType<typeof listAdminShadowVideos>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params?: ListAdminShadowVideosParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminShadowVideos>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Every shadowing video, drafts included
+ */
+
+export function useListAdminShadowVideos<TData = Awaited<ReturnType<typeof listAdminShadowVideos>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params?: ListAdminShadowVideosParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminShadowVideos>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListAdminShadowVideosQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateAdminShadowVideoUrl = () => {
+
+
+
+
+  return `/api/v1/admin/shadowing/videos`
+}
+
+/**
+ * rbac: `shadowing:write`. A draft exists before its video does, because
+ * the upload needs something to hang an object key off — and because the
+ * list screen's empty state has to offer a way forward that leads
+ * somewhere.
+ * @summary Start a draft
+ */
+export const createAdminShadowVideo = async (createShadowVideoRequest: CreateShadowVideoRequest, options?: Parameters<typeof apiFetch>[1]): Promise<AdminShadowVideoDetail> => {
+
+  return apiFetch<AdminShadowVideoDetail>(getCreateAdminShadowVideoUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createShadowVideoRequest)
+  }
+);}
+
+
+
+
+
+export const getCreateAdminShadowVideoMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminShadowVideo>>, TError,{data: CreateShadowVideoRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAdminShadowVideo>>, TError,{data: CreateShadowVideoRequest}, TContext> => {
+
+const mutationKey = ['createAdminShadowVideo'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAdminShadowVideo>>, {data: CreateShadowVideoRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createAdminShadowVideo(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateAdminShadowVideoMutationResult = NonNullable<Awaited<ReturnType<typeof createAdminShadowVideo>>>
+    export type CreateAdminShadowVideoMutationBody = CreateShadowVideoRequest
+    export type CreateAdminShadowVideoMutationError = UnauthorizedResponse | ForbiddenResponse | UnprocessableResponse
+
+    /**
+ * @summary Start a draft
+ */
+export const useCreateAdminShadowVideo = <TError = UnauthorizedResponse | ForbiddenResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminShadowVideo>>, TError,{data: CreateShadowVideoRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createAdminShadowVideo>>,
+        TError,
+        {data: CreateShadowVideoRequest},
+        TContext
+      > => {
+      return useMutation(getCreateAdminShadowVideoMutationOptions(options), queryClient);
+    }
+
+export const getGetAdminShadowVideoUrl = (videoId: string,) => {
+
+
+
+
+  return `/api/v1/admin/shadowing/videos/${videoId}`
+}
+
+/**
+ * rbac: `shadowing:read:any`. Metadata, asset, lines, approvals, glossary, anchors.
+ * @summary The whole studio payload
+ */
+export const getAdminShadowVideo = async (videoId: string, options?: Parameters<typeof apiFetch>[1]): Promise<AdminShadowVideoDetail> => {
+
+  return apiFetch<AdminShadowVideoDetail>(getGetAdminShadowVideoUrl(videoId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminShadowVideoQueryKey = (videoId: string,) => {
+    return [
+    `/api/v1/admin/shadowing/videos/${videoId}`
+    ] as const;
+    }
+
+
+export const getGetAdminShadowVideoQueryOptions = <TData = Awaited<ReturnType<typeof getAdminShadowVideo>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(videoId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminShadowVideo>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminShadowVideoQueryKey(videoId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminShadowVideo>>> = ({ signal }) => getAdminShadowVideo(videoId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: videoId !== null && videoId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminShadowVideo>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetAdminShadowVideoQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminShadowVideo>>>
+export type GetAdminShadowVideoQueryError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse
+
+
+export function useGetAdminShadowVideo<TData = Awaited<ReturnType<typeof getAdminShadowVideo>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
+ videoId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminShadowVideo>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getAdminShadowVideo>>,
+          TError,
+          Awaited<ReturnType<typeof getAdminShadowVideo>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetAdminShadowVideo<TData = Awaited<ReturnType<typeof getAdminShadowVideo>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
+ videoId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminShadowVideo>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getAdminShadowVideo>>,
+          TError,
+          Awaited<ReturnType<typeof getAdminShadowVideo>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetAdminShadowVideo<TData = Awaited<ReturnType<typeof getAdminShadowVideo>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
+ videoId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminShadowVideo>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary The whole studio payload
+ */
+
+export function useGetAdminShadowVideo<TData = Awaited<ReturnType<typeof getAdminShadowVideo>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
+ videoId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminShadowVideo>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetAdminShadowVideoQueryOptions(videoId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSaveAdminShadowVideoUrl = (videoId: string,) => {
+
+
+
+
+  return `/api/v1/admin/shadowing/videos/${videoId}`
+}
+
+/**
+ * rbac: `shadowing:write`. Permissive: a half-built video saves
+ * (TCCN-354-5). Requiring completeness at the first save only teaches an
+ * author to type filler to get past it, and the filler stays. The
+ * completeness rules live at the publish gate.
+ * @summary Save the metadata
+ */
+export const saveAdminShadowVideo = async (videoId: string,
+    saveShadowVideoRequest: SaveShadowVideoRequest, options?: Parameters<typeof apiFetch>[1]): Promise<AdminShadowVideoDetail> => {
+
+  return apiFetch<AdminShadowVideoDetail>(getSaveAdminShadowVideoUrl(videoId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(saveShadowVideoRequest)
+  }
+);}
+
+
+
+
+
+export const getSaveAdminShadowVideoMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveAdminShadowVideo>>, TError,{videoId: string;data: SaveShadowVideoRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveAdminShadowVideo>>, TError,{videoId: string;data: SaveShadowVideoRequest}, TContext> => {
+
+const mutationKey = ['saveAdminShadowVideo'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveAdminShadowVideo>>, {videoId: string;data: SaveShadowVideoRequest}> = (props) => {
+          const {videoId,data} = props ?? {};
+
+          return  saveAdminShadowVideo(videoId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveAdminShadowVideoMutationResult = NonNullable<Awaited<ReturnType<typeof saveAdminShadowVideo>>>
+    export type SaveAdminShadowVideoMutationBody = SaveShadowVideoRequest
+    export type SaveAdminShadowVideoMutationError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | UnprocessableResponse
+
+    /**
+ * @summary Save the metadata
+ */
+export const useSaveAdminShadowVideo = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveAdminShadowVideo>>, TError,{videoId: string;data: SaveShadowVideoRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof saveAdminShadowVideo>>,
+        TError,
+        {videoId: string;data: SaveShadowVideoRequest},
+        TContext
+      > => {
+      return useMutation(getSaveAdminShadowVideoMutationOptions(options), queryClient);
+    }
+
+export const getCreateShadowUploadTargetUrl = (videoId: string,) => {
+
+
+
+
+  return `/api/v1/admin/shadowing/videos/${videoId}/upload-target`
+}
+
+/**
+ * rbac: `asset:write`. The server chooses the object key, signs a PUT for
+ * it, and hands back the URL and the headers that were signed. R2's
+ * account credentials never reach the browser.
+ *
+ * `headers` is opaque to the client: it echoes what was signed, and the
+ * browser must send those headers **exactly**, because a header that was
+ * signed and then altered is a signature mismatch. Keeping them opaque is
+ * also what stops the dashboard learning any R2 header names.
+ *
+ * The presign binds the key, the content type, the byte size and a short
+ * expiry, so everything the browser could otherwise change is fixed here
+ * rather than trusted later.
+ * @summary A presigned R2 PUT for one object
+ */
+export const createShadowUploadTarget = async (videoId: string,
+    createShadowUploadTargetRequest: CreateShadowUploadTargetRequest, options?: Parameters<typeof apiFetch>[1]): Promise<ShadowUploadTarget> => {
+
+  return apiFetch<ShadowUploadTarget>(getCreateShadowUploadTargetUrl(videoId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createShadowUploadTargetRequest)
+  }
+);}
+
+
+
+
+
+export const getCreateShadowUploadTargetMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createShadowUploadTarget>>, TError,{videoId: string;data: CreateShadowUploadTargetRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createShadowUploadTarget>>, TError,{videoId: string;data: CreateShadowUploadTargetRequest}, TContext> => {
+
+const mutationKey = ['createShadowUploadTarget'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createShadowUploadTarget>>, {videoId: string;data: CreateShadowUploadTargetRequest}> = (props) => {
+          const {videoId,data} = props ?? {};
+
+          return  createShadowUploadTarget(videoId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateShadowUploadTargetMutationResult = NonNullable<Awaited<ReturnType<typeof createShadowUploadTarget>>>
+    export type CreateShadowUploadTargetMutationBody = CreateShadowUploadTargetRequest
+    export type CreateShadowUploadTargetMutationError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | UnprocessableResponse
+
+    /**
+ * @summary A presigned R2 PUT for one object
+ */
+export const useCreateShadowUploadTarget = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createShadowUploadTarget>>, TError,{videoId: string;data: CreateShadowUploadTargetRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createShadowUploadTarget>>,
+        TError,
+        {videoId: string;data: CreateShadowUploadTargetRequest},
+        TContext
+      > => {
+      return useMutation(getCreateShadowUploadTargetMutationOptions(options), queryClient);
+    }
+
+export const getConfirmShadowUploadUrl = (videoId: string,) => {
+
+
+
+
+  return `/api/v1/admin/shadowing/videos/${videoId}/uploaded`
+}
+
+/**
+ * rbac: `asset:write`. The client says the PUT succeeded; the server
+ * verifies rather than believes. It HEADs the object, records the size and
+ * digest **R2 reports**, writes the assets row, and points the video at
+ * it.
+ *
+ * Attaching a video resets every line's approval and bumps every line's
+ * revision. An approval is a statement about one stretch of audio, and
+ * that audio has just been replaced (TCCN-354-4).
+ *
+ * Idempotent on the object key, so retrying after a timeout re-sends no
+ * bytes — which is the whole reason this is a separate call from the PUT.
+ * @summary The bytes landed — check them and attach
+ */
+export const confirmShadowUpload = async (videoId: string,
+    confirmShadowUploadRequest: ConfirmShadowUploadRequest, options?: Parameters<typeof apiFetch>[1]): Promise<AdminShadowVideoDetail> => {
+
+  return apiFetch<AdminShadowVideoDetail>(getConfirmShadowUploadUrl(videoId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(confirmShadowUploadRequest)
+  }
+);}
+
+
+
+
+
+export const getConfirmShadowUploadMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmShadowUpload>>, TError,{videoId: string;data: ConfirmShadowUploadRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof confirmShadowUpload>>, TError,{videoId: string;data: ConfirmShadowUploadRequest}, TContext> => {
+
+const mutationKey = ['confirmShadowUpload'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof confirmShadowUpload>>, {videoId: string;data: ConfirmShadowUploadRequest}> = (props) => {
+          const {videoId,data} = props ?? {};
+
+          return  confirmShadowUpload(videoId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConfirmShadowUploadMutationResult = NonNullable<Awaited<ReturnType<typeof confirmShadowUpload>>>
+    export type ConfirmShadowUploadMutationBody = ConfirmShadowUploadRequest
+    export type ConfirmShadowUploadMutationError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | UnprocessableResponse
+
+    /**
+ * @summary The bytes landed — check them and attach
+ */
+export const useConfirmShadowUpload = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmShadowUpload>>, TError,{videoId: string;data: ConfirmShadowUploadRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof confirmShadowUpload>>,
+        TError,
+        {videoId: string;data: ConfirmShadowUploadRequest},
+        TContext
+      > => {
+      return useMutation(getConfirmShadowUploadMutationOptions(options), queryClient);
+    }
+
+export const getSaveAdminShadowLinesUrl = (videoId: string,) => {
+
+
+
+
+  return `/api/v1/admin/shadowing/videos/${videoId}/lines`
+}
+
+/**
+ * rbac: `shadowing:write`. The whole list in one transaction, matching how
+ * SaveQuestionRequest handles choices — and here it is the only shape that
+ * works at all, because a line and its dictionary anchors have to be
+ * rewritten together inside one deferred-constraint window.
+ *
+ * Lines are renumbered from the array order. Overlapping spans are
+ * refused (TCCN-354-6); gaps between lines are normal and are not.
+ *
+ * Editing a line's timing or Korean bumps its revision, which retires any
+ * approval standing against it.
+ * @summary Replace the transcript
+ */
+export const saveAdminShadowLines = async (videoId: string,
+    saveShadowLinesRequest: SaveShadowLinesRequest, options?: Parameters<typeof apiFetch>[1]): Promise<AdminShadowVideoDetail> => {
+
+  return apiFetch<AdminShadowVideoDetail>(getSaveAdminShadowLinesUrl(videoId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(saveShadowLinesRequest)
+  }
+);}
+
+
+
+
+
+export const getSaveAdminShadowLinesMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveAdminShadowLines>>, TError,{videoId: string;data: SaveShadowLinesRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveAdminShadowLines>>, TError,{videoId: string;data: SaveShadowLinesRequest}, TContext> => {
+
+const mutationKey = ['saveAdminShadowLines'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveAdminShadowLines>>, {videoId: string;data: SaveShadowLinesRequest}> = (props) => {
+          const {videoId,data} = props ?? {};
+
+          return  saveAdminShadowLines(videoId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveAdminShadowLinesMutationResult = NonNullable<Awaited<ReturnType<typeof saveAdminShadowLines>>>
+    export type SaveAdminShadowLinesMutationBody = SaveShadowLinesRequest
+    export type SaveAdminShadowLinesMutationError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | UnprocessableResponse
+
+    /**
+ * @summary Replace the transcript
+ */
+export const useSaveAdminShadowLines = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveAdminShadowLines>>, TError,{videoId: string;data: SaveShadowLinesRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof saveAdminShadowLines>>,
+        TError,
+        {videoId: string;data: SaveShadowLinesRequest},
+        TContext
+      > => {
+      return useMutation(getSaveAdminShadowLinesMutationOptions(options), queryClient);
+    }
+
+export const getSetShadowLineApprovalUrl = (videoId: string,
+    lineId: string,) => {
+
+
+
+
+  return `/api/v1/admin/shadowing/videos/${videoId}/lines/${lineId}/approval`
+}
+
+/**
+ * rbac: `shadowing:approve`. REJECTED requires a reason (TCCN-354-2) — a
+ * line turned down with no reason is a line nobody can fix.
+ *
+ * The verdict is recorded against the line's current revision, so a later
+ * edit retires it automatically rather than leaving a stale approval that
+ * reads as current.
+ * @summary Người bản ngữ nghe duyệt một câu
+ */
+export const setShadowLineApproval = async (videoId: string,
+    lineId: string,
+    setShadowLineApprovalRequest: SetShadowLineApprovalRequest, options?: Parameters<typeof apiFetch>[1]): Promise<AdminShadowLine> => {
+
+  return apiFetch<AdminShadowLine>(getSetShadowLineApprovalUrl(videoId,lineId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(setShadowLineApprovalRequest)
+  }
+);}
+
+
+
+
+
+export const getSetShadowLineApprovalMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setShadowLineApproval>>, TError,{videoId: string;lineId: string;data: SetShadowLineApprovalRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setShadowLineApproval>>, TError,{videoId: string;lineId: string;data: SetShadowLineApprovalRequest}, TContext> => {
+
+const mutationKey = ['setShadowLineApproval'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setShadowLineApproval>>, {videoId: string;lineId: string;data: SetShadowLineApprovalRequest}> = (props) => {
+          const {videoId,lineId,data} = props ?? {};
+
+          return  setShadowLineApproval(videoId,lineId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetShadowLineApprovalMutationResult = NonNullable<Awaited<ReturnType<typeof setShadowLineApproval>>>
+    export type SetShadowLineApprovalMutationBody = SetShadowLineApprovalRequest
+    export type SetShadowLineApprovalMutationError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | UnprocessableResponse
+
+    /**
+ * @summary Người bản ngữ nghe duyệt một câu
+ */
+export const useSetShadowLineApproval = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setShadowLineApproval>>, TError,{videoId: string;lineId: string;data: SetShadowLineApprovalRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof setShadowLineApproval>>,
+        TError,
+        {videoId: string;lineId: string;data: SetShadowLineApprovalRequest},
+        TContext
+      > => {
+      return useMutation(getSetShadowLineApprovalMutationOptions(options), queryClient);
+    }
+
+export const getSaveAdminShadowGlossaryUrl = (videoId: string,) => {
+
+
+
+
+  return `/api/v1/admin/shadowing/videos/${videoId}/glossary`
+}
+
+/**
+ * rbac: `shadowing:write`. Entries and their anchors together, for the
+ * same transactional reason the lines endpoint takes the whole list.
+ *
+ * 422 when an entry is settled while its context meaning still equals its
+ * general meaning (TCCN-354-3), compared after normalisation so trailing
+ * space and case cannot slip past. Drafting these with a model copies the
+ * general gloss across more often than not, and a learner who reads the
+ * same two lines twice concludes the second carries no information —
+ * which is true, and which is the whole feature gone.
+ * @summary Replace this video's dictionary
+ */
+export const saveAdminShadowGlossary = async (videoId: string,
+    saveShadowGlossaryRequest: SaveShadowGlossaryRequest, options?: Parameters<typeof apiFetch>[1]): Promise<AdminShadowVideoDetail> => {
+
+  return apiFetch<AdminShadowVideoDetail>(getSaveAdminShadowGlossaryUrl(videoId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(saveShadowGlossaryRequest)
+  }
+);}
+
+
+
+
+
+export const getSaveAdminShadowGlossaryMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveAdminShadowGlossary>>, TError,{videoId: string;data: SaveShadowGlossaryRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveAdminShadowGlossary>>, TError,{videoId: string;data: SaveShadowGlossaryRequest}, TContext> => {
+
+const mutationKey = ['saveAdminShadowGlossary'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveAdminShadowGlossary>>, {videoId: string;data: SaveShadowGlossaryRequest}> = (props) => {
+          const {videoId,data} = props ?? {};
+
+          return  saveAdminShadowGlossary(videoId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveAdminShadowGlossaryMutationResult = NonNullable<Awaited<ReturnType<typeof saveAdminShadowGlossary>>>
+    export type SaveAdminShadowGlossaryMutationBody = SaveShadowGlossaryRequest
+    export type SaveAdminShadowGlossaryMutationError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | UnprocessableResponse
+
+    /**
+ * @summary Replace this video's dictionary
+ */
+export const useSaveAdminShadowGlossary = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveAdminShadowGlossary>>, TError,{videoId: string;data: SaveShadowGlossaryRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof saveAdminShadowGlossary>>,
+        TError,
+        {videoId: string;data: SaveShadowGlossaryRequest},
+        TContext
+      > => {
+      return useMutation(getSaveAdminShadowGlossaryMutationOptions(options), queryClient);
+    }
+
+export const getPublishAdminShadowVideoUrl = (videoId: string,
+    params?: PublishAdminShadowVideoParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/admin/shadowing/videos/${videoId}/publish?${stringifiedParams}` : `/api/v1/admin/shadowing/videos/${videoId}/publish`
+}
+
+/**
+ * rbac: `shadowing:publish`. Same shape as publishAdminExam, and for the
+ * same reasons: **blockers** refuse the publish, **warnings** do not, and
+ * merging the two would destroy why both exist — if warnings blocked as
+ * well, nobody would publish anything and the gate would be routed around.
+ *
+ * Every blocker names the line it is about (TCCN-354-7). "3 câu hỏng"
+ * sends a native speaker back through twenty-eight lines to find which
+ * three.
+ *
+ * `dryRun` runs the gate and reports without releasing, which is how the
+ * screen shows both groups before anyone commits. A 200 carrying blockers
+ * means the gate ran and refused; that is the answer, not an error, so it
+ * is not problem+json.
+ * @summary Run the gate, and publish when it passes
+ */
+export const publishAdminShadowVideo = async (videoId: string,
+    params?: PublishAdminShadowVideoParams, options?: Parameters<typeof apiFetch>[1]): Promise<ShadowPublishReport> => {
+
+  return apiFetch<ShadowPublishReport>(getPublishAdminShadowVideoUrl(videoId,params),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getPublishAdminShadowVideoMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishAdminShadowVideo>>, TError,{videoId: string;params?: PublishAdminShadowVideoParams}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof publishAdminShadowVideo>>, TError,{videoId: string;params?: PublishAdminShadowVideoParams}, TContext> => {
+
+const mutationKey = ['publishAdminShadowVideo'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof publishAdminShadowVideo>>, {videoId: string;params?: PublishAdminShadowVideoParams}> = (props) => {
+          const {videoId,params} = props ?? {};
+
+          return  publishAdminShadowVideo(videoId,params,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PublishAdminShadowVideoMutationResult = NonNullable<Awaited<ReturnType<typeof publishAdminShadowVideo>>>
+
+    export type PublishAdminShadowVideoMutationError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse
+
+    /**
+ * @summary Run the gate, and publish when it passes
+ */
+export const usePublishAdminShadowVideo = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishAdminShadowVideo>>, TError,{videoId: string;params?: PublishAdminShadowVideoParams}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof publishAdminShadowVideo>>,
+        TError,
+        {videoId: string;params?: PublishAdminShadowVideoParams},
+        TContext
+      > => {
+      return useMutation(getPublishAdminShadowVideoMutationOptions(options), queryClient);
     }

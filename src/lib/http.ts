@@ -168,4 +168,60 @@ export async function apiFetchBlob(url: string, accept: string): Promise<Blob> {
   return res.blob()
 }
 
+/**
+ * Bytes out, with progress. The mirror of `apiFetchBlob` above, and the second
+ * and last exception to "everything goes through `apiFetch`".
+ *
+ * XHR rather than fetch, because fetch cannot report upload progress. That is a
+ * gap in the platform rather than a preference: `Response.body` streams the
+ * download, and a streamed request body is Chromium-only, needs HTTP/2, and
+ * reports bytes you enqueued rather than bytes the socket acknowledged. This is
+ * a thirty-megabyte body on somebody's office wifi, and a bar that does not
+ * move is the difference between "waiting" and "it is broken, I will refresh".
+ *
+ * It carries **no bearer token and no default Content-Type**. The target is a
+ * third-party origin, and the only credential it may see is the short-lived,
+ * single-object one the server minted for it — sending our access token there
+ * would hand it to Cloudflare. `headers` is applied verbatim and nothing is
+ * added, so which headers a presigned PUT needs stays a server-side fact and
+ * this function never learns it.
+ *
+ * A non-2xx here is not problem+json — it is whatever the storage provider
+ * emits — so the status and raw body come back and the caller phrases the
+ * Vietnamese. `userMessage` must never see it.
+ */
+export function putBytesWithProgress(
+  url: string,
+  body: Blob,
+  headers: Record<string, string>,
+  hooks: {
+    onProgress?: (loadedBytes: number, totalBytes: number) => void
+    signal?: AbortSignal
+  } = {},
+): Promise<{ status: number; body: string }> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('PUT', url)
+
+    for (const [name, value] of Object.entries(headers)) {
+      xhr.setRequestHeader(name, value)
+    }
+
+    if (hooks.onProgress) {
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) hooks.onProgress?.(e.loaded, e.total)
+      })
+    }
+
+    xhr.addEventListener('load', () => resolve({ status: xhr.status, body: xhr.responseText }))
+    xhr.addEventListener('error', () => reject(new Error('upload_network_error')))
+    xhr.addEventListener('timeout', () => reject(new Error('upload_timeout')))
+    xhr.addEventListener('abort', () => reject(new Error('upload_aborted')))
+
+    hooks.signal?.addEventListener('abort', () => xhr.abort(), { once: true })
+
+    xhr.send(body)
+  })
+}
+
 export default apiFetch

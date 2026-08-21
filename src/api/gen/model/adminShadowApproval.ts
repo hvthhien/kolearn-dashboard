@@ -23,18 +23,19 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { ShadowApprovalVerdict } from './shadowApprovalVerdict';
 
-/**
- * Which of R-32's four sources a row came from. Three have something
- * behind them today; tình huống hội thoại (R-21) still has no table in
- * this system, and TCCN-343-1 drops an empty source rather than padding
- * it.
- */
-export type PlacementRecommendationKind = typeof PlacementRecommendationKind[keyof typeof PlacementRecommendationKind];
-
-
-export const PlacementRecommendationKind = {
-  PRACTICE_QUESTIONS: 'PRACTICE_QUESTIONS',
-  CARDS: 'CARDS',
-  SHADOWING_VIDEO: 'SHADOWING_VIDEO',
-} as const;
+export interface AdminShadowApproval {
+  verdict: ShadowApprovalVerdict;
+  /** Required when the verdict is REJECTED (TCCN-354-2). */
+  note?: string;
+  reviewedAt?: string;
+  reviewedByName?: string;
+  /**
+     * The verdict was made about an earlier revision of this line — the
+     * timing or the Korean has changed underneath it. The gate counts a
+     * stale verdict as unreviewed (TCCN-354-4). Computed by the server so
+     * the client never compares revisions itself.
+     */
+  stale?: boolean;
+}

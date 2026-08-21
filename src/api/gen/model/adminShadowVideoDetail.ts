@@ -23,18 +23,29 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { AdminShadowAsset } from './adminShadowAsset';
+import type { AdminShadowGlossaryEntry } from './adminShadowGlossaryEntry';
+import type { AdminShadowLine } from './adminShadowLine';
+import type { AdminShadowVideoDetailVoiceKind } from './adminShadowVideoDetailVoiceKind';
+import type { ShadowReviewSummary } from './shadowReviewSummary';
+import type { ShadowVideoStatus } from './shadowVideoStatus';
+import type { Topic } from './topic';
 
-/**
- * Which of R-32's four sources a row came from. Three have something
- * behind them today; tình huống hội thoại (R-21) still has no table in
- * this system, and TCCN-343-1 drops an empty source rather than padding
- * it.
- */
-export type PlacementRecommendationKind = typeof PlacementRecommendationKind[keyof typeof PlacementRecommendationKind];
-
-
-export const PlacementRecommendationKind = {
-  PRACTICE_QUESTIONS: 'PRACTICE_QUESTIONS',
-  CARDS: 'CARDS',
-  SHADOWING_VIDEO: 'SHADOWING_VIDEO',
-} as const;
+export interface AdminShadowVideoDetail {
+  id: string;
+  title: string;
+  /**
+     * @minimum 1
+     * @maximum 6
+     */
+  level: number;
+  status: ShadowVideoStatus;
+  voice: string;
+  voiceKind: AdminShadowVideoDetailVoiceKind;
+  publishedAt?: string;
+  asset?: AdminShadowAsset;
+  topics: Topic[];
+  lines: AdminShadowLine[];
+  glossary: AdminShadowGlossaryEntry[];
+  review: ShadowReviewSummary;
+}

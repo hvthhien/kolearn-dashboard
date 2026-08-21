@@ -23,18 +23,19 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { ShadowPartOfSpeech } from './shadowPartOfSpeech';
 
-/**
- * Which of R-32's four sources a row came from. Three have something
- * behind them today; tình huống hội thoại (R-21) still has no table in
- * this system, and TCCN-343-1 drops an empty source rather than padding
- * it.
- */
-export type PlacementRecommendationKind = typeof PlacementRecommendationKind[keyof typeof PlacementRecommendationKind];
-
-
-export const PlacementRecommendationKind = {
-  PRACTICE_QUESTIONS: 'PRACTICE_QUESTIONS',
-  CARDS: 'CARDS',
-  SHADOWING_VIDEO: 'SHADOWING_VIDEO',
-} as const;
+export interface ShadowGlossaryEntry {
+  id: string;
+  headwordKo: string;
+  readingLatin?: string;
+  partOfSpeech: ShadowPartOfSpeech;
+  meaningVi: string;
+  /**
+     * Required. A published video cannot hold an unsettled entry — the
+     * publish gate and a database CHECK both refuse it — so this is the
+     * schema carrying that guarantee out to the client rather than
+     * repeating the check (TCCN-353-3).
+     */
+  contextMeaningVi: string;
+}

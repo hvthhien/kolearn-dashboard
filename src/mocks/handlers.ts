@@ -1,6 +1,8 @@
 import { http, HttpResponse } from 'msw'
 import type {
   AdminExamDetail,
+  AdminShadowVideoDetail,
+  ShadowPublishReport,
   AdminQuestion,
   AdminQuestionRow,
   AuthTokens,
@@ -11,6 +13,7 @@ import type {
 import { BLUEPRINTS } from './fixtures/blueprints'
 import { TOPICS } from './fixtures/topics'
 import { EXAMS, LISTENING_PASSAGE, QUESTIONS, READING_PASSAGE, layers } from './fixtures/bank'
+import { SHADOW_VIDEOS } from './fixtures/shadowing'
 
 /**
  * The mock backend, shared by `npm run dev` and by the test suite.
@@ -31,6 +34,7 @@ interface State {
   questions: AdminQuestion[]
   /** The publish gate's verdict is computed, not stored — see `gate` below. */
   published: Set<string>
+  videos: AdminShadowVideoDetail[]
 }
 
 function clone<T>(v: T): T {
@@ -41,6 +45,7 @@ let state: State = {
   exams: clone(EXAMS),
   questions: clone(QUESTIONS),
   published: new Set(EXAMS.filter((e) => e.status === 'PUBLISHED').map((e) => e.id)),
+  videos: clone(SHADOW_VIDEOS),
 }
 
 /** Tests call this so one test's save is not the next test's starting point. */
@@ -49,7 +54,56 @@ export function resetMockBank(): void {
     exams: clone(EXAMS),
     questions: clone(QUESTIONS),
     published: new Set(EXAMS.filter((e) => e.status === 'PUBLISHED').map((e) => e.id)),
+    videos: clone(SHADOW_VIDEOS),
   }
+}
+
+/** The studio's copy of a video, for a test that wants to read what a save did. */
+export function mockShadowVideo(id: string): AdminShadowVideoDetail | undefined {
+  return state.videos.find((v) => v.id === id)
+}
+
+/**
+ * The studio's half of the gate, computed the way the server computes it so the
+ * dialog is exercised against the same rules rather than a fixture of them.
+ */
+function summarise(video: AdminShadowVideoDetail) {
+  let approved = 0
+  let rejected = 0
+  let unreviewed = 0
+  for (const l of video.lines) {
+    if (l.approval.verdict === 'APPROVED' && !l.approval.stale) approved++
+    else if (l.approval.verdict === 'REJECTED') rejected++
+    else unreviewed++
+  }
+  return { total: video.lines.length, approved, rejected, unreviewed }
+}
+
+function shadowGate(video: AdminShadowVideoDetail): ShadowPublishReport {
+  const blockers: string[] = []
+  const warnings: string[] = []
+
+  if (!video.asset) blockers.push('Chưa có video.')
+  if (video.lines.length === 0) blockers.push('Chưa có lời thoại chia câu.')
+
+  for (const line of video.lines) {
+    if (line.approval.verdict === 'REJECTED') {
+      blockers.push(`Câu ${line.ordinal}: chưa đạt — ${line.approval.note ?? ''}.`)
+    } else if (line.approval.verdict === 'UNREVIEWED') {
+      blockers.push(`Câu ${line.ordinal}: chưa nghe duyệt.`)
+    } else if (line.approval.stale) {
+      blockers.push(`Câu ${line.ordinal}: đã sửa sau khi duyệt, cần nghe lại.`)
+    }
+    if (!line.textVi) warnings.push(`Câu ${line.ordinal}: chưa có bản dịch tiếng Việt.`)
+  }
+
+  for (const entry of video.glossary) {
+    if (!entry.contextSettled) {
+      blockers.push(`Từ "${entry.headwordKo}": chưa chốt nghĩa trong ngữ cảnh.`)
+    }
+  }
+
+  return { published: false, blockers, warnings }
 }
 
 export function mockQuestion(id: string): AdminQuestion | undefined {
@@ -72,6 +126,13 @@ export const MOCK_USER: AuthTokens['user'] = {
     'asset:write',
     'topic:manage',
     'import:manage',
+    // Nhại theo. content_admin holds all four in 00022's seed, including
+    // shadowing:approve — which is the same account editing and passing its own
+    // lines, and is why the publish gate reports self-approval as a warning.
+    'shadowing:read:any',
+    'shadowing:write',
+    'shadowing:approve',
+    'shadowing:publish',
   ],
 }
 
@@ -152,7 +213,252 @@ function nullIfBlank(v: string | null | undefined): string | null {
   return t === '' ? null : t
 }
 
+const SHADOW_UPLOAD_ORIGIN = 'https://media.mock.local'
+
 export const handlers = [
+  /* ── Xưởng video (SC-VIDEO-STUDIO) ───────────────────────────────────── */
+
+  http.get(`${BASE}/admin/shadowing/videos`, ({ request }) => {
+    const status = new URL(request.url).searchParams.get('status')
+    const items = state.videos
+      .filter((v) => status === null || v.status === status)
+      .map((v) => ({
+        id: v.id,
+        title: v.title,
+        level: v.level,
+        status: v.status,
+        durationMs: v.asset?.durationMs ?? 0,
+        lineCount: v.lines.length,
+        wordCount: v.glossary.length,
+        review: v.review,
+      }))
+    return HttpResponse.json({ items })
+  }),
+
+  http.post(`${BASE}/admin/shadowing/videos`, async ({ request }) => {
+    const body = (await request.json()) as { title: string; level: number }
+    const created: AdminShadowVideoDetail = {
+      id: `sv-${state.videos.length + 1}-${body.title.length}`,
+      title: body.title,
+      level: body.level,
+      status: 'DRAFT',
+      voice: '',
+      voiceKind: 'SYNTHETIC',
+      topics: [],
+      lines: [],
+      glossary: [],
+      review: { total: 0, approved: 0, rejected: 0, unreviewed: 0 },
+    }
+    state.videos.push(created)
+    return HttpResponse.json(created, { status: 201 })
+  }),
+
+  http.get(`${BASE}/admin/shadowing/videos/:videoId`, ({ params }) => {
+    const video = state.videos.find((v) => v.id === params.videoId)
+    return video ? HttpResponse.json(video) : new HttpResponse(null, { status: 404 })
+  }),
+
+  http.put(`${BASE}/admin/shadowing/videos/:videoId`, async ({ params, request }) => {
+    const video = state.videos.find((v) => v.id === params.videoId)
+    if (!video) return new HttpResponse(null, { status: 404 })
+    const body = (await request.json()) as {
+      title: string
+      level: number
+      voice?: string
+      voiceKind?: 'HUMAN' | 'SYNTHETIC'
+    }
+    video.title = body.title
+    video.level = body.level
+    video.voice = body.voice ?? ''
+    video.voiceKind = body.voiceKind ?? 'SYNTHETIC'
+    return HttpResponse.json(video)
+  }),
+
+  http.put(`${BASE}/admin/shadowing/videos/:videoId/lines`, async ({ params, request }) => {
+    const video = state.videos.find((v) => v.id === params.videoId)
+    if (!video) return new HttpResponse(null, { status: 404 })
+
+    const body = (await request.json()) as {
+      lines: {
+        id?: string
+        startMs: number
+        endMs: number
+        textKo: string
+        textVi: string
+        speaker: string
+      }[]
+    }
+
+    video.lines = body.lines.map((incoming, i) => {
+      const before = incoming.id ? video.lines.find((l) => l.id === incoming.id) : undefined
+      // Only the timing and the Korean retire a verdict: those are the audio a
+      // native speaker listened to. A translation edit is not.
+      const changed =
+        before !== undefined &&
+        (before.startMs !== incoming.startMs ||
+          before.endMs !== incoming.endMs ||
+          before.textKo !== incoming.textKo)
+      const revision = (before?.revision ?? 0) + (changed ? 1 : 0) || 1
+
+      return {
+        id: incoming.id ?? `sl-new-${i}`,
+        ordinal: i + 1,
+        startMs: incoming.startMs,
+        endMs: incoming.endMs,
+        textKo: incoming.textKo,
+        textVi: incoming.textVi,
+        speaker: incoming.speaker,
+        revision,
+        approval: before
+          ? { ...before.approval, stale: changed || before.approval.stale }
+          : { verdict: 'UNREVIEWED' as const, stale: false },
+      }
+    })
+    video.review = summarise(video)
+    return HttpResponse.json(video)
+  }),
+
+  http.put(
+    `${BASE}/admin/shadowing/videos/:videoId/lines/:lineId/approval`,
+    async ({ params, request }) => {
+      const video = state.videos.find((v) => v.id === params.videoId)
+      const line = video?.lines.find((l) => l.id === params.lineId)
+      if (!video || !line) return new HttpResponse(null, { status: 404 })
+
+      const body = (await request.json()) as { verdict: string; note?: string }
+      if (body.verdict === 'REJECTED' && !body.note?.trim()) {
+        return HttpResponse.json(
+          {
+            type: 'about:blank',
+            title: 'Câu chưa đạt phải kèm lý do',
+            status: 422,
+            code: 'shadowing_reason_required',
+            detail: 'Câu chưa đạt phải kèm lý do.',
+          },
+          { status: 422, headers: { 'Content-Type': 'application/problem+json' } },
+        )
+      }
+
+      line.approval =
+        body.verdict === 'UNREVIEWED'
+          ? { verdict: 'UNREVIEWED', stale: false }
+          : {
+              verdict: body.verdict as 'APPROVED' | 'REJECTED',
+              note: body.note,
+              reviewedAt: '2026-08-21T00:00:00Z',
+              reviewedByName: 'Người duyệt',
+              // Recorded against the current revision, so it is current.
+              stale: false,
+            }
+      video.review = summarise(video)
+      return HttpResponse.json(line)
+    },
+  ),
+
+  http.put(`${BASE}/admin/shadowing/videos/:videoId/glossary`, async ({ params, request }) => {
+    const video = state.videos.find((v) => v.id === params.videoId)
+    if (!video) return new HttpResponse(null, { status: 404 })
+
+    const body = (await request.json()) as {
+      entries: {
+        id?: string
+        headwordKo: string
+        meaningVi: string
+        contextMeaningVi: string
+        contextSettled: boolean
+        partOfSpeech: string
+        readingLatin?: string
+        occurrences: { lineId: string; charStart: number; charEnd: number; surfaceKo: string }[]
+      }[]
+    }
+
+    // The server's rule, mirrored so the 422 path is exercised rather than
+    // assumed (TCCN-354-3).
+    const norm = (v: string) => v.normalize('NFC').trim().replace(/\s+/g, ' ').toLowerCase()
+    const offender = body.entries.find(
+      (e) => e.contextSettled && norm(e.contextMeaningVi) === norm(e.meaningVi),
+    )
+    if (offender) {
+      return HttpResponse.json(
+        {
+          type: 'about:blank',
+          title: 'Nghĩa trong ngữ cảnh đang trùng nghĩa chung',
+          status: 422,
+          code: 'shadowing_context_meaning_repeated',
+          detail: `Từ “${offender.headwordKo}”: nghĩa trong ngữ cảnh giống hệt nghĩa chung, không chốt được.`,
+        },
+        { status: 422, headers: { 'Content-Type': 'application/problem+json' } },
+      )
+    }
+
+    video.glossary = body.entries.map((e, i) => ({
+      id: e.id || `sg-new-${i}`,
+      headwordKo: e.headwordKo,
+      readingLatin: e.readingLatin ?? '',
+      partOfSpeech: e.partOfSpeech as AdminShadowVideoDetail['glossary'][number]['partOfSpeech'],
+      meaningVi: e.meaningVi,
+      contextMeaningVi: e.contextMeaningVi,
+      contextSettled: e.contextSettled,
+      occurrences: e.occurrences,
+    }))
+    return HttpResponse.json(video)
+  }),
+
+  http.post(`${BASE}/admin/shadowing/videos/:videoId/upload-target`, ({ params }) => {
+    return HttpResponse.json({
+      url: `${SHADOW_UPLOAD_ORIGIN}/shadowing/${String(params.videoId)}/mock.mp4`,
+      method: 'PUT',
+      // Opaque to the client: it echoes what was signed.
+      headers: { 'Content-Type': 'video/mp4' },
+      objectKey: `shadowing/${String(params.videoId)}/mock.mp4`,
+      expiresAt: '2026-08-21T00:15:00Z',
+    })
+  }),
+
+  /* The direct-to-storage PUT. Required rather than optional: `src/test/setup.ts`
+     runs with `onUnhandledRequest: 'error'`, and this request deliberately goes
+     to a third-party origin rather than through the API. */
+  http.put(`${SHADOW_UPLOAD_ORIGIN}/*`, () => new HttpResponse(null, { status: 200 })),
+
+  http.post(`${BASE}/admin/shadowing/videos/:videoId/uploaded`, async ({ params, request }) => {
+    const video = state.videos.find((v) => v.id === params.videoId)
+    if (!video) return new HttpResponse(null, { status: 404 })
+    const body = (await request.json()) as { objectKey: string; durationMs: number }
+
+    video.asset = {
+      assetId: `a-${video.id}`,
+      playbackUrl: `https://media.test/${body.objectKey}`,
+      objectKey: body.objectKey,
+      byteSize: 3_601_997,
+      mimeType: 'video/mp4',
+      durationMs: body.durationMs,
+    }
+    // Every line now describes audio nobody has heard.
+    video.lines = video.lines.map((l) => ({
+      ...l,
+      revision: l.revision + 1,
+      approval: { ...l.approval, stale: l.approval.verdict !== 'UNREVIEWED' },
+    }))
+    video.review = summarise(video)
+    return HttpResponse.json(video)
+  }),
+
+  http.post(`${BASE}/admin/shadowing/videos/:videoId/publish`, ({ params, request }) => {
+    const video = state.videos.find((v) => v.id === params.videoId)
+    if (!video) return new HttpResponse(null, { status: 404 })
+
+    const url = new URL(request.url)
+    const report = shadowGate(video)
+    if (url.searchParams.get('dryRun') === 'true' || report.blockers.length > 0) {
+      return HttpResponse.json(report)
+    }
+    if (report.warnings.length > 0 && url.searchParams.get('acceptWarnings') !== 'true') {
+      return HttpResponse.json(report)
+    }
+    video.status = 'PUBLISHED'
+    return HttpResponse.json({ ...report, published: true })
+  }),
+
   http.post(`${BASE}/auth/login`, () => HttpResponse.json(TOKENS)),
   http.post(`${BASE}/auth/refresh`, () => HttpResponse.json(TOKENS)),
   http.post(`${BASE}/auth/logout`, () => new HttpResponse(null, { status: 204 })),

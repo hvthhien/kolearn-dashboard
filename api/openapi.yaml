@@ -36,6 +36,8 @@ tags:
   - name: weakness
   - name: placement
   - name: writing
+  - name: shadowing
+  - name: studio
   - name: admin
 
 security:
@@ -1735,6 +1737,131 @@ paths:
               schema: { $ref: '#/components/schemas/WritingQuota' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  # ── nhại theo (SC-SHADOW-LIST, SC-SHADOWING) ──────────────────────────────
+  #
+  # R-19. Watch a short dialogue, replay one line at a time, read along after
+  # it. There is no microphone anywhere in this block and there must not be:
+  # the record / listen back / compare loop is SC-SPEAKING and it is ver1.2
+  # (TCCN-352-8). "Practised" below means a line was played to its end, not
+  # that anything about it was measured.
+
+  /shadowing/videos:
+    get:
+      tags: [shadowing]
+      operationId: listShadowVideos
+      summary: Ngữ liệu nhại theo (R-19)
+      description: |
+        Published videos **that have at least one line**. A video with no
+        segmented transcript is not in this list and is not greyed out either
+        (TCCN-351-1): there is no unit to repeat, so there is nothing to
+        practise.
+
+        The filter is the server's and belongs there. Filtering on the client
+        means the count on the chip is computed from rows the interface throws
+        away, and "Video 8" over seven rows is a number nobody can trust.
+
+        Ordered by distance from the learner's own level, never filtered by it
+        — a level orders content and does not gate it (TCCN-345-3).
+      parameters:
+        - name: limit
+          in: query
+          description: Clamped rather than refused, as everywhere else here.
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - name: topicId
+          in: query
+          description: |
+            Arrives from a placement recommendation. Unlike level this really
+            does filter — the learner asked for this topic.
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Newest first within a level band. `[]` when empty (R-13).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShadowVideoList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /shadowing/videos/{videoId}:
+    parameters:
+      - $ref: '#/components/parameters/VideoId'
+    get:
+      tags: [shadowing]
+      operationId: getShadowVideo
+      summary: Everything SC-SHADOWING renders
+      description: |
+        Lines, glossary and term anchors arrive together rather than behind
+        three requests. The screen cannot render without the lines — a
+        shadowing player with an empty transcript is a video player — and a
+        second round trip on a phone is a blank pane the learner watches while
+        the first line plays past them. Twenty-eight lines of Korean, their
+        Vietnamese and a few dozen anchors is a few kilobytes.
+
+        A draft video 404s here exactly as a nonexistent one does.
+
+        The 0.5 / 1 / 1.5 / 2 speed control has no server surface at all: it is
+        `playbackRate` over `playbackUrl`, which is a public CDN URL precisely
+        so that seeking and rate changes are native.
+      responses:
+        '200':
+          description: The video, its lines, and its own dictionary.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShadowVideoDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /shadowing/videos/{videoId}/lines/{lineId}/practised:
+    parameters:
+      - $ref: '#/components/parameters/VideoId'
+      - $ref: '#/components/parameters/LineId'
+    put:
+      tags: [shadowing]
+      operationId: markShadowLinePractised
+      summary: Ghi nhận đã nghe hết một câu (TCCN-352-5)
+      description: |
+        PUT with no body, and idempotent: the write is ON CONFLICT DO NOTHING,
+        so a replay costs nothing. The client fires this on every line that
+        reaches its end, including one the learner repeats five times, and a
+        POST would promise creation semantics the handler does not have.
+
+        A line belonging to another video is a 404 — not because it does not
+        exist, but because it does not exist *here*.
+      responses:
+        '200':
+          description: The whole progress object, so the client patches its cache rather than refetching.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShadowProgress' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /me/shadowing/cards:
+    get:
+      tags: [shadowing]
+      operationId: listShadowCards
+      summary: Bộ thẻ của tôi, phần nhại theo được
+      description: |
+        The second tab of SC-SHADOW-LIST. Only the learner's own cards that
+        came from a shadowing line, because R-15 makes a card shadowable when
+        it came from "câu nghe ... có ngữ liệu tiếng" — a sentence you can
+        hear. A card made from a reading question has no audio and no example
+        sentence, so it is absent rather than disabled (TCCN-351-6).
+
+        Expect `[]` for a while: nothing creates these until a learner saves a
+        word from a video's dictionary. That is an honest empty state with
+        designed copy behind it, not a placeholder.
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      responses:
+        '200':
+          description: Newest first. `[]` when empty (R-13).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShadowCardList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
   # ── admin: ngân hàng đề (SC-BANK-ADMIN) ───────────────────────────────────
   #
   # Internal. Every operation here is gated by an rbac permission held only by
@@ -2043,6 +2170,309 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/Unprocessable' }
 
+  # ── xưởng video (SC-VIDEO-STUDIO) ─────────────────────────────────────────
+  #
+  # Internal, and gated by shadowing:* permissions held only by
+  # content_editor / content_admin. The screens live in kolearn-dashboard.
+  #
+  # Bytes never pass through this API. There are two 4.5 MB request-body gates
+  # between a browser and this handler — Vercel's Go function and the
+  # dashboard's own proxy, which buffers the whole body — and a three-minute
+  # video is around 30 MB. Uploads go straight to Cloudflare R2 through a
+  # presigned PUT; see upload-target below.
+
+  /admin/shadowing/videos:
+    get:
+      tags: [studio]
+      operationId: listAdminShadowVideos
+      summary: Every shadowing video, drafts included
+      description: 'rbac: `shadowing:read:any`.'
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/ShadowVideoStatus' }
+      responses:
+        '200':
+          description: Newest first.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminShadowVideoList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [studio]
+      operationId: createAdminShadowVideo
+      summary: Start a draft
+      description: |
+        rbac: `shadowing:write`. A draft exists before its video does, because
+        the upload needs something to hang an object key off — and because the
+        list screen's empty state has to offer a way forward that leads
+        somewhere.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateShadowVideoRequest' }
+      responses:
+        '201':
+          description: The new draft.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminShadowVideoDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /admin/shadowing/videos/{videoId}:
+    parameters:
+      - $ref: '#/components/parameters/VideoId'
+    get:
+      tags: [studio]
+      operationId: getAdminShadowVideo
+      summary: The whole studio payload
+      description: 'rbac: `shadowing:read:any`. Metadata, asset, lines, approvals, glossary, anchors.'
+      responses:
+        '200':
+          description: The video as the studio edits it.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminShadowVideoDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [studio]
+      operationId: saveAdminShadowVideo
+      summary: Save the metadata
+      description: |
+        rbac: `shadowing:write`. Permissive: a half-built video saves
+        (TCCN-354-5). Requiring completeness at the first save only teaches an
+        author to type filler to get past it, and the filler stays. The
+        completeness rules live at the publish gate.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SaveShadowVideoRequest' }
+      responses:
+        '200':
+          description: The saved video.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminShadowVideoDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /admin/shadowing/videos/{videoId}/upload-target:
+    parameters:
+      - $ref: '#/components/parameters/VideoId'
+    post:
+      tags: [studio]
+      operationId: createShadowUploadTarget
+      summary: A presigned R2 PUT for one object
+      description: |
+        rbac: `asset:write`. The server chooses the object key, signs a PUT for
+        it, and hands back the URL and the headers that were signed. R2's
+        account credentials never reach the browser.
+
+        `headers` is opaque to the client: it echoes what was signed, and the
+        browser must send those headers **exactly**, because a header that was
+        signed and then altered is a signature mismatch. Keeping them opaque is
+        also what stops the dashboard learning any R2 header names.
+
+        The presign binds the key, the content type, the byte size and a short
+        expiry, so everything the browser could otherwise change is fixed here
+        rather than trusted later.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateShadowUploadTargetRequest' }
+      responses:
+        '200':
+          description: Where to put the bytes, and with what.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShadowUploadTarget' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /admin/shadowing/videos/{videoId}/uploaded:
+    parameters:
+      - $ref: '#/components/parameters/VideoId'
+    post:
+      tags: [studio]
+      operationId: confirmShadowUpload
+      summary: The bytes landed — check them and attach
+      description: |
+        rbac: `asset:write`. The client says the PUT succeeded; the server
+        verifies rather than believes. It HEADs the object, records the size and
+        digest **R2 reports**, writes the assets row, and points the video at
+        it.
+
+        Attaching a video resets every line's approval and bumps every line's
+        revision. An approval is a statement about one stretch of audio, and
+        that audio has just been replaced (TCCN-354-4).
+
+        Idempotent on the object key, so retrying after a timeout re-sends no
+        bytes — which is the whole reason this is a separate call from the PUT.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ConfirmShadowUploadRequest' }
+      responses:
+        '200':
+          description: The video with its asset attached.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminShadowVideoDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /admin/shadowing/videos/{videoId}/lines:
+    parameters:
+      - $ref: '#/components/parameters/VideoId'
+    put:
+      tags: [studio]
+      operationId: saveAdminShadowLines
+      summary: Replace the transcript
+      description: |
+        rbac: `shadowing:write`. The whole list in one transaction, matching how
+        SaveQuestionRequest handles choices — and here it is the only shape that
+        works at all, because a line and its dictionary anchors have to be
+        rewritten together inside one deferred-constraint window.
+
+        Lines are renumbered from the array order. Overlapping spans are
+        refused (TCCN-354-6); gaps between lines are normal and are not.
+
+        Editing a line's timing or Korean bumps its revision, which retires any
+        approval standing against it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SaveShadowLinesRequest' }
+      responses:
+        '200':
+          description: The video, with its lines as saved.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminShadowVideoDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /admin/shadowing/videos/{videoId}/lines/{lineId}/approval:
+    parameters:
+      - $ref: '#/components/parameters/VideoId'
+      - $ref: '#/components/parameters/LineId'
+    put:
+      tags: [studio]
+      operationId: setShadowLineApproval
+      summary: Người bản ngữ nghe duyệt một câu
+      description: |
+        rbac: `shadowing:approve`. REJECTED requires a reason (TCCN-354-2) — a
+        line turned down with no reason is a line nobody can fix.
+
+        The verdict is recorded against the line's current revision, so a later
+        edit retires it automatically rather than leaving a stale approval that
+        reads as current.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SetShadowLineApprovalRequest' }
+      responses:
+        '200':
+          description: The line, with its verdict.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminShadowLine' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /admin/shadowing/videos/{videoId}/glossary:
+    parameters:
+      - $ref: '#/components/parameters/VideoId'
+    put:
+      tags: [studio]
+      operationId: saveAdminShadowGlossary
+      summary: Replace this video's dictionary
+      description: |
+        rbac: `shadowing:write`. Entries and their anchors together, for the
+        same transactional reason the lines endpoint takes the whole list.
+
+        422 when an entry is settled while its context meaning still equals its
+        general meaning (TCCN-354-3), compared after normalisation so trailing
+        space and case cannot slip past. Drafting these with a model copies the
+        general gloss across more often than not, and a learner who reads the
+        same two lines twice concludes the second carries no information —
+        which is true, and which is the whole feature gone.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SaveShadowGlossaryRequest' }
+      responses:
+        '200':
+          description: The video, with its dictionary as saved.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminShadowVideoDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /admin/shadowing/videos/{videoId}/publish:
+    parameters:
+      - $ref: '#/components/parameters/VideoId'
+    post:
+      tags: [studio]
+      operationId: publishAdminShadowVideo
+      summary: Run the gate, and publish when it passes
+      description: |
+        rbac: `shadowing:publish`. Same shape as publishAdminExam, and for the
+        same reasons: **blockers** refuse the publish, **warnings** do not, and
+        merging the two would destroy why both exist — if warnings blocked as
+        well, nobody would publish anything and the gate would be routed around.
+
+        Every blocker names the line it is about (TCCN-354-7). "3 câu hỏng"
+        sends a native speaker back through twenty-eight lines to find which
+        three.
+
+        `dryRun` runs the gate and reports without releasing, which is how the
+        screen shows both groups before anyone commits. A 200 carrying blockers
+        means the gate ran and refused; that is the answer, not an error, so it
+        is not problem+json.
+      parameters:
+        - name: dryRun
+          in: query
+          schema: { type: boolean, default: false }
+        - name: acceptWarnings
+          in: query
+          description: Required when warnings stand and nothing blocks. A warning nobody has to acknowledge is a warning nobody reads.
+          schema: { type: boolean, default: false }
+      responses:
+        '200':
+          description: The gate ran. Read `published` for what happened.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShadowPublishReport' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
 components:
 
   securitySchemes:
@@ -2079,6 +2509,16 @@ components:
       schema: { type: string, format: uuid }
     SubmissionId:
       name: submissionId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    VideoId:
+      name: videoId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    LineId:
+      name: lineId
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -2861,6 +3301,17 @@ components:
             screen shows — instead of only the ones the author attached.
             Without it the card falls back to the authored topics, which is
             weaker but still connected (TCCN-115-1).
+        sourceShadowLineId:
+          type: string
+          format: uuid
+          description: |
+            The shadowing line this word was saved from (R-19, TCCN-353-5).
+            R-15 lists "video nào" among the three answers to "thẻ này từ đâu
+            ra" and calls it the line authors forget.
+
+            It is also what makes the card shadowable: SC-SHADOW-LIST's card
+            tab is exactly the rows carrying this, because a card made from a
+            reading question has no sentence anyone can hear.
 
     CardResult:
       type: object
@@ -3525,11 +3976,11 @@ components:
     PlacementRecommendationKind:
       type: string
       description: |
-        Which of R-32's four sources a row came from. Only the two with
-        anything behind them today: video nhại theo (R-19) and tình huống hội
-        thoại (R-21) have no table in this system yet, and TCCN-343-1 drops an
-        empty source rather than padding it.
-      enum: [PRACTICE_QUESTIONS, CARDS]
+        Which of R-32's four sources a row came from. Three have something
+        behind them today; tình huống hội thoại (R-21) still has no table in
+        this system, and TCCN-343-1 drops an empty source rather than padding
+        it.
+      enum: [PRACTICE_QUESTIONS, CARDS, SHADOWING_VIDEO]
 
     PlacementRecommendation:
       type: object
@@ -3956,3 +4407,454 @@ components:
           description: |
             Reported, never blocking. YC-121 is blunt about why it matters, but
             an untranslated paper is still a paper.
+
+    # ── nhại theo (R-19) ──────────────────────────────────────────────────
+
+    ShadowVideoStatus:
+      type: string
+      enum: [DRAFT, IN_REVIEW, PUBLISHED, RETIRED]
+
+    ShadowApprovalVerdict:
+      type: string
+      description: |
+        Three values rather than a boolean, because "chưa nghe" and "chưa đạt"
+        send the author to different places: one needs an ear, the other needs
+        a fix.
+      enum: [UNREVIEWED, APPROVED, REJECTED]
+
+    ShadowPartOfSpeech:
+      type: string
+      enum: [NOUN, VERB, ADJECTIVE, ADVERB, GRAMMAR_PATTERN]
+
+    ShadowProgress:
+      type: object
+      required: [lineCount, practisedCount, practisedLineIds]
+      properties:
+        lineCount: { type: integer }
+        practisedCount: { type: integer }
+        practisedLineIds:
+          type: array
+          description: Never null, so an untouched video serialises as `[]` (R-13).
+          items: { type: string, format: uuid }
+
+    ShadowVideoListItem:
+      type: object
+      required: [id, title, durationMs, lineCount, wordCount, practisedCount]
+      description: |
+        Carries no level, deliberately. The list is ordered by level on the
+        server and the screen never shows one; a field on the wire is one
+        refactor away from a screen, and this is the screen TCCN-345-3's "không
+        khoá nội dung" is about.
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        durationMs: { type: integer }
+        lineCount: { type: integer }
+        wordCount: { type: integer }
+        practisedCount:
+          type: integer
+          description: |
+            With lineCount this is the whole progress pill. `chưa luyện` is
+            zero and `18 / 18 câu` is equality — both composed on the client,
+            where the rest of this product's Vietnamese lives.
+
+    ShadowVideoList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ShadowVideoListItem' }
+
+    ShadowTerm:
+      type: object
+      required: [entryId, charStart, charEnd]
+      description: |
+        Where in this line a dictionary word sits.
+
+        Offsets are half-open [charStart, charEnd) and counted in **Unicode
+        code points**. The client must slice with `Array.from(textKo)`, not
+        `String.slice`, which counts UTF-16 code units — the two agree for
+        every Hangul syllable and stop agreeing the moment a line carries an
+        astral character.
+
+        They are authored rather than searched for. Korean is agglutinative:
+        접수 appears in a line as 접수는 and 예약 as 예약하려고, so a substring
+        search misses some occurrences, swallows particles on others, and
+        matches a headword sitting inside an unrelated word. That failure looks
+        deliberate on screen, so nobody reports it.
+
+        entryId rather than an inlined meaning: a word in six lines has one
+        entry and six anchors, so the detail a tap opens cannot drift into six
+        near-copies.
+      properties:
+        entryId: { type: string, format: uuid }
+        charStart: { type: integer, minimum: 0 }
+        charEnd: { type: integer, minimum: 1 }
+
+    ShadowLine:
+      type: object
+      required: [id, ordinal, startMs, endMs, textKo, textVi, terms, practised]
+      properties:
+        id: { type: string, format: uuid }
+        ordinal: { type: integer, minimum: 1 }
+        startMs: { type: integer, minimum: 0 }
+        endMs: { type: integer, minimum: 1 }
+        textKo: { type: string }
+        textVi:
+          type: string
+          description: |
+            Required, and the opposite of PlacementQuestion's rule. There a
+            gloss would let a learner read their way to a level measuring
+            someone who will not exist on exam day. Here the gloss under the
+            current line **is** the screen: shadowing a sentence you do not
+            understand is parroting (TCCN-352-9). The publish gate is what
+            makes "required" true.
+        speaker:
+          type: string
+          description: 민수 / 지수. Absent when the material has no named speakers.
+        terms:
+          type: array
+          items: { $ref: '#/components/schemas/ShadowTerm' }
+        practised: { type: boolean }
+
+    ShadowGlossaryEntry:
+      type: object
+      required: [id, headwordKo, partOfSpeech, meaningVi, contextMeaningVi]
+      properties:
+        id: { type: string, format: uuid }
+        headwordKo: { type: string }
+        readingLatin: { type: string }
+        partOfSpeech: { $ref: '#/components/schemas/ShadowPartOfSpeech' }
+        meaningVi: { type: string }
+        contextMeaningVi:
+          type: string
+          description: |
+            Required. A published video cannot hold an unsettled entry — the
+            publish gate and a database CHECK both refuse it — so this is the
+            schema carrying that guarantee out to the client rather than
+            repeating the check (TCCN-353-3).
+
+    ShadowVideoDetail:
+      type: object
+      required: [id, title, durationMs, playbackUrl, lines, glossary, progress]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        durationMs: { type: integer }
+        playbackUrl:
+          type: string
+          description: |
+            An absolute public URL on the Cloudflare R2 custom domain, read
+            straight by a `<video>` element with no credential.
+
+            Deliberately unlike an attempt's audio, which is one learner's
+            frozen paper under R-01's single-play rule and therefore goes
+            through an authenticated fetch and an object URL. Catalogue content
+            belongs to nobody's attempt, so that dance buys nothing and costs
+            native seeking and playbackRate — which this whole feature is built
+            on. Requires the origin to serve `Accept-Ranges: bytes`; without
+            range requests `currentTime` cannot seek and the feature is inert.
+        lines:
+          type: array
+          description: |
+            Named lines, not transcript, and the word is chosen. "Transcript"
+            in this product means passages.transcript_ko — the script of a
+            listening question, which is the answer to that question. A
+            shadowing line answers nothing, and withholding the Korean would
+            leave a learner shadowing a sentence they cannot read.
+          items: { $ref: '#/components/schemas/ShadowLine' }
+        glossary:
+          type: array
+          items: { $ref: '#/components/schemas/ShadowGlossaryEntry' }
+        progress: { $ref: '#/components/schemas/ShadowProgress' }
+
+    ShadowCardListItem:
+      type: object
+      required: [cardId, front, videoId, videoTitle, lineId, lineTextKo, startMs, endMs]
+      properties:
+        cardId: { type: string, format: uuid }
+        front: { type: string }
+        back: { type: string }
+        videoId: { type: string, format: uuid }
+        videoTitle: { type: string }
+        lineId: { type: string, format: uuid }
+        lineTextKo: { type: string }
+        startMs: { type: integer }
+        endMs: { type: integer }
+
+    ShadowCardList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ShadowCardListItem' }
+
+    AdminShadowAsset:
+      type: object
+      required: [assetId, playbackUrl, objectKey, byteSize, mimeType, durationMs]
+      properties:
+        assetId: { type: string, format: uuid }
+        playbackUrl: { type: string }
+        objectKey: { type: string }
+        byteSize: { type: integer, format: int64 }
+        mimeType: { type: string }
+        durationMs: { type: integer }
+
+    AdminShadowApproval:
+      type: object
+      required: [verdict]
+      properties:
+        verdict: { $ref: '#/components/schemas/ShadowApprovalVerdict' }
+        note:
+          type: string
+          description: Required when the verdict is REJECTED (TCCN-354-2).
+        reviewedAt: { type: string, format: date-time }
+        reviewedByName: { type: string }
+        stale:
+          type: boolean
+          description: |
+            The verdict was made about an earlier revision of this line — the
+            timing or the Korean has changed underneath it. The gate counts a
+            stale verdict as unreviewed (TCCN-354-4). Computed by the server so
+            the client never compares revisions itself.
+
+    AdminShadowLine:
+      type: object
+      required: [id, ordinal, startMs, endMs, textKo, textVi, speaker, revision, approval]
+      properties:
+        id: { type: string, format: uuid }
+        ordinal: { type: integer, minimum: 1 }
+        startMs: { type: integer, minimum: 0 }
+        endMs: { type: integer, minimum: 1 }
+        textKo: { type: string }
+        textVi: { type: string }
+        speaker: { type: string }
+        revision:
+          type: integer
+          description: Bumped whenever the timing, the Korean, or the video asset changes.
+        approval: { $ref: '#/components/schemas/AdminShadowApproval' }
+
+    AdminShadowOccurrence:
+      type: object
+      required: [lineId, charStart, charEnd, surfaceKo]
+      properties:
+        lineId: { type: string, format: uuid }
+        charStart: { type: integer, minimum: 0 }
+        charEnd: { type: integer, minimum: 1 }
+        surfaceKo:
+          type: string
+          description: |
+            The inflected characters actually present — 접수, not 접수는.
+            Redundant against the line text by design: it is what catches an
+            anchor whose offsets have drifted after the line was re-typed
+            (TCCN-353-4), and what an author reads in a diff.
+
+    AdminShadowGlossaryEntry:
+      type: object
+      required: [id, headwordKo, partOfSpeech, meaningVi, contextMeaningVi, contextSettled, occurrences]
+      properties:
+        id: { type: string, format: uuid }
+        headwordKo: { type: string }
+        readingLatin: { type: string }
+        partOfSpeech: { $ref: '#/components/schemas/ShadowPartOfSpeech' }
+        meaningVi: { type: string }
+        contextMeaningVi: { type: string }
+        contextSettled: { type: boolean }
+        occurrences:
+          type: array
+          items: { $ref: '#/components/schemas/AdminShadowOccurrence' }
+
+    ShadowReviewSummary:
+      type: object
+      required: [total, approved, rejected, unreviewed]
+      properties:
+        total: { type: integer }
+        approved: { type: integer }
+        rejected: { type: integer }
+        unreviewed:
+          type: integer
+          description: Includes lines whose verdict has gone stale.
+
+    AdminShadowVideoRow:
+      type: object
+      required: [id, title, level, status, lineCount, wordCount, review]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        level: { type: integer, minimum: 1, maximum: 6 }
+        status: { $ref: '#/components/schemas/ShadowVideoStatus' }
+        durationMs: { type: integer }
+        lineCount: { type: integer }
+        wordCount: { type: integer }
+        review: { $ref: '#/components/schemas/ShadowReviewSummary' }
+
+    AdminShadowVideoList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AdminShadowVideoRow' }
+
+    AdminShadowVideoDetail:
+      type: object
+      required: [id, title, level, status, voice, voiceKind, topics, lines, glossary, review]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        level: { type: integer, minimum: 1, maximum: 6 }
+        status: { $ref: '#/components/schemas/ShadowVideoStatus' }
+        voice: { type: string }
+        voiceKind: { type: string, enum: [HUMAN, SYNTHETIC] }
+        publishedAt: { type: string, format: date-time }
+        asset: { $ref: '#/components/schemas/AdminShadowAsset' }
+        topics:
+          type: array
+          items: { $ref: '#/components/schemas/Topic' }
+        lines:
+          type: array
+          items: { $ref: '#/components/schemas/AdminShadowLine' }
+        glossary:
+          type: array
+          items: { $ref: '#/components/schemas/AdminShadowGlossaryEntry' }
+        review: { $ref: '#/components/schemas/ShadowReviewSummary' }
+
+    CreateShadowVideoRequest:
+      type: object
+      required: [title, level]
+      properties:
+        title: { type: string, minLength: 1 }
+        level: { type: integer, minimum: 1, maximum: 6 }
+
+    SaveShadowVideoRequest:
+      type: object
+      required: [title, level]
+      properties:
+        title: { type: string, minLength: 1 }
+        level: { type: integer, minimum: 1, maximum: 6 }
+        voice: { type: string }
+        voiceKind: { type: string, enum: [HUMAN, SYNTHETIC] }
+        topicIds:
+          type: array
+          items: { type: string, format: uuid }
+
+    SaveShadowLineInput:
+      type: object
+      required: [startMs, endMs, textKo]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: |
+            Omitted for a new line. Present to keep an existing line's identity
+            — and with it its approval, when nothing about it changed.
+        startMs: { type: integer, minimum: 0 }
+        endMs: { type: integer, minimum: 1 }
+        textKo: { type: string, minLength: 1 }
+        textVi: { type: string }
+        speaker: { type: string }
+
+    SaveShadowLinesRequest:
+      type: object
+      required: [lines]
+      properties:
+        lines:
+          type: array
+          description: Ordinals come from this array's order, not from the client.
+          items: { $ref: '#/components/schemas/SaveShadowLineInput' }
+
+    SaveShadowGlossaryEntryInput:
+      type: object
+      required: [headwordKo, partOfSpeech, meaningVi]
+      properties:
+        id: { type: string, format: uuid }
+        headwordKo: { type: string, minLength: 1 }
+        readingLatin: { type: string }
+        partOfSpeech: { $ref: '#/components/schemas/ShadowPartOfSpeech' }
+        meaningVi: { type: string, minLength: 1 }
+        contextMeaningVi: { type: string }
+        contextSettled: { type: boolean }
+        occurrences:
+          type: array
+          items: { $ref: '#/components/schemas/AdminShadowOccurrence' }
+
+    SaveShadowGlossaryRequest:
+      type: object
+      required: [entries]
+      properties:
+        entries:
+          type: array
+          items: { $ref: '#/components/schemas/SaveShadowGlossaryEntryInput' }
+
+    SetShadowLineApprovalRequest:
+      type: object
+      required: [verdict]
+      properties:
+        verdict: { $ref: '#/components/schemas/ShadowApprovalVerdict' }
+        note: { type: string }
+
+    CreateShadowUploadTargetRequest:
+      type: object
+      required: [fileName, mimeType, byteSize]
+      properties:
+        fileName: { type: string, minLength: 1 }
+        mimeType: { type: string }
+        byteSize: { type: integer, format: int64, minimum: 1 }
+        sha256:
+          type: string
+          description: |
+            Lower-case hex of the file's SHA-256, when the client computed one.
+            Signed into the PUT so R2 verifies the digest on write and rejects
+            a mismatch — which is a stronger integrity check than a
+            self-reported number, and saves the server re-reading 30 MB to
+            measure it.
+
+    ShadowUploadTarget:
+      type: object
+      required: [url, method, headers, objectKey, expiresAt]
+      properties:
+        url: { type: string }
+        method: { type: string, enum: [PUT] }
+        headers:
+          type: object
+          additionalProperties: { type: string }
+          description: |
+            Send these verbatim and add nothing. They are the headers that were
+            signed; altering or omitting one is a signature mismatch, and
+            adding an unsigned one is fine but pointless. Opaque on purpose —
+            the dashboard should not learn R2 header names.
+        objectKey: { type: string }
+        expiresAt: { type: string, format: date-time }
+
+    ConfirmShadowUploadRequest:
+      type: object
+      required: [objectKey, durationMs]
+      properties:
+        objectKey: { type: string, minLength: 1 }
+        durationMs:
+          type: integer
+          minimum: 1
+          description: |
+            Measured by the browser from the file it just uploaded. Trusted
+            only as far as the publish gate, which refuses a video whose last
+            line ends after this — so a wrong duration cannot ship.
+
+    ShadowPublishReport:
+      type: object
+      required: [published, blockers, warnings]
+      properties:
+        published:
+          type: boolean
+          description: False when a blocker stood, or when this was a dry run.
+        blockers:
+          type: array
+          description: |
+            Each refuses the publish, and each names the line it is about
+            (TCCN-354-7).
+          items: { type: string }
+        warnings:
+          type: array
+          description: Reported, never blocking.
+          items: { type: string }

@@ -24,17 +24,17 @@
  * OpenAPI spec version: 0.1.0
  */
 
-/**
- * Which of R-32's four sources a row came from. Three have something
- * behind them today; tình huống hội thoại (R-21) still has no table in
- * this system, and TCCN-343-1 drops an empty source rather than padding
- * it.
- */
-export type PlacementRecommendationKind = typeof PlacementRecommendationKind[keyof typeof PlacementRecommendationKind];
-
-
-export const PlacementRecommendationKind = {
-  PRACTICE_QUESTIONS: 'PRACTICE_QUESTIONS',
-  CARDS: 'CARDS',
-  SHADOWING_VIDEO: 'SHADOWING_VIDEO',
-} as const;
+export interface AdminShadowOccurrence {
+  lineId: string;
+  /** @minimum 0 */
+  charStart: number;
+  /** @minimum 1 */
+  charEnd: number;
+  /**
+     * The inflected characters actually present — 접수, not 접수는.
+     * Redundant against the line text by design: it is what catches an
+     * anchor whose offsets have drifted after the line was re-typed
+     * (TCCN-353-4), and what an author reads in a diff.
+     */
+  surfaceKo: string;
+}
