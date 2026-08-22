@@ -23,22 +23,31 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { ExamImage } from './examImage';
-import type { ReviewPassageKind } from './reviewPassageKind';
 
-export interface ReviewPassage {
-  id: string;
-  kind: ReviewPassageKind;
-  bodyKo?: string;
-  bodyVi?: string;
-  transcriptKo?: string;
-  transcriptVi?: string;
+/**
+ * The sentence a card was saved from — the video, its title, and the
+ * line's number.
+ *
+ * Unlike `MyCardSource` this is a *destination*. SC-SHADOWING opens at one
+ * line, so these four fields are exactly what a link to "câu 12 của video
+ * này" needs and nothing more: no `startMs`, no `textKo`.
+ * `ShadowCardListItem` carries those because SC-SHADOW-LIST's card tab is
+ * a list of sentences; this is a single row under a word.
+ */
+export interface MyCardShadowSource {
+  videoId: string;
+  videoTitle: string;
   /**
-     * The clip, replayable without limit — TCCN-114-2 is explicit that
-     * R-01's single listen governs sitting the paper and not studying it
-     * afterwards. A CDN address on a deployment with a public bucket, and
-     * the authenticated review route otherwise.
+     * Carried for the reason `MyCardSource.questionId` is: the ordinal is
+     * what the learner and the URL use, and the id is what survives a
+     * renumbering.
      */
-  audioUrl?: string;
-  images?: ExamImage[];
+  lineId: string;
+  /**
+     * The line's place in the transcript, 1-based — the same number
+     * `ShadowLine.ordinal` carries and the same one the player's `line`
+     * search parameter takes. Not an index: `?line=1` is câu 1.
+     * @minimum 1
+     */
+  lineOrdinal: number;
 }

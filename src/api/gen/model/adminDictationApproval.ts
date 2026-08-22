@@ -23,22 +23,20 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { ExamImage } from './examImage';
-import type { ReviewPassageKind } from './reviewPassageKind';
+import type { AdminDictationApprovalVerdict } from './adminDictationApprovalVerdict';
 
-export interface ReviewPassage {
-  id: string;
-  kind: ReviewPassageKind;
-  bodyKo?: string;
-  bodyVi?: string;
-  transcriptKo?: string;
-  transcriptVi?: string;
+export interface AdminDictationApproval {
+  verdict: AdminDictationApprovalVerdict;
+  /** Required on REJECTED — a sentence nobody can fix otherwise. */
+  note?: string;
+  reviewedAt?: string;
+  reviewedByName?: string;
   /**
-     * The clip, replayable without limit — TCCN-114-2 is explicit that
-     * R-01's single listen governs sitting the paper and not studying it
-     * afterwards. A CDN address on a deployment with a public bucket, and
-     * the authenticated review route otherwise.
+     * The verdict was made about an earlier revision: the Korean or the
+     * audio has changed underneath it. Computed on the server so the
+     * client never compares revisions itself, and counted as unreviewed
+     * by the gate. A stale verdict looks exactly like a fresh one unless
+     * somebody does this comparison.
      */
-  audioUrl?: string;
-  images?: ExamImage[];
+  stale: boolean;
 }

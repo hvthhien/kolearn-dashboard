@@ -23,22 +23,31 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { ExamImage } from './examImage';
-import type { ReviewPassageKind } from './reviewPassageKind';
 
-export interface ReviewPassage {
-  id: string;
-  kind: ReviewPassageKind;
-  bodyKo?: string;
-  bodyVi?: string;
-  transcriptKo?: string;
-  transcriptVi?: string;
+/**
+ * The dictation sentence a card was saved from — the set, its title, and
+ * the sentence's number.
+ *
+ * A *destination*, like `MyCardShadowSource`: SC-DICTATION opens at the
+ * learner's bookmark and shows "Câu n / N", so these four fields are what
+ * a link back needs and nothing more.
+ *
+ * No `textKo`. The card's front is already the word; the sentence it came
+ * from is somewhere to go back to, not a second thing to read on a flip
+ * card — and a whole Korean sentence under a two-syllable word is how the
+ * collection screen stops being scannable.
+ */
+export interface MyCardDictationSource {
+  setId: string;
+  setTitle: string;
   /**
-     * The clip, replayable without limit — TCCN-114-2 is explicit that
-     * R-01's single listen governs sitting the paper and not studying it
-     * afterwards. A CDN address on a deployment with a public bucket, and
-     * the authenticated review route otherwise.
+     * Carried for the reason `MyCardSource.questionId` is: the ordinal is
+     * what the learner reads, and the id is what survives a renumbering.
      */
-  audioUrl?: string;
-  images?: ExamImage[];
+  itemId: string;
+  /**
+     * The sentence's place in the set, 1-based.
+     * @minimum 1
+     */
+  itemOrdinal: number;
 }

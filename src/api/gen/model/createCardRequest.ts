@@ -51,4 +51,17 @@ export interface CreateCardRequest {
      * reading question has no sentence anyone can hear.
      */
   sourceShadowLineId?: string;
+  /**
+     * The dictation sentence this word was mistyped in (R-36, YC-426).
+     * R-15 lists provenance among the three answers to "thẻ này từ đâu
+     * ra" and calls it the row authors forget.
+     *
+     * Unlike `sourceShadowLineId` this does NOT make the card shadowable.
+     * R-15's test for that is a sentence you can hear, which a dictation
+     * item is — but SC-SHADOW-LIST's card tab opens the shadowing player,
+     * and that plays a video this card has no video for. Widening it is a
+     * decision about that screen, not a side effect of recording where a
+     * card came from.
+     */
+  sourceDictationItemId?: string;
 }

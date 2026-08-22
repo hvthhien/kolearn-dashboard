@@ -20,6 +20,8 @@ import { ExamListPage } from './routes/ExamListPage'
 import { ExamDetailPage } from './routes/ExamDetailPage'
 import { QuestionEditorPage } from './routes/QuestionEditorPage'
 import { ImportPage } from './routes/ImportPage'
+import { DictationSetListPage } from './routes/DictationSetListPage'
+import { DictationStudioPage } from './routes/DictationStudioPage'
 import { VideoListPage } from './routes/VideoListPage'
 import { VideoStudioPage } from './routes/VideoStudioPage'
 
@@ -165,6 +167,25 @@ const videoStudioRoute = createRoute({
   component: VideoStudioPage,
 })
 
+/* ── Xưởng chép chính tả ──────────────────────────────────────────────────
+   Read-only about the content: sets arrive through cmd/dictation-import, and
+   the only thing these two screens write is the verdict. That is what they are
+   for — the importer can do everything except hear whether the audio says what
+   the transcript claims, and grading is exact comparison against that
+   transcript. */
+
+const dictationSetsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/dictation',
+  component: DictationSetListPage,
+})
+
+const dictationStudioRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/dictation/$setId',
+  component: DictationStudioPage,
+})
+
 export const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
@@ -173,6 +194,8 @@ export const routeTree = rootRoute.addChildren([
   questionEditorRoute,
   videosRoute,
   videoStudioRoute,
+  dictationSetsRoute,
+  dictationStudioRoute,
   importRoute,
 ])
 

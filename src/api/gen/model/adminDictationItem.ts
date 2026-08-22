@@ -23,22 +23,23 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { ExamImage } from './examImage';
-import type { ReviewPassageKind } from './reviewPassageKind';
+import type { AdminDictationApproval } from './adminDictationApproval';
+import type { AdminDictationItemSource } from './adminDictationItemSource';
 
-export interface ReviewPassage {
+export interface AdminDictationItem {
   id: string;
-  kind: ReviewPassageKind;
-  bodyKo?: string;
-  bodyVi?: string;
-  transcriptKo?: string;
-  transcriptVi?: string;
+  /** @minimum 1 */
+  ordinal: number;
+  textKo: string;
+  textVi: string;
   /**
-     * The clip, replayable without limit — TCCN-114-2 is explicit that
-     * R-01's single listen governs sitting the paper and not studying it
-     * afterwards. A CDN address on a deployment with a public bucket, and
-     * the authenticated review route otherwise.
+     * The reviewer has to HEAR it — that is the entire job this screen
+     * exists for, and the one thing cmd/dictation-import cannot do.
      */
-  audioUrl?: string;
-  images?: ExamImage[];
+  audioUrl: string;
+  durationMs: number;
+  source: AdminDictationItemSource;
+  /** @minimum 1 */
+  revision: number;
+  approval: AdminDictationApproval;
 }

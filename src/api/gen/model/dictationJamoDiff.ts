@@ -23,22 +23,18 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { ExamImage } from './examImage';
-import type { ReviewPassageKind } from './reviewPassageKind';
+import type { DictationJamoPair } from './dictationJamoPair';
 
-export interface ReviewPassage {
-  id: string;
-  kind: ReviewPassageKind;
-  bodyKo?: string;
-  bodyVi?: string;
-  transcriptKo?: string;
-  transcriptVi?: string;
-  /**
-     * The clip, replayable without limit — TCCN-114-2 is explicit that
-     * R-01's single listen governs sitting the paper and not studying it
-     * afterwards. A CDN address on a deployment with a public bucket, and
-     * the authenticated review route otherwise.
-     */
-  audioUrl?: string;
-  images?: ExamImage[];
+/**
+ * Which parts of a Hangul syllable moved, on a CHANGED character whose
+ * two sides are both syllables. 예 against 에 is one shared initial and a
+ * moved medial: ㅖ → ㅔ. Absent parts matched.
+ *
+ * This is the difference between telling a learner "you heard the
+ * consonant, the vowel is what to listen for" and telling them "wrong".
+ */
+export interface DictationJamoDiff {
+  initial?: DictationJamoPair;
+  medial?: DictationJamoPair;
+  final?: DictationJamoPair;
 }

@@ -23,22 +23,12 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { ExamImage } from './examImage';
-import type { ReviewPassageKind } from './reviewPassageKind';
 
-export interface ReviewPassage {
-  id: string;
-  kind: ReviewPassageKind;
-  bodyKo?: string;
-  bodyVi?: string;
-  transcriptKo?: string;
-  transcriptVi?: string;
-  /**
-     * The clip, replayable without limit — TCCN-114-2 is explicit that
-     * R-01's single listen governs sitting the paper and not studying it
-     * afterwards. A CDN address on a deployment with a public bucket, and
-     * the authenticated review route otherwise.
-     */
-  audioUrl?: string;
-  images?: ExamImage[];
-}
+export type ListDictationSetsParams = {
+/**
+ * Clamped rather than refused, as everywhere else here.
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+};

@@ -23,22 +23,21 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { ExamImage } from './examImage';
-import type { ReviewPassageKind } from './reviewPassageKind';
+import type { DictationItem } from './dictationItem';
+import type { DictationProgress } from './dictationProgress';
 
-export interface ReviewPassage {
+export interface DictationSetDetail {
   id: string;
-  kind: ReviewPassageKind;
-  bodyKo?: string;
-  bodyVi?: string;
-  transcriptKo?: string;
-  transcriptVi?: string;
+  title: string;
+  items: DictationItem[];
+  progress: DictationProgress;
   /**
-     * The clip, replayable without limit — TCCN-114-2 is explicit that
-     * R-01's single listen governs sitting the paper and not studying it
-     * afterwards. A CDN address on a deployment with a public bucket, and
-     * the authenticated review route otherwise.
+     * Where the learner left off (TCCN-425-3). Absent on a set nobody has
+     * opened, which the client reads as "start at the first sentence".
+     *
+     * Not derivable from the results: a learner who skipped câu 7 and
+     * stopped at câu 12 has no row for either, so "first sentence with no
+     * result" would send them back to 7.
      */
-  audioUrl?: string;
-  images?: ExamImage[];
+  resumeItemId?: string;
 }

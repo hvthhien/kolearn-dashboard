@@ -23,22 +23,17 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { ExamImage } from './examImage';
-import type { ReviewPassageKind } from './reviewPassageKind';
 
-export interface ReviewPassage {
-  id: string;
-  kind: ReviewPassageKind;
-  bodyKo?: string;
-  bodyVi?: string;
-  transcriptKo?: string;
-  transcriptVi?: string;
-  /**
-     * The clip, replayable without limit — TCCN-114-2 is explicit that
-     * R-01's single listen governs sitting the paper and not studying it
-     * afterwards. A CDN address on a deployment with a public bucket, and
-     * the authenticated review route otherwise.
-     */
-  audioUrl?: string;
-  images?: ExamImage[];
-}
+/**
+ * Ba mức, không phải hai. CLOSE is "chỉ sai chỗ tách chữ" — every
+ * syllable right and in the right order, only the spacing wrong — and it
+ * counts as done everywhere progress is counted (TCCN-423-2, 427-1).
+ */
+export type DictationGrade = typeof DictationGrade[keyof typeof DictationGrade];
+
+
+export const DictationGrade = {
+  CORRECT: 'CORRECT',
+  CLOSE: 'CLOSE',
+  INCORRECT: 'INCORRECT',
+} as const;

@@ -23,22 +23,17 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { ExamImage } from './examImage';
-import type { ReviewPassageKind } from './reviewPassageKind';
 
-export interface ReviewPassage {
-  id: string;
-  kind: ReviewPassageKind;
-  bodyKo?: string;
-  bodyVi?: string;
-  transcriptKo?: string;
-  transcriptVi?: string;
-  /**
-     * The clip, replayable without limit — TCCN-114-2 is explicit that
-     * R-01's single listen governs sitting the paper and not studying it
-     * afterwards. A CDN address on a deployment with a public bucket, and
-     * the authenticated review route otherwise.
-     */
-  audioUrl?: string;
-  images?: ExamImage[];
-}
+/**
+ * The asset lives in the public media bucket; `Location` is its CDN
+ * address. Question images are content-addressed — the key is the SHA-256
+ * of the bytes — so the target can never become different bytes and both
+ * the redirect and the image itself are safely cacheable.
+ *
+ * Sent only when a public bucket is configured. Without one the same route
+ * answers `200` with the bytes, which is what local development does.
+ *
+ * Listening audio never answers this way while an attempt is in progress:
+ * R-01 rations a clip to one play, and the store holding it exposes no URL.
+ */
+export type MediaRedirectResponse = void;

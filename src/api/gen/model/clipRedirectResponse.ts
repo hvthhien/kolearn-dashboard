@@ -23,22 +23,23 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { ExamImage } from './examImage';
-import type { ReviewPassageKind } from './reviewPassageKind';
 
-export interface ReviewPassage {
-  id: string;
-  kind: ReviewPassageKind;
-  bodyKo?: string;
-  bodyVi?: string;
-  transcriptKo?: string;
-  transcriptVi?: string;
-  /**
-     * The clip, replayable without limit — TCCN-114-2 is explicit that
-     * R-01's single listen governs sitting the paper and not studying it
-     * afterwards. A CDN address on a deployment with a public bucket, and
-     * the authenticated review route otherwise.
-     */
-  audioUrl?: string;
-  images?: ExamImage[];
-}
+/**
+ * `Location` is a signed, time-bounded address for the clip, which the
+ * player fetches directly from object storage. The bytes never pass
+ * through this API, and `Range` works against it natively.
+ *
+ * This is the same class of capability the ticket URL already is — an
+ * unauthenticated address with an expiry, issued only after the rule has
+ * been applied — with storage rather than this function carrying the
+ * megabytes. It is minted **after** the ticket is checked, never instead
+ * of checking it, and never before.
+ *
+ * For a rationed clip the address expires with the ticket and both this
+ * response and the object itself say `no-store`. For anything unrationed
+ * the address is stable for a day so the browser can reuse it.
+ *
+ * Sent only where the deployment can sign addresses. Otherwise the same
+ * route answers `200` with the bytes.
+ */
+export type ClipRedirectResponse = void;

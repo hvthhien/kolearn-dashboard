@@ -37,6 +37,7 @@ tags:
   - name: placement
   - name: writing
   - name: shadowing
+  - name: dictation
   - name: studio
   - name: admin
 
@@ -436,15 +437,25 @@ paths:
       operationId: getQuestionAudio
       summary: Stream the listening audio for one question (YC-110, R-01)
       description: |
-        Authenticated and per-attempt on purpose, rather than a presigned or
-        public URL. R-01 allows exactly one play in EXAM mode, and the only
-        place that can be enforced is the request itself: a shareable link is
-        a rule the client is merely asked to respect, and a learner who opens
-        the network tab gets unlimited replays with nothing failing.
+        **The fallback path.** A deployment with a public bucket sends
+        `passage.audioPublicUrl` instead and the client reads the clip from the
+        CDN, which costs no request at all; this route is what a deployment
+        without one uses, and what a client holding an older payload uses.
+
+        Authenticated and per-attempt, which is what lets it enforce R-01 in
+        the one place a rule can be enforced — the request itself. That is the
+        capability the public URL gives up: a shareable link is a rule the
+        client is merely asked to respect, and a learner who opens the network
+        tab gets unlimited replays with nothing failing. It was given up
+        deliberately, to buy back the three round trips that ran on the
+        section's clock before the first sound.
 
         The first EXAM-mode request records an `AUDIO_PLAYED` event. A second
         one is refused with 409 — including after a page reload, which is what
-        stops a refresh from buying another listen.
+        stops a refresh from buying another listen. On the CDN path the client
+        reports that event itself and honours the refusal itself; the server
+        reads the events back as `passage.audioPlayed` so a reload still lands
+        on the right screen.
 
         PRACTICE mode is unlimited and answers range requests, so the player
         can seek.
@@ -453,6 +464,14 @@ paths:
         is what makes a browser client wait for the whole file before anything
         sounds — see `createAudioTicket` for the split-in-two path that does
         not.
+
+        In PRACTICE this answers `302` with a signed address where storage can
+        sign one, so the clip comes straight from object storage. In EXAM it
+        always answers with the bytes: the play is charged before the response
+        on this route, so a client that failed to follow a redirect would have
+        paid for a listen it never received, which R-12 forbids. The ticket pair
+        does not have that problem — a ticket can simply be presented again —
+        which is where an exam clip should be fetched from anyway.
       parameters:
         - $ref: '#/components/parameters/AttemptId'
         - $ref: '#/components/parameters/QuestionId'
@@ -466,6 +485,7 @@ paths:
               schema: { type: string, format: binary }
             audio/wav:
               schema: { type: string, format: binary }
+        '302': { $ref: '#/components/responses/ClipRedirect' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404':
           description: No audio for this question, or the attempt is not the caller's.
@@ -547,17 +567,24 @@ paths:
         spent by `createAudioTicket`, which is why this can answer the several
         requests one playback actually makes.
 
-        Answers `Range` with `206` and `Content-Range`, and sends
-        `Cache-Control: no-store`. The no-store is load-bearing rather than
+        Where object storage can sign addresses this answers `302` and the
+        player fetches the clip directly; otherwise it answers `200` with the
+        bytes, `Range` with `206` and `Content-Range`. A media element follows
+        the redirect on its own and re-sends `Range` against the target, so a
+        client written against the `200` needs no change.
+
+        Either way it sends `Cache-Control: no-store`, and so does the object
+        behind the signed address. The no-store is load-bearing rather than
         hygiene: R-01 used to be enforced partly by accident, because the client
         held the clip in an object URL that a reload dropped. A URL in
         `<audio src>` would otherwise sit in the browser's HTTP cache, where a
         reload inside the ticket window could replay it without asking anyone.
 
         A ticket presented against another attempt's or another passage's URL is
-        `404`, the same answer as a question with no audio. An expired ticket is
-        `410` and never `409`: a spent listen and a stale link mean opposite
-        things to the learner, and only one of them offers a retry.
+        `404`, the same answer as a question with no audio, and no address is
+        signed for it. An expired ticket is `410` and never `409`: a spent
+        listen and a stale link mean opposite things to the learner, and only
+        one of them offers a retry.
       parameters:
         - $ref: '#/components/parameters/AttemptId'
         - $ref: '#/components/parameters/QuestionId'
@@ -585,6 +612,7 @@ paths:
               schema: { type: string, format: binary }
             audio/wav:
               schema: { type: string, format: binary }
+        '302': { $ref: '#/components/responses/ClipRedirect' }
         '404':
           description: |
             No audio for this question, or the ticket was issued for a different
@@ -620,12 +648,19 @@ paths:
         threaded through it is a rule with a bug waiting in the exception. This
         route requires the attempt to be **submitted** and refuses anything
         else, so no path through it can hand out replays mid-exam.
+
+        Cacheable, and deliberately so: `private, max-age=3600` with the asset's
+        SHA-256 as a strong `ETag`. Unlimited replays are the feature, and
+        without a validator the third and fourth replay are three more downloads
+        of a clip the browser already holds.
       parameters:
         - $ref: '#/components/parameters/AttemptId'
         - $ref: '#/components/parameters/QuestionId'
       responses:
         '200':
-          description: The audio stream.
+          description: |
+            The audio stream, with `Accept-Ranges: bytes`, an `ETag`, and
+            `Cache-Control: private, max-age=3600`.
           content:
             audio/mpeg:
               schema: { type: string, format: binary }
@@ -633,6 +668,8 @@ paths:
               schema: { type: string, format: binary }
             audio/wav:
               schema: { type: string, format: binary }
+        '302': { $ref: '#/components/responses/ClipRedirect' }
+        '304': { $ref: '#/components/responses/NotModified' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404':
           description: No audio for this question, or the attempt is not the caller's.
@@ -654,12 +691,23 @@ paths:
         The asset must belong to a question in the caller's frozen attempt.
         Images are available both while sitting and while reviewing a paper;
         unlike listening audio, fetching them is not subject to a play limit.
+
+        Where a public media bucket is configured this answers `302` and the
+        picture is fetched from the CDN — and the runner payload carries that
+        CDN address directly, so a current client never calls this route at all.
+        It remains for clients holding an older payload.
+
+        Without a public bucket it serves the bytes, cacheable:
+        `private, max-age=3600` with the asset's SHA-256 as a strong `ETag`.
       parameters:
         - $ref: '#/components/parameters/AttemptId'
         - $ref: '#/components/parameters/AssetId'
       responses:
         '200':
-          description: The image bytes.
+          description: |
+            The image bytes, with an `ETag` and
+            `Cache-Control: private, max-age=3600`. Sent only when this
+            deployment has no public bucket; otherwise see `302`.
           content:
             image/png:
               schema: { type: string, format: binary }
@@ -667,6 +715,8 @@ paths:
               schema: { type: string, format: binary }
             image/webp:
               schema: { type: string, format: binary }
+        '302': { $ref: '#/components/responses/MediaRedirect' }
+        '304': { $ref: '#/components/responses/NotModified' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404':
           description: The image is absent, is not an image, or does not belong to the caller's attempt.
@@ -1465,15 +1515,24 @@ paths:
         seconds a Blob costs while an exam clock runs, and to ration a listen
         to one under R-01. The placement test has neither a countdown nor a
         ration, so it would be paying that complexity for nothing.
+
+        Cacheable for the same reason it is un-ticketed: `private, max-age=3600`
+        with the asset's SHA-256 as a strong `ETag`. R-32 says nothing about
+        limiting replays, and a warm-up that made a learner re-download the clip
+        every time they listened again would be inventing a cost to pay.
       parameters:
         - { name: sessionId, in: path, required: true, schema: { type: string, format: uuid } }
         - { name: questionId, in: path, required: true, schema: { type: string, format: uuid } }
       responses:
         '200':
-          description: The audio bytes.
+          description: |
+            The audio bytes, with `Accept-Ranges: bytes`, an `ETag`, and
+            `Cache-Control: private, max-age=3600`.
           content:
             audio/mpeg:
               schema: { type: string, format: binary }
+        '302': { $ref: '#/components/responses/ClipRedirect' }
+        '304': { $ref: '#/components/responses/NotModified' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
@@ -1492,12 +1551,18 @@ paths:
         These carry the question on the picture-choice items, where the four
         choices have no text at all — so a failure here is not cosmetic, it is
         a question that cannot be answered.
+
+        Cacheable: `private, max-age=3600` with the asset's SHA-256 as a strong
+        `ETag`.
       parameters:
         - { name: sessionId, in: path, required: true, schema: { type: string, format: uuid } }
         - { name: assetId, in: path, required: true, schema: { type: string, format: uuid } }
       responses:
         '200':
-          description: The image bytes.
+          description: |
+            The image bytes, with an `ETag` and
+            `Cache-Control: private, max-age=3600`. Sent only when this
+            deployment has no public bucket; otherwise see `302`.
           content:
             image/png:
               schema: { type: string, format: binary }
@@ -1505,6 +1570,8 @@ paths:
               schema: { type: string, format: binary }
             image/webp:
               schema: { type: string, format: binary }
+        '302': { $ref: '#/components/responses/MediaRedirect' }
+        '304': { $ref: '#/components/responses/NotModified' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404':
           description: The image is absent, is not an image, or belongs to no question in this session.
@@ -1861,6 +1928,251 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/ShadowCardList' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ── chép chính tả (SC-DICTATION) ──────────────────────────────────────────
+  #
+  # R-36. Nghe một câu, gõ lại đúng những gì nghe được.
+  #
+  # THE ONE RULE THAT SHAPES EVERY SCHEMA BELOW: the Korean does not travel
+  # until the answer has been submitted. TCCN-421-1 says "màn hình không hiện
+  # lời thoại của câu đó ở bất cứ đâu", and a payload is where "ở bất cứ đâu"
+  # is decided — a component that never renders textKo is one refactor away
+  # from rendering it; a response that never carries it cannot be.
+
+  /dictation/sets:
+    get:
+      tags: [dictation]
+      operationId: listDictationSets
+      summary: Bộ chép chính tả (R-36)
+      description: |
+        Published sets that have at least one sentence.
+
+        Ordered by distance from the learner's own level, never filtered by it
+        — a level orders content and does not gate it (TCCN-345-3).
+
+        `correctCount` counts sentences whose BEST result was đúng or gần
+        đúng. A gần đúng counts because the learner heard every character
+        (TCCN-427-1); a skipped sentence has no result and cannot count.
+      parameters:
+        - name: limit
+          in: query
+          description: Clamped rather than refused, as everywhere else here.
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+      responses:
+        '200':
+          description: '`[]` when empty (R-13).'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DictationSetList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /dictation/sets/{setId}:
+    parameters:
+      - $ref: '#/components/parameters/SetId'
+    get:
+      tags: [dictation]
+      operationId: getDictationSet
+      summary: Everything SC-DICTATION renders before anyone types
+      description: |
+        Sentences, their audio, and how the learner has done on each.
+
+        **No Korean, no translation, no dictionary.** Showing the sentence is
+        the exercise gone (TCCN-421-1), and a translation is worse — the
+        learner reads backwards from the meaning to the spelling and never
+        listens (TCCN-421-6). The transcript arrives from the attempt
+        endpoint and nowhere else.
+
+        A DRAFT set answers 404, exactly as a nonexistent one does.
+      responses:
+        '200':
+          description: Sentences in order, with the resume point.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DictationSetDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /dictation/sets/{setId}/items/{itemId}/attempt:
+    parameters:
+      - $ref: '#/components/parameters/SetId'
+      - $ref: '#/components/parameters/ItemId'
+    post:
+      tags: [dictation]
+      operationId: submitDictationAttempt
+      summary: Chấm một câu đã gõ (YC-423, YC-424)
+      description: |
+        Graded by comparing strings, never by calling a model: the result is
+        deterministic and spends no R-11 credit (TCCN-423-4).
+
+        Three levels, not two. Đúng · **gần đúng** · chưa đúng, where gần đúng
+        is "only the spacing differs" — Korean 띄어쓰기 is a rule native
+        speakers get wrong too, and marking it red teaches a learner their
+        listening is bad when their orthography slipped (TCCN-423-2).
+
+        The response is the only place the Korean crosses the wire, and it
+        carries both strings marked character by character so the screen can
+        put them side by side (TCCN-424-1).
+
+        An empty submission is **422 with nothing recorded** (TCCN-424-3): a
+        blank box is a prompt, not a wrong answer.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DictationAttemptRequest' }
+      responses:
+        '200':
+          description: The grade, the transcript, and where the two differ.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DictationAttemptResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /dictation/sets/{setId}/items/{itemId}/skip:
+    parameters:
+      - $ref: '#/components/parameters/SetId'
+      - $ref: '#/components/parameters/ItemId'
+    post:
+      tags: [dictation]
+      operationId: skipDictationItem
+      summary: Bỏ qua một câu (TCCN-425-1)
+      description: |
+        Moves to the next sentence and **records nothing**. Câu 7 is marked
+        chưa làm, not sai, and the learner may come back to it whenever they
+        like.
+
+        Writing no result is the whole implementation of that: a skipped
+        sentence has no row, so it can neither be counted wrong nor counted
+        done.
+      responses:
+        '200':
+          description: Progress, and the sentence the learner lands on.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DictationSkipResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ── studio: chép chính tả ─────────────────────────────────────────────────
+  #
+  # Internal, gated by dictation:* permissions held only by content roles.
+  #
+  # There is no write route for the CONTENT here. Sentences, translations, the
+  # dictionary and its anchors all arrive through cmd/dictation-import — the
+  # same sequencing cmd/importer was built on — so the only thing this surface
+  # changes is the verdict, which is the only thing it exists for.
+  #
+  # Why that verdict cannot be skipped: grading is exact comparison against
+  # textKo, so a sentence whose audio and transcript disagree marks a learner
+  # wrong for hearing correctly, and they cannot tell that from their own
+  # mistake.
+
+  /admin/dictation/sets:
+    get:
+      tags: [studio]
+      operationId: listAdminDictationSets
+      summary: Every dictation set, drafts included
+      description: 'rbac: `dictation:read:any`.'
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [DRAFT, IN_REVIEW, PUBLISHED, RETIRED] }
+      responses:
+        '200':
+          description: Newest first.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminDictationSetList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/dictation/sets/{setId}:
+    parameters:
+      - $ref: '#/components/parameters/SetId'
+    get:
+      tags: [studio]
+      operationId: getAdminDictationSet
+      summary: One set, with every sentence and where its review stands
+      description: |
+        `rbac: dictation:read:any`. Carries `textKo` — a reviewer cannot pass a
+        sentence they cannot read, which is exactly why these schemas are
+        separate from the learner's and why the learner's are guarded by
+        internal/api/contract/leak_test.go.
+      responses:
+        '200':
+          description: Sentences in order, with audio and approval state.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminDictationSetDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/dictation/sets/{setId}/items/{itemId}/approval:
+    parameters:
+      - $ref: '#/components/parameters/SetId'
+      - $ref: '#/components/parameters/ItemId'
+    put:
+      tags: [studio]
+      operationId: setAdminDictationApproval
+      summary: Nghe duyệt một câu
+      description: |
+        `rbac: dictation:approve`. REJECTED requires a reason — a sentence
+        turned down with no reason is one nobody can fix.
+
+        The verdict is always stamped against the sentence's CURRENT revision.
+        Editing the Korean or replacing the audio afterwards makes it stale, and
+        a stale verdict counts as unreviewed everywhere: in the counter, and at
+        the publish gate.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdminDictationApprovalRequest' }
+      responses:
+        '200':
+          description: The sentence, with its new verdict.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminDictationItem' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /admin/dictation/sets/{setId}/publish:
+    parameters:
+      - $ref: '#/components/parameters/SetId'
+    post:
+      tags: [studio]
+      operationId: publishAdminDictationSet
+      summary: Đưa bộ vào ngân hàng
+      description: |
+        `rbac: dictation:publish`. Blockers refuse; warnings do not, but must be
+        accepted explicitly — a warning nobody has to acknowledge is a warning
+        nobody reads.
+
+        **200 whatever the report says.** A report carrying blockers is an
+        answer, not an error: the screen renders the list and the reviewer works
+        through it, which a 4xx would turn into a banner with the detail buried.
+      parameters:
+        - name: dryRun
+          in: query
+          schema: { type: boolean, default: false }
+        - name: acceptWarnings
+          in: query
+          schema: { type: boolean, default: false }
+      responses:
+        '200':
+          description: What blocks, what merely warns, and whether it went out.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminDictationPublishReport' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   # ── admin: ngân hàng đề (SC-BANK-ADMIN) ───────────────────────────────────
   #
@@ -2512,6 +2824,16 @@ components:
       in: path
       required: true
       schema: { type: string, format: uuid }
+    SetId:
+      name: setId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ItemId:
+      name: itemId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
     VideoId:
       name: videoId
       in: path
@@ -2524,6 +2846,64 @@ components:
       schema: { type: string, format: uuid }
 
   responses:
+    ClipRedirect:
+      description: |
+        `Location` is a signed, time-bounded address for the clip, which the
+        player fetches directly from object storage. The bytes never pass
+        through this API, and `Range` works against it natively.
+
+        This is the same class of capability the ticket URL already is — an
+        unauthenticated address with an expiry, issued only after the rule has
+        been applied — with storage rather than this function carrying the
+        megabytes. It is minted **after** the ticket is checked, never instead
+        of checking it, and never before.
+
+        For a rationed clip the address expires with the ticket and both this
+        response and the object itself say `no-store`. For anything unrationed
+        the address is stable for a day so the browser can reuse it.
+
+        Sent only where the deployment can sign addresses. Otherwise the same
+        route answers `200` with the bytes.
+      headers:
+        Location:
+          description: The signed address of the clip.
+          schema: { type: string, format: uri }
+        Cache-Control:
+          description: '`no-store` for a rationed clip; otherwise `private, max-age=3600`.'
+          schema: { type: string }
+    MediaRedirect:
+      description: |
+        The asset lives in the public media bucket; `Location` is its CDN
+        address. Question images are content-addressed — the key is the SHA-256
+        of the bytes — so the target can never become different bytes and both
+        the redirect and the image itself are safely cacheable.
+
+        Sent only when a public bucket is configured. Without one the same route
+        answers `200` with the bytes, which is what local development does.
+
+        Listening audio never answers this way while an attempt is in progress:
+        R-01 rations a clip to one play, and the store holding it exposes no URL.
+      headers:
+        Location:
+          description: The CDN address of the asset.
+          schema: { type: string, format: uri }
+        Cache-Control:
+          description: '`private, max-age=3600`.'
+          schema: { type: string }
+    NotModified:
+      description: |
+        The caller's `If-None-Match` matched the asset's ETag, so the bytes it
+        already holds are current. Sent only by routes that ration nothing — a
+        listening clip under R-01 carries no ETag to revalidate, because the
+        play is charged before the response and `no-store` leaves the client no
+        copy a 304 could point back at.
+      headers:
+        ETag:
+          description: The asset's SHA-256, the same validator that was sent.
+          schema: { type: string }
+        Cache-Control:
+          description: '`private, max-age=3600`.'
+          schema: { type: string }
     BadRequest:
       description: Malformed request.
       content:
@@ -2883,18 +3263,48 @@ components:
           enum: [TEXT, AUDIO]
         bodyKo: { type: string }
         bodyVi: { type: string }
+        audioPublicUrl:
+          type: string
+          description: |
+            The clip's address on the CDN, and what the player reads whenever it
+            is present. Costs no request to this API at all: it is here before
+            the learner presses play, so the browser can buffer the clip while
+            they read the question, and it is served from the Cloudflare edge.
+
+            Not scoped to an attempt, a learner or a clock, and it does not
+            expire. R-01's single listen is enforced by the client against this
+            URL. `AUDIO_PLAYED` is still recorded through `POST
+            /attempts/{attemptId}/events`, so the play stays auditable and a
+            reload still finds the stimulus spent — but the server no longer
+            refuses a second one.
+
+            Absent on a deployment with no public bucket, which is the signal to
+            use the two fields below instead.
         audioUrl:
           type: string
           description: |
             Fetch the whole clip, recording the play as it serves. Needs the
             bearer token, so a browser client has to buffer the file before
-            anything can sound.
+            anything can sound. The fallback path when `audioPublicUrl` is
+            absent.
         audioTicketUrl:
           type: string
           description: |
             POST here instead to spend the same single listen and get back a URL
             an `<audio>` element can read, which starts playing on the first
             chunk. Both paths record one `AUDIO_PLAYED`; using both spends two.
+            Also a fallback: prefer `audioPublicUrl` when it is present.
+        audioPlayed:
+          type: boolean
+          description: |
+            This stimulus has already been listened to in this attempt. Read
+            from the `AUDIO_PLAYED` events the client reports, keyed by passage
+            so a listening group that shares one recording counts once.
+
+            What a resumed or reloaded runner enforces its one-play rule from:
+            without it a reload would present a fresh play button, which is the
+            most common way a second listen happens. Meaningless in PRACTICE,
+            where replaying is unlimited.
         images:
           type: array
           items: { $ref: '#/components/schemas/ExamImage' }
@@ -3183,7 +3593,13 @@ components:
         bodyVi: { type: string }
         transcriptKo: { type: string }
         transcriptVi: { type: string }
-        audioUrl: { type: string }
+        audioUrl:
+          type: string
+          description: |
+            The clip, replayable without limit — TCCN-114-2 is explicit that
+            R-01's single listen governs sitting the paper and not studying it
+            afterwards. A CDN address on a deployment with a public bucket, and
+            the authenticated review route otherwise.
         images:
           type: array
           items: { $ref: '#/components/schemas/ExamImage' }
@@ -3312,6 +3728,20 @@ components:
             It is also what makes the card shadowable: SC-SHADOW-LIST's card
             tab is exactly the rows carrying this, because a card made from a
             reading question has no sentence anyone can hear.
+        sourceDictationItemId:
+          type: string
+          format: uuid
+          description: |
+            The dictation sentence this word was mistyped in (R-36, YC-426).
+            R-15 lists provenance among the three answers to "thẻ này từ đâu
+            ra" and calls it the row authors forget.
+
+            Unlike `sourceShadowLineId` this does NOT make the card shadowable.
+            R-15's test for that is a sentence you can hear, which a dictation
+            item is — but SC-SHADOW-LIST's card tab opens the shadowing player,
+            and that plays a video this card has no video for. Widening it is a
+            decision about that screen, not a side effect of recording where a
+            card came from.
 
     CardResult:
       type: object
@@ -3385,6 +3815,44 @@ components:
             came from has been removed — `cards.source_question_id` is
             ON DELETE SET NULL. Absent rather than a placeholder, so the row
             shows nothing instead of "không rõ" (TCCN-109-5).
+        shadowSource:
+          allOf: [{ $ref: '#/components/schemas/MyCardShadowSource' }]
+          description: |
+            Where a word saved from a video came from. R-15 lists "video nào"
+            beside "câu làm sai nào" as an answer to "thẻ này từ đâu ra", and
+            calls it the row that gets forgotten: "Người học nhìn một từ lạ sau
+            ba tuần thường không nhớ mình gặp nó ở đâu" (TCCN-353-5).
+
+            A second field rather than a second shape for `source`, and the
+            difference is not cosmetic: `source` names a paper there is nothing
+            to open, while this names a sentence there is — the only provenance
+            in the product a client can turn into a link. Making `source`
+            polymorphic would cost its five required fields, and every caller
+            reading `source.examTitle` today would have to narrow first for a
+            branch it will never take.
+
+            Absent when the card was not saved from a video, and also when that
+            video is no longer PUBLISHED: `GET /shadowing/videos/{videoId}`
+            answers `404` for anything else, so naming it would be a link to a
+            dead end. Absent rather than a placeholder — the same rule `source`
+            follows (TCCN-109-5), and it matters more here because the
+            placeholder would be clickable.
+
+            Never both this and `source` in practice: a card records the
+            question or the line it was made from, and creating a duplicate
+            rewrites neither (TCCN-115-2). Clients render one provenance row.
+        dictationSource:
+          allOf: [{ $ref: '#/components/schemas/MyCardDictationSource' }]
+          description: |
+            Where a word saved while doing dictation came from (YC-426). The
+            third answer to "thẻ này từ đâu ra", beside `source` and
+            `shadowSource`, and never present at the same time as either: a card
+            records the one place it was made from.
+
+            Absent when the set has been retired, for the same reason
+            `shadowSource` is: this row is a link on the collection screen, the
+            learner API answers 404 for a set that is not published, and a
+            chevron to a dead end is worse than no row.
 
     MyCardSource:
       type: object
@@ -3406,6 +3874,65 @@ components:
           description: |
             The learner-facing number in that paper — `display_ordinal`, the
             same one the review screen shows, not the storage ordinal.
+
+    MyCardDictationSource:
+      type: object
+      description: |
+        The dictation sentence a card was saved from — the set, its title, and
+        the sentence's number.
+
+        A *destination*, like `MyCardShadowSource`: SC-DICTATION opens at the
+        learner's bookmark and shows "Câu n / N", so these four fields are what
+        a link back needs and nothing more.
+
+        No `textKo`. The card's front is already the word; the sentence it came
+        from is somewhere to go back to, not a second thing to read on a flip
+        card — and a whole Korean sentence under a two-syllable word is how the
+        collection screen stops being scannable.
+      required: [setId, setTitle, itemId, itemOrdinal]
+      properties:
+        setId: { type: string, format: uuid }
+        setTitle: { type: string }
+        itemId:
+          type: string
+          format: uuid
+          description: |
+            Carried for the reason `MyCardSource.questionId` is: the ordinal is
+            what the learner reads, and the id is what survives a renumbering.
+        itemOrdinal:
+          type: integer
+          minimum: 1
+          description: The sentence's place in the set, 1-based.
+
+    MyCardShadowSource:
+      type: object
+      description: |
+        The sentence a card was saved from — the video, its title, and the
+        line's number.
+
+        Unlike `MyCardSource` this is a *destination*. SC-SHADOWING opens at one
+        line, so these four fields are exactly what a link to "câu 12 của video
+        này" needs and nothing more: no `startMs`, no `textKo`.
+        `ShadowCardListItem` carries those because SC-SHADOW-LIST's card tab is
+        a list of sentences; this is a single row under a word.
+      required: [videoId, videoTitle, lineId, lineOrdinal]
+      properties:
+        videoId: { type: string, format: uuid }
+        videoTitle: { type: string }
+        lineId:
+          type: string
+          format: uuid
+          description: |
+            Carried for the reason `MyCardSource.questionId` is: the ordinal is
+            what the learner and the URL use, and the id is what survives a
+            renumbering.
+        lineOrdinal:
+          type: integer
+          minimum: 1
+          description: |
+            The line's place in the transcript, 1-based — the same number
+            `ShadowLine.ordinal` carries and the same one the player's `line`
+            search parameter takes. Not an index: `?line=1` is câu 1.
 
     # ── writing ─────────────────────────────────────────────────────────────
 
@@ -3836,7 +4363,11 @@ components:
           items: { $ref: '#/components/schemas/PlacementChoice' }
         audioUrl:
           type: string
-          description: Present only on a listening question that has a clip.
+          description: |
+            Present only on a listening question that has a clip. A CDN address
+            on a deployment with a public bucket, and the authenticated
+            placement route otherwise. Nothing is rationed here either way: this
+            test has no countdown and no one-play rule.
 
     PlacementPassage:
       type: object
@@ -4457,6 +4988,386 @@ components:
             With lineCount this is the whole progress pill. `chưa luyện` is
             zero and `18 / 18 câu` is equality — both composed on the client,
             where the rest of this product's Vietnamese lives.
+
+    # ── chép chính tả (R-36) ───────────────────────────────────────────────
+
+    DictationSetListItem:
+      type: object
+      required: [id, title, durationMs, itemCount, wordCount, correctCount]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        durationMs:
+          type: integer
+          description: Every sentence's audio added up, for "3:20" on the card.
+        itemCount: { type: integer }
+        wordCount:
+          type: integer
+          description: Entries in this set's own dictionary.
+        correctCount:
+          type: integer
+          description: |
+            TCCN-427-1's numerator: sentences whose BEST result was đúng or
+            gần đúng. A gần đúng counts — the learner heard every character.
+
+    DictationSetList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/DictationSetListItem' }
+
+    DictationItem:
+      type: object
+      required: [id, ordinal, audioUrl, durationMs]
+      description: |
+        One sentence to type. **Note what is not here.**
+
+        No `textKo`: showing the sentence is the exercise gone. No `textVi`
+        either — TCCN-421-6 is blunt that a translation is worse, because the
+        learner reads backwards from the meaning and never listens. No
+        glossary and no anchors: the set dictionary names the words in the
+        sentence, and a devtools panel is not a difficulty setting.
+
+        No syllable or character count either, and that one is easy to add by
+        accident. TCCN-421-1 enumerates what the screen may show — "nút phát,
+        ô gõ, và câu số mấy trên tổng số" — and a length hint is not on it.
+        `durationMs` is on it only because a player cannot draw a progress bar
+        without one, and 1.8 seconds tells a learner far less than "12
+        characters" would.
+
+        internal/api/contract/leak_test.go asserts all of this over this very
+        schema, so the guarantee survives someone reusing a studio type.
+      properties:
+        id: { type: string, format: uuid }
+        ordinal: { type: integer, minimum: 1 }
+        audioUrl:
+          type: string
+          description: |
+            A public CDN URL an `<audio>` element reads directly. That is what
+            makes TCCN-422-1's unlimited replay free — the tenth play is a
+            browser cache hit and reaches no server — and what keeps the
+            0.5–2 speed control a client-side property with no server surface.
+        durationMs: { type: integer }
+        bestGrade:
+          $ref: '#/components/schemas/DictationGrade'
+          description: |
+            Absent means chưa làm. Present is the BEST result this learner has
+            had on this sentence, not the most recent (TCCN-425-2).
+
+    DictationGrade:
+      type: string
+      enum: [CORRECT, CLOSE, INCORRECT]
+      description: |
+        Ba mức, không phải hai. CLOSE is "chỉ sai chỗ tách chữ" — every
+        syllable right and in the right order, only the spacing wrong — and it
+        counts as done everywhere progress is counted (TCCN-423-2, 427-1).
+
+    DictationProgress:
+      type: object
+      required: [itemCount, correctCount]
+      properties:
+        itemCount: { type: integer }
+        correctCount: { type: integer }
+
+    DictationSetDetail:
+      type: object
+      required: [id, title, items, progress]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/DictationItem' }
+        progress: { $ref: '#/components/schemas/DictationProgress' }
+        resumeItemId:
+          type: string
+          format: uuid
+          description: |
+            Where the learner left off (TCCN-425-3). Absent on a set nobody has
+            opened, which the client reads as "start at the first sentence".
+
+            Not derivable from the results: a learner who skipped câu 7 and
+            stopped at câu 12 has no row for either, so "first sentence with no
+            result" would send them back to 7.
+
+    DictationAttemptRequest:
+      type: object
+      required: [typed]
+      properties:
+        typed:
+          type: string
+          description: |
+            Exactly what the learner typed. Normalisation is the server's job
+            and is part of the specification (TCCN-423-3) — NFC first, then
+            case, punctuation and spacing — so a client that "helpfully" tidies
+            this first changes the grade.
+
+    DictationChar:
+      type: object
+      required: [text, state]
+      description: One character of one side, with what the comparison says about it.
+      properties:
+        text:
+          type: string
+          description: Exactly one code point of the NFC form of its side.
+        state:
+          type: string
+          enum: [SAME, MISSING, EXTRA, CHANGED]
+          description: |
+            Four states rather than a boolean, because TCCN-424-1 asks for
+            three distinct facts by name — "âm tiết nào thiếu, âm tiết nào
+            thừa, âm tiết nào gõ khác" — and a screen rendering all three the
+            same way has answered none of them.
+
+            SAME also covers every character the comparison never looked at:
+            spaces and punctuation, which normalisation drops. The one grade
+            where spacing genuinely differs is CLOSE, and TCCN-423-2 forbids
+            error marks there — so there is no case where a dropped character
+            should be marked.
+        jamo:
+          $ref: '#/components/schemas/DictationJamoDiff'
+
+    DictationJamoDiff:
+      type: object
+      description: |
+        Which parts of a Hangul syllable moved, on a CHANGED character whose
+        two sides are both syllables. 예 against 에 is one shared initial and a
+        moved medial: ㅖ → ㅔ. Absent parts matched.
+
+        This is the difference between telling a learner "you heard the
+        consonant, the vowel is what to listen for" and telling them "wrong".
+      properties:
+        initial: { $ref: '#/components/schemas/DictationJamoPair' }
+        medial: { $ref: '#/components/schemas/DictationJamoPair' }
+        final: { $ref: '#/components/schemas/DictationJamoPair' }
+
+    DictationJamoPair:
+      type: object
+      required: [expected, typed]
+      properties:
+        expected:
+          type: string
+          description: |
+            A compatibility jamo (U+3131…U+3163) — ㅖ, not the conjoining
+            U+1100-block form, which renders as a broken half-glyph alone.
+        typed: { type: string }
+
+    DictationAttemptResult:
+      type: object
+      required: [grade, textKo, expected, typed, suggestions, progress]
+      description: |
+        The only response that carries the Korean, and it carries it because
+        the learner has now answered.
+      properties:
+        grade: { $ref: '#/components/schemas/DictationGrade' }
+        textKo:
+          type: string
+          description: The real sentence, revealed now and nowhere earlier.
+        textVi:
+          type: string
+          description: |
+            Shown after grading, never before (TCCN-424-2). Absent while a set
+            still has sentences nobody has translated.
+        expected:
+          type: array
+          items: { $ref: '#/components/schemas/DictationChar' }
+          description: |
+            The real sentence, marked. Always the full string even when nothing
+            is wrong, so the client walks one array on every path and grows no
+            second render branch for the good cases (R-13).
+        typed:
+          type: array
+          items: { $ref: '#/components/schemas/DictationChar' }
+        suggestions:
+          type: array
+          items: { $ref: '#/components/schemas/DictationCardSuggestion' }
+          description: |
+            Dictionary words the learner mistyped, offered as cards (YC-426).
+            `[]` on anything but a wrong answer — a gần đúng means every
+            syllable was right and only the spacing moved, so there is no
+            mistyped word to offer.
+        progress: { $ref: '#/components/schemas/DictationProgress' }
+
+    DictationCardSuggestion:
+      type: object
+      required: [entryId, headwordKo, meaningVi]
+      description: |
+        A word from this set's dictionary that the learner got wrong.
+
+        An OFFER, never a save. "Chỉ gợi ý, không tự lưu — người học quyết"
+        (TCCN-426-1). The learner saves it with `POST /cards`, which
+        deduplicates on its own: a word already in the collection comes back
+        with `alreadyExisted` and the existing card rather than a second one
+        (TCCN-426-3).
+
+        Only words the dictionary already holds are ever offered
+        (TCCN-426-2) — nothing invents an entry from the place a learner typed
+        wrong, because R-17 makes the dictionary hand-authored content whose
+        meaning is true in this context.
+      properties:
+        entryId: { type: string, format: uuid }
+        headwordKo: { type: string }
+        readingLatin: { type: string }
+        meaningVi:
+          type: string
+          description: |
+            The general meaning, and the one that belongs on the card: a card is
+            met three weeks later with this sentence nowhere in sight.
+        contextMeaningVi:
+          type: string
+          description: |
+            "Nghĩa trong bộ này" — for the offer itself, where the learner is
+            still inside the sentence that makes it true. Not what goes on the
+            card.
+
+    DictationSkipResult:
+      type: object
+      required: [progress]
+      properties:
+        progress: { $ref: '#/components/schemas/DictationProgress' }
+        resumeItemId:
+          type: string
+          format: uuid
+          description: The sentence the learner lands on, so a reload agrees with the screen.
+
+    # ── studio: chép chính tả ──────────────────────────────────────────────
+
+    AdminDictationApproval:
+      type: object
+      required: [verdict, stale]
+      properties:
+        verdict: { type: string, enum: [UNREVIEWED, APPROVED, REJECTED] }
+        note:
+          type: string
+          description: Required on REJECTED — a sentence nobody can fix otherwise.
+        reviewedAt: { type: string, format: date-time }
+        reviewedByName: { type: string }
+        stale:
+          type: boolean
+          description: |
+            The verdict was made about an earlier revision: the Korean or the
+            audio has changed underneath it. Computed on the server so the
+            client never compares revisions itself, and counted as unreviewed
+            by the gate. A stale verdict looks exactly like a fresh one unless
+            somebody does this comparison.
+
+    AdminDictationItem:
+      type: object
+      required: [id, ordinal, textKo, textVi, audioUrl, durationMs, source, revision, approval]
+      properties:
+        id: { type: string, format: uuid }
+        ordinal: { type: integer, minimum: 1 }
+        textKo: { type: string }
+        textVi: { type: string }
+        audioUrl:
+          type: string
+          description: |
+            The reviewer has to HEAR it — that is the entire job this screen
+            exists for, and the one thing cmd/dictation-import cannot do.
+        durationMs: { type: integer }
+        source: { type: string, enum: [UPLOAD, SYNTHETIC] }
+        revision: { type: integer, minimum: 1 }
+        approval: { $ref: '#/components/schemas/AdminDictationApproval' }
+
+    AdminDictationOccurrence:
+      type: object
+      required: [itemId, charStart, charEnd, surfaceKo]
+      properties:
+        itemId: { type: string, format: uuid }
+        charStart: { type: integer, minimum: 0 }
+        charEnd: { type: integer, minimum: 1 }
+        surfaceKo: { type: string }
+
+    AdminDictationGlossaryEntry:
+      type: object
+      required: [id, headwordKo, readingLatin, partOfSpeech, meaningVi, contextMeaningVi, contextSettled, occurrences]
+      properties:
+        id: { type: string, format: uuid }
+        headwordKo: { type: string }
+        readingLatin: { type: string }
+        partOfSpeech:
+          type: string
+          enum: [NOUN, VERB, ADJECTIVE, ADVERB, GRAMMAR_PATTERN]
+        meaningVi: { type: string }
+        contextMeaningVi: { type: string }
+        contextSettled: { type: boolean }
+        occurrences:
+          type: array
+          items: { $ref: '#/components/schemas/AdminDictationOccurrence' }
+
+    AdminDictationReviewSummary:
+      type: object
+      required: [total, approved, rejected, unreviewed]
+      description: |
+        `unreviewed` includes STALE approvals, so this counter and the publish
+        gate cannot disagree about what still needs an ear.
+      properties:
+        total: { type: integer }
+        approved: { type: integer }
+        rejected: { type: integer }
+        unreviewed: { type: integer }
+
+    AdminDictationSetRow:
+      type: object
+      required: [id, title, level, voice, voiceKind, status, review]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        level: { type: integer, minimum: 1, maximum: 6 }
+        voice: { type: string }
+        voiceKind: { type: string, enum: [HUMAN, SYNTHETIC] }
+        status: { type: string, enum: [DRAFT, IN_REVIEW, PUBLISHED, RETIRED] }
+        publishedAt: { type: string, format: date-time }
+        review: { $ref: '#/components/schemas/AdminDictationReviewSummary' }
+
+    AdminDictationSetList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AdminDictationSetRow' }
+
+    AdminDictationSetDetail:
+      type: object
+      required: [id, title, level, voice, voiceKind, status, items, glossary, review]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        level: { type: integer, minimum: 1, maximum: 6 }
+        voice: { type: string }
+        voiceKind: { type: string, enum: [HUMAN, SYNTHETIC] }
+        status: { type: string, enum: [DRAFT, IN_REVIEW, PUBLISHED, RETIRED] }
+        publishedAt: { type: string, format: date-time }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AdminDictationItem' }
+        glossary:
+          type: array
+          items: { $ref: '#/components/schemas/AdminDictationGlossaryEntry' }
+        review: { $ref: '#/components/schemas/AdminDictationReviewSummary' }
+
+    AdminDictationApprovalRequest:
+      type: object
+      required: [verdict]
+      properties:
+        verdict: { type: string, enum: [UNREVIEWED, APPROVED, REJECTED] }
+        note: { type: string }
+
+    AdminDictationPublishReport:
+      type: object
+      required: [published, blockers, warnings]
+      properties:
+        published: { type: boolean }
+        blockers:
+          type: array
+          items: { type: string }
+          description: Each names the sentence it is about.
+        warnings:
+          type: array
+          items: { type: string }
 
     ShadowVideoList:
       type: object

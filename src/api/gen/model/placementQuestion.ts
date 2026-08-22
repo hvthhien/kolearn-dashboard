@@ -54,6 +54,11 @@ export interface PlacementQuestion {
   stemKo: string;
   passage?: PlacementPassage;
   choices: PlacementChoice[];
-  /** Present only on a listening question that has a clip. */
+  /**
+     * Present only on a listening question that has a clip. A CDN address
+     * on a deployment with a public bucket, and the authenticated
+     * placement route otherwise. Nothing is rationed here either way: this
+     * test has no countdown and no one-play rule.
+     */
   audioUrl?: string;
 }

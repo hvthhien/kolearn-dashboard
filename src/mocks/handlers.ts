@@ -1,5 +1,8 @@
 import { http, HttpResponse } from 'msw'
 import type {
+  AdminDictationApprovalRequest,
+  AdminDictationPublishReport,
+  AdminDictationSetDetail,
   AdminExamDetail,
   AdminShadowVideoDetail,
   ShadowPublishReport,
@@ -14,6 +17,7 @@ import { BLUEPRINTS } from './fixtures/blueprints'
 import { TOPICS } from './fixtures/topics'
 import { EXAMS, LISTENING_PASSAGE, QUESTIONS, READING_PASSAGE, layers } from './fixtures/bank'
 import { SHADOW_VIDEOS } from './fixtures/shadowing'
+import { DICTATION_SETS } from './fixtures/dictation'
 
 /**
  * The mock backend, shared by `npm run dev` and by the test suite.
@@ -49,6 +53,17 @@ let state: State = {
 }
 
 /** Tests call this so one test's save is not the next test's starting point. */
+/**
+ * Mutable dictation state.
+ *
+ * Reset by resetMockBank, which src/test/setup.ts runs after every test — a
+ * verdict recorded by one test would otherwise be the next test's starting
+ * point, which is the coupling that makes a suite pass in order and fail alone.
+ */
+const dictationState = {
+  sets: clone(DICTATION_SETS) as Record<string, AdminDictationSetDetail>,
+}
+
 export function resetMockBank(): void {
   state = {
     exams: clone(EXAMS),
@@ -56,6 +71,7 @@ export function resetMockBank(): void {
     published: new Set(EXAMS.filter((e) => e.status === 'PUBLISHED').map((e) => e.id)),
     videos: clone(SHADOW_VIDEOS),
   }
+  dictationState.sets = clone(DICTATION_SETS)
 }
 
 /** The studio's copy of a video, for a test that wants to read what a save did. */
@@ -214,6 +230,48 @@ function nullIfBlank(v: string | null | undefined): string | null {
 }
 
 const SHADOW_UPLOAD_ORIGIN = 'https://media.mock.local'
+
+
+/**
+ * `unreviewed` counts STALE approvals, exactly as the server does — a verdict
+ * about a sentence that has since been edited is not a verdict, and the counter
+ * has to agree with the gate about that.
+ */
+function summariseDictation(set: AdminDictationSetDetail) {
+  let approved = 0
+  let rejected = 0
+  let unreviewed = 0
+  for (const item of set.items) {
+    if (item.approval.verdict === 'APPROVED' && !item.approval.stale) approved++
+    else if (item.approval.verdict === 'REJECTED') rejected++
+    else unreviewed++
+  }
+  return { total: set.items.length, approved, rejected, unreviewed }
+}
+
+function dictationGate(set: AdminDictationSetDetail): AdminDictationPublishReport {
+  const blockers: string[] = []
+  const warnings: string[] = []
+
+  for (const item of set.items) {
+    if (item.approval.verdict === 'REJECTED') {
+      blockers.push(`Câu ${item.ordinal}: chưa đạt — ${item.approval.note ?? ''}.`)
+    } else if (item.approval.verdict === 'UNREVIEWED') {
+      blockers.push(`Câu ${item.ordinal}: chưa nghe duyệt.`)
+    } else if (item.approval.stale) {
+      blockers.push(`Câu ${item.ordinal}: đã sửa sau khi duyệt, cần nghe lại.`)
+    }
+    if (item.textVi.trim() === '') {
+      warnings.push(`Câu ${item.ordinal}: chưa có bản dịch tiếng Việt.`)
+    }
+  }
+  for (const entry of set.glossary) {
+    if (!entry.contextSettled) {
+      blockers.push(`Từ "${entry.headwordKo}": chưa chốt nghĩa trong ngữ cảnh.`)
+    }
+  }
+  return { published: false, blockers, warnings }
+}
 
 export const handlers = [
   /* ── Xưởng video (SC-VIDEO-STUDIO) ───────────────────────────────────── */
@@ -456,6 +514,82 @@ export const handlers = [
       return HttpResponse.json(report)
     }
     video.status = 'PUBLISHED'
+    return HttpResponse.json({ ...report, published: true })
+  }),
+
+  // ── chép chính tả ────────────────────────────────────────────────────────
+  //
+  // Read-only about the content on purpose, matching the real surface: sets
+  // arrive through cmd/dictation-import and the only write here is the verdict.
+
+  http.get(`${BASE}/admin/dictation/sets`, ({ request }) => {
+    const wanted = new URL(request.url).searchParams.get('status')
+    const items = Object.values(dictationState.sets)
+      .filter((set) => !wanted || set.status === wanted)
+      .map((set) => ({
+        id: set.id,
+        title: set.title,
+        level: set.level,
+        voice: set.voice,
+        voiceKind: set.voiceKind,
+        status: set.status,
+        publishedAt: set.publishedAt,
+        review: summariseDictation(set),
+      }))
+    return HttpResponse.json({ items })
+  }),
+
+  http.get(`${BASE}/admin/dictation/sets/:setId`, ({ params }) => {
+    const set = dictationState.sets[params.setId as string]
+    if (!set) return new HttpResponse(null, { status: 404 })
+    return HttpResponse.json({ ...set, review: summariseDictation(set) })
+  }),
+
+  http.put(
+    `${BASE}/admin/dictation/sets/:setId/items/:itemId/approval`,
+    async ({ params, request }) => {
+      const set = dictationState.sets[params.setId as string]
+      const item = set?.items.find((i) => i.id === params.itemId)
+      if (!set || !item) return new HttpResponse(null, { status: 404 })
+
+      const body = (await request.json()) as AdminDictationApprovalRequest
+      if (body.verdict === 'REJECTED' && (body.note ?? '').trim() === '') {
+        // The server 422s this, and the mock has to as well — a rejection with
+        // no reason is a sentence nobody can fix.
+        return HttpResponse.json(
+          { title: 'Dữ liệu không hợp lệ', status: 422, code: 'dictation_reason_required' },
+          { status: 422 },
+        )
+      }
+
+      item.approval =
+        body.verdict === 'UNREVIEWED'
+          ? { verdict: 'UNREVIEWED', stale: false }
+          : {
+              verdict: body.verdict,
+              note: body.note ?? '',
+              stale: false,
+              reviewedByName: 'Người duyệt',
+              reviewedAt: '2026-08-22T10:00:00Z',
+            }
+      set.review = summariseDictation(set)
+      return HttpResponse.json(item)
+    },
+  ),
+
+  http.post(`${BASE}/admin/dictation/sets/:setId/publish`, ({ params, request }) => {
+    const set = dictationState.sets[params.setId as string]
+    if (!set) return new HttpResponse(null, { status: 404 })
+
+    const url = new URL(request.url)
+    const report = dictationGate(set)
+    if (url.searchParams.get('dryRun') === 'true' || report.blockers.length > 0) {
+      return HttpResponse.json(report)
+    }
+    if (report.warnings.length > 0 && url.searchParams.get('acceptWarnings') !== 'true') {
+      return HttpResponse.json(report)
+    }
+    set.status = 'PUBLISHED'
     return HttpResponse.json({ ...report, published: true })
   }),
 

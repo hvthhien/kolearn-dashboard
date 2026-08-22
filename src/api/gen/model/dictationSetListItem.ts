@@ -23,22 +23,18 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { ExamImage } from './examImage';
-import type { ReviewPassageKind } from './reviewPassageKind';
 
-export interface ReviewPassage {
+export interface DictationSetListItem {
   id: string;
-  kind: ReviewPassageKind;
-  bodyKo?: string;
-  bodyVi?: string;
-  transcriptKo?: string;
-  transcriptVi?: string;
+  title: string;
+  /** Every sentence's audio added up, for "3:20" on the card. */
+  durationMs: number;
+  itemCount: number;
+  /** Entries in this set's own dictionary. */
+  wordCount: number;
   /**
-     * The clip, replayable without limit — TCCN-114-2 is explicit that
-     * R-01's single listen governs sitting the paper and not studying it
-     * afterwards. A CDN address on a deployment with a public bucket, and
-     * the authenticated review route otherwise.
+     * TCCN-427-1's numerator: sentences whose BEST result was đúng or
+     * gần đúng. A gần đúng counts — the learner heard every character.
      */
-  audioUrl?: string;
-  images?: ExamImage[];
+  correctCount: number;
 }

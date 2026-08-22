@@ -24,6 +24,8 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { CardState } from './cardState';
+import type { MyCardDictationSource } from './myCardDictationSource';
+import type { MyCardShadowSource } from './myCardShadowSource';
 import type { MyCardSource } from './myCardSource';
 import type { MyCardType } from './myCardType';
 import type { Topic } from './topic';
@@ -60,4 +62,42 @@ export interface MyCard {
      * shows nothing instead of "không rõ" (TCCN-109-5).
      */
   source?: MyCardSource;
+  /**
+     * Where a word saved from a video came from. R-15 lists "video nào"
+     * beside "câu làm sai nào" as an answer to "thẻ này từ đâu ra", and
+     * calls it the row that gets forgotten: "Người học nhìn một từ lạ sau
+     * ba tuần thường không nhớ mình gặp nó ở đâu" (TCCN-353-5).
+     *
+     * A second field rather than a second shape for `source`, and the
+     * difference is not cosmetic: `source` names a paper there is nothing
+     * to open, while this names a sentence there is — the only provenance
+     * in the product a client can turn into a link. Making `source`
+     * polymorphic would cost its five required fields, and every caller
+     * reading `source.examTitle` today would have to narrow first for a
+     * branch it will never take.
+     *
+     * Absent when the card was not saved from a video, and also when that
+     * video is no longer PUBLISHED: `GET /shadowing/videos/{videoId}`
+     * answers `404` for anything else, so naming it would be a link to a
+     * dead end. Absent rather than a placeholder — the same rule `source`
+     * follows (TCCN-109-5), and it matters more here because the
+     * placeholder would be clickable.
+     *
+     * Never both this and `source` in practice: a card records the
+     * question or the line it was made from, and creating a duplicate
+     * rewrites neither (TCCN-115-2). Clients render one provenance row.
+     */
+  shadowSource?: MyCardShadowSource;
+  /**
+     * Where a word saved while doing dictation came from (YC-426). The
+     * third answer to "thẻ này từ đâu ra", beside `source` and
+     * `shadowSource`, and never present at the same time as either: a card
+     * records the one place it was made from.
+     *
+     * Absent when the set has been retired, for the same reason
+     * `shadowSource` is: this row is a link on the collection screen, the
+     * learner API answers 404 for a set that is not published, and a
+     * chevron to a dead end is worse than no row.
+     */
+  dictationSource?: MyCardDictationSource;
 }

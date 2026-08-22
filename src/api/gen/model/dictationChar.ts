@@ -23,22 +23,27 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { ExamImage } from './examImage';
-import type { ReviewPassageKind } from './reviewPassageKind';
+import type { DictationCharState } from './dictationCharState';
+import type { DictationJamoDiff } from './dictationJamoDiff';
 
-export interface ReviewPassage {
-  id: string;
-  kind: ReviewPassageKind;
-  bodyKo?: string;
-  bodyVi?: string;
-  transcriptKo?: string;
-  transcriptVi?: string;
+/**
+ * One character of one side, with what the comparison says about it.
+ */
+export interface DictationChar {
+  /** Exactly one code point of the NFC form of its side. */
+  text: string;
   /**
-     * The clip, replayable without limit — TCCN-114-2 is explicit that
-     * R-01's single listen governs sitting the paper and not studying it
-     * afterwards. A CDN address on a deployment with a public bucket, and
-     * the authenticated review route otherwise.
+     * Four states rather than a boolean, because TCCN-424-1 asks for
+     * three distinct facts by name — "âm tiết nào thiếu, âm tiết nào
+     * thừa, âm tiết nào gõ khác" — and a screen rendering all three the
+     * same way has answered none of them.
+     *
+     * SAME also covers every character the comparison never looked at:
+     * spaces and punctuation, which normalisation drops. The one grade
+     * where spacing genuinely differs is CLOSE, and TCCN-423-2 forbids
+     * error marks there — so there is no case where a dropped character
+     * should be marked.
      */
-  audioUrl?: string;
-  images?: ExamImage[];
+  state: DictationCharState;
+  jamo?: DictationJamoDiff;
 }

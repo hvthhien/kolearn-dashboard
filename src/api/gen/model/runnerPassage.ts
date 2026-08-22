@@ -32,16 +32,46 @@ export interface RunnerPassage {
   bodyKo?: string;
   bodyVi?: string;
   /**
+     * The clip's address on the CDN, and what the player reads whenever it
+     * is present. Costs no request to this API at all: it is here before
+     * the learner presses play, so the browser can buffer the clip while
+     * they read the question, and it is served from the Cloudflare edge.
+     *
+     * Not scoped to an attempt, a learner or a clock, and it does not
+     * expire. R-01's single listen is enforced by the client against this
+     * URL. `AUDIO_PLAYED` is still recorded through `POST
+     * /attempts/{attemptId}/events`, so the play stays auditable and a
+     * reload still finds the stimulus spent — but the server no longer
+     * refuses a second one.
+     *
+     * Absent on a deployment with no public bucket, which is the signal to
+     * use the two fields below instead.
+     */
+  audioPublicUrl?: string;
+  /**
      * Fetch the whole clip, recording the play as it serves. Needs the
      * bearer token, so a browser client has to buffer the file before
-     * anything can sound.
+     * anything can sound. The fallback path when `audioPublicUrl` is
+     * absent.
      */
   audioUrl?: string;
   /**
      * POST here instead to spend the same single listen and get back a URL
      * an `<audio>` element can read, which starts playing on the first
      * chunk. Both paths record one `AUDIO_PLAYED`; using both spends two.
+     * Also a fallback: prefer `audioPublicUrl` when it is present.
      */
   audioTicketUrl?: string;
+  /**
+     * This stimulus has already been listened to in this attempt. Read
+     * from the `AUDIO_PLAYED` events the client reports, keyed by passage
+     * so a listening group that shares one recording counts once.
+     *
+     * What a resumed or reloaded runner enforces its one-play rule from:
+     * without it a reload would present a fresh play button, which is the
+     * most common way a second listen happens. Meaningless in PRACTICE,
+     * where replaying is unlimited.
+     */
+  audioPlayed?: boolean;
   images?: ExamImage[];
 }

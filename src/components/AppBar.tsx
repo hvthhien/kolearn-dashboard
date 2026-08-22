@@ -47,6 +47,9 @@ export function AppBar() {
           <Link to="/videos" className={NAV_ITEM}>
             Xưởng video
           </Link>
+          <Link to="/dictation" className={NAV_ITEM}>
+            Chép chính tả
+          </Link>
           <Link to="/imports" className={NAV_ITEM}>
             Nhập lô
           </Link>

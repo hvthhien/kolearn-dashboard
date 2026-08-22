@@ -43,6 +43,11 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AdminDictationApprovalRequest,
+  AdminDictationItem,
+  AdminDictationPublishReport,
+  AdminDictationSetDetail,
+  AdminDictationSetList,
   AdminExamDetail,
   AdminPassage,
   AdminQuestion,
@@ -60,6 +65,7 @@ import type {
   BadRequestResponse,
   CardBatchResult,
   CardResult,
+  ClipRedirectResponse,
   ConfirmShadowUploadRequest,
   ConflictResponse,
   CreateCardRequest,
@@ -68,6 +74,11 @@ import type {
   CreateShadowVideoRequest,
   CreateTopicBody,
   CurrentUser,
+  DictationAttemptRequest,
+  DictationAttemptResult,
+  DictationSetDetail,
+  DictationSetList,
+  DictationSkipResult,
   ExamDetail,
   ForbiddenResponse,
   ForgotPasswordBody,
@@ -76,6 +87,7 @@ import type {
   GetWeaknessParams,
   ImportReport,
   ImportRequest,
+  ListAdminDictationSetsParams,
   ListAdminExams200,
   ListAdminExamsParams,
   ListAdminQuestions200,
@@ -83,6 +95,7 @@ import type {
   ListAttemptHistory200,
   ListAttemptHistoryParams,
   ListBlueprints200,
+  ListDictationSetsParams,
   ListExams200,
   ListExamsParams,
   ListMyCards200,
@@ -94,15 +107,18 @@ import type {
   ListTopics200,
   ListTopicsParams,
   LoginRequest,
+  MediaRedirectResponse,
   MyCard,
   MyPlacement,
   NotFoundResponse,
+  NotModifiedResponse,
   PlacementAnswerRequest,
   PlacementAvailability,
   PlacementRecommendations,
   PlacementResult,
   PlacementRunner,
   Problem,
+  PublishAdminDictationSetParams,
   PublishAdminExamParams,
   PublishAdminShadowVideoParams,
   PublishReport,
@@ -1647,15 +1663,25 @@ export const getGetQuestionAudioUrl = (attemptId: string,
 }
 
 /**
- * Authenticated and per-attempt on purpose, rather than a presigned or
- * public URL. R-01 allows exactly one play in EXAM mode, and the only
- * place that can be enforced is the request itself: a shareable link is
- * a rule the client is merely asked to respect, and a learner who opens
- * the network tab gets unlimited replays with nothing failing.
+ * **The fallback path.** A deployment with a public bucket sends
+ * `passage.audioPublicUrl` instead and the client reads the clip from the
+ * CDN, which costs no request at all; this route is what a deployment
+ * without one uses, and what a client holding an older payload uses.
+ *
+ * Authenticated and per-attempt, which is what lets it enforce R-01 in
+ * the one place a rule can be enforced — the request itself. That is the
+ * capability the public URL gives up: a shareable link is a rule the
+ * client is merely asked to respect, and a learner who opens the network
+ * tab gets unlimited replays with nothing failing. It was given up
+ * deliberately, to buy back the three round trips that ran on the
+ * section's clock before the first sound.
  *
  * The first EXAM-mode request records an `AUDIO_PLAYED` event. A second
  * one is refused with 409 — including after a page reload, which is what
- * stops a refresh from buying another listen.
+ * stops a refresh from buying another listen. On the CDN path the client
+ * reports that event itself and honours the refusal itself; the server
+ * reads the events back as `passage.audioPlayed` so a reload still lands
+ * on the right screen.
  *
  * PRACTICE mode is unlimited and answers range requests, so the player
  * can seek.
@@ -1664,6 +1690,14 @@ export const getGetQuestionAudioUrl = (attemptId: string,
  * is what makes a browser client wait for the whole file before anything
  * sounds — see `createAudioTicket` for the split-in-two path that does
  * not.
+ *
+ * In PRACTICE this answers `302` with a signed address where storage can
+ * sign one, so the clip comes straight from object storage. In EXAM it
+ * always answers with the bytes: the play is charged before the response
+ * on this route, so a client that failed to follow a redirect would have
+ * paid for a listen it never received, which R-12 forbids. The ticket pair
+ * does not have that problem — a ticket can simply be presented again —
+ * which is where an exam clip should be fetched from anyway.
  * @summary Stream the listening audio for one question (YC-110, R-01)
  */
 export const getQuestionAudio = async (attemptId: string,
@@ -1690,7 +1724,7 @@ export const getGetQuestionAudioQueryKey = (attemptId: string,
     }
 
 
-export const getGetQuestionAudioQueryOptions = <TData = Awaited<ReturnType<typeof getQuestionAudio>>, TError = UnauthorizedResponse | Problem>(attemptId: string,
+export const getGetQuestionAudioQueryOptions = <TData = Awaited<ReturnType<typeof getQuestionAudio>>, TError = ClipRedirectResponse | UnauthorizedResponse | Problem>(attemptId: string,
     questionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getQuestionAudio>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
 ) => {
 
@@ -1710,10 +1744,10 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetQuestionAudioQueryResult = NonNullable<Awaited<ReturnType<typeof getQuestionAudio>>>
-export type GetQuestionAudioQueryError = UnauthorizedResponse | Problem
+export type GetQuestionAudioQueryError = ClipRedirectResponse | UnauthorizedResponse | Problem
 
 
-export function useGetQuestionAudio<TData = Awaited<ReturnType<typeof getQuestionAudio>>, TError = UnauthorizedResponse | Problem>(
+export function useGetQuestionAudio<TData = Awaited<ReturnType<typeof getQuestionAudio>>, TError = ClipRedirectResponse | UnauthorizedResponse | Problem>(
  attemptId: string,
     questionId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getQuestionAudio>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
@@ -1724,7 +1758,7 @@ export function useGetQuestionAudio<TData = Awaited<ReturnType<typeof getQuestio
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetQuestionAudio<TData = Awaited<ReturnType<typeof getQuestionAudio>>, TError = UnauthorizedResponse | Problem>(
+export function useGetQuestionAudio<TData = Awaited<ReturnType<typeof getQuestionAudio>>, TError = ClipRedirectResponse | UnauthorizedResponse | Problem>(
  attemptId: string,
     questionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getQuestionAudio>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
@@ -1735,7 +1769,7 @@ export function useGetQuestionAudio<TData = Awaited<ReturnType<typeof getQuestio
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetQuestionAudio<TData = Awaited<ReturnType<typeof getQuestionAudio>>, TError = UnauthorizedResponse | Problem>(
+export function useGetQuestionAudio<TData = Awaited<ReturnType<typeof getQuestionAudio>>, TError = ClipRedirectResponse | UnauthorizedResponse | Problem>(
  attemptId: string,
     questionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getQuestionAudio>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
@@ -1744,7 +1778,7 @@ export function useGetQuestionAudio<TData = Awaited<ReturnType<typeof getQuestio
  * @summary Stream the listening audio for one question (YC-110, R-01)
  */
 
-export function useGetQuestionAudio<TData = Awaited<ReturnType<typeof getQuestionAudio>>, TError = UnauthorizedResponse | Problem>(
+export function useGetQuestionAudio<TData = Awaited<ReturnType<typeof getQuestionAudio>>, TError = ClipRedirectResponse | UnauthorizedResponse | Problem>(
  attemptId: string,
     questionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getQuestionAudio>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
@@ -1887,17 +1921,24 @@ export const getStreamTicketedAudioUrl = (attemptId: string,
  * spent by `createAudioTicket`, which is why this can answer the several
  * requests one playback actually makes.
  *
- * Answers `Range` with `206` and `Content-Range`, and sends
- * `Cache-Control: no-store`. The no-store is load-bearing rather than
+ * Where object storage can sign addresses this answers `302` and the
+ * player fetches the clip directly; otherwise it answers `200` with the
+ * bytes, `Range` with `206` and `Content-Range`. A media element follows
+ * the redirect on its own and re-sends `Range` against the target, so a
+ * client written against the `200` needs no change.
+ *
+ * Either way it sends `Cache-Control: no-store`, and so does the object
+ * behind the signed address. The no-store is load-bearing rather than
  * hygiene: R-01 used to be enforced partly by accident, because the client
  * held the clip in an object URL that a reload dropped. A URL in
  * `<audio src>` would otherwise sit in the browser's HTTP cache, where a
  * reload inside the ticket window could replay it without asking anyone.
  *
  * A ticket presented against another attempt's or another passage's URL is
- * `404`, the same answer as a question with no audio. An expired ticket is
- * `410` and never `409`: a spent listen and a stale link mean opposite
- * things to the learner, and only one of them offers a retry.
+ * `404`, the same answer as a question with no audio, and no address is
+ * signed for it. An expired ticket is `410` and never `409`: a spent
+ * listen and a stale link mean opposite things to the learner, and only
+ * one of them offers a retry.
  * @summary The bytes a play ticket was minted for (YC-110)
  */
 export const streamTicketedAudio = async (attemptId: string,
@@ -1926,7 +1967,7 @@ export const getStreamTicketedAudioQueryKey = (attemptId: string,
     }
 
 
-export const getStreamTicketedAudioQueryOptions = <TData = Awaited<ReturnType<typeof streamTicketedAudio>>, TError = Problem>(attemptId: string,
+export const getStreamTicketedAudioQueryOptions = <TData = Awaited<ReturnType<typeof streamTicketedAudio>>, TError = ClipRedirectResponse | Problem>(attemptId: string,
     questionId: string,
     params: StreamTicketedAudioParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof streamTicketedAudio>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
 ) => {
@@ -1947,10 +1988,10 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type StreamTicketedAudioQueryResult = NonNullable<Awaited<ReturnType<typeof streamTicketedAudio>>>
-export type StreamTicketedAudioQueryError = Problem
+export type StreamTicketedAudioQueryError = ClipRedirectResponse | Problem
 
 
-export function useStreamTicketedAudio<TData = Awaited<ReturnType<typeof streamTicketedAudio>>, TError = Problem>(
+export function useStreamTicketedAudio<TData = Awaited<ReturnType<typeof streamTicketedAudio>>, TError = ClipRedirectResponse | Problem>(
  attemptId: string,
     questionId: string,
     params: StreamTicketedAudioParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof streamTicketedAudio>>, TError, TData>> & Pick<
@@ -1962,7 +2003,7 @@ export function useStreamTicketedAudio<TData = Awaited<ReturnType<typeof streamT
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useStreamTicketedAudio<TData = Awaited<ReturnType<typeof streamTicketedAudio>>, TError = Problem>(
+export function useStreamTicketedAudio<TData = Awaited<ReturnType<typeof streamTicketedAudio>>, TError = ClipRedirectResponse | Problem>(
  attemptId: string,
     questionId: string,
     params: StreamTicketedAudioParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof streamTicketedAudio>>, TError, TData>> & Pick<
@@ -1974,7 +2015,7 @@ export function useStreamTicketedAudio<TData = Awaited<ReturnType<typeof streamT
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useStreamTicketedAudio<TData = Awaited<ReturnType<typeof streamTicketedAudio>>, TError = Problem>(
+export function useStreamTicketedAudio<TData = Awaited<ReturnType<typeof streamTicketedAudio>>, TError = ClipRedirectResponse | Problem>(
  attemptId: string,
     questionId: string,
     params: StreamTicketedAudioParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof streamTicketedAudio>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
@@ -1984,7 +2025,7 @@ export function useStreamTicketedAudio<TData = Awaited<ReturnType<typeof streamT
  * @summary The bytes a play ticket was minted for (YC-110)
  */
 
-export function useStreamTicketedAudio<TData = Awaited<ReturnType<typeof streamTicketedAudio>>, TError = Problem>(
+export function useStreamTicketedAudio<TData = Awaited<ReturnType<typeof streamTicketedAudio>>, TError = ClipRedirectResponse | Problem>(
  attemptId: string,
     questionId: string,
     params: StreamTicketedAudioParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof streamTicketedAudio>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
@@ -2028,6 +2069,11 @@ export const getGetReviewAudioUrl = (attemptId: string,
  * threaded through it is a rule with a bug waiting in the exception. This
  * route requires the attempt to be **submitted** and refuses anything
  * else, so no path through it can hand out replays mid-exam.
+ *
+ * Cacheable, and deliberately so: `private, max-age=3600` with the asset's
+ * SHA-256 as a strong `ETag`. Unlimited replays are the feature, and
+ * without a validator the third and fourth replay are three more downloads
+ * of a clip the browser already holds.
  * @summary Replay a listening clip after the paper is submitted (YC-114, TCCN-114-2)
  */
 export const getReviewAudio = async (attemptId: string,
@@ -2054,7 +2100,7 @@ export const getGetReviewAudioQueryKey = (attemptId: string,
     }
 
 
-export const getGetReviewAudioQueryOptions = <TData = Awaited<ReturnType<typeof getReviewAudio>>, TError = UnauthorizedResponse | Problem>(attemptId: string,
+export const getGetReviewAudioQueryOptions = <TData = Awaited<ReturnType<typeof getReviewAudio>>, TError = ClipRedirectResponse | NotModifiedResponse | UnauthorizedResponse | Problem>(attemptId: string,
     questionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReviewAudio>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
 ) => {
 
@@ -2074,10 +2120,10 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetReviewAudioQueryResult = NonNullable<Awaited<ReturnType<typeof getReviewAudio>>>
-export type GetReviewAudioQueryError = UnauthorizedResponse | Problem
+export type GetReviewAudioQueryError = ClipRedirectResponse | NotModifiedResponse | UnauthorizedResponse | Problem
 
 
-export function useGetReviewAudio<TData = Awaited<ReturnType<typeof getReviewAudio>>, TError = UnauthorizedResponse | Problem>(
+export function useGetReviewAudio<TData = Awaited<ReturnType<typeof getReviewAudio>>, TError = ClipRedirectResponse | NotModifiedResponse | UnauthorizedResponse | Problem>(
  attemptId: string,
     questionId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReviewAudio>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
@@ -2088,7 +2134,7 @@ export function useGetReviewAudio<TData = Awaited<ReturnType<typeof getReviewAud
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetReviewAudio<TData = Awaited<ReturnType<typeof getReviewAudio>>, TError = UnauthorizedResponse | Problem>(
+export function useGetReviewAudio<TData = Awaited<ReturnType<typeof getReviewAudio>>, TError = ClipRedirectResponse | NotModifiedResponse | UnauthorizedResponse | Problem>(
  attemptId: string,
     questionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReviewAudio>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
@@ -2099,7 +2145,7 @@ export function useGetReviewAudio<TData = Awaited<ReturnType<typeof getReviewAud
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetReviewAudio<TData = Awaited<ReturnType<typeof getReviewAudio>>, TError = UnauthorizedResponse | Problem>(
+export function useGetReviewAudio<TData = Awaited<ReturnType<typeof getReviewAudio>>, TError = ClipRedirectResponse | NotModifiedResponse | UnauthorizedResponse | Problem>(
  attemptId: string,
     questionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReviewAudio>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
@@ -2108,7 +2154,7 @@ export function useGetReviewAudio<TData = Awaited<ReturnType<typeof getReviewAud
  * @summary Replay a listening clip after the paper is submitted (YC-114, TCCN-114-2)
  */
 
-export function useGetReviewAudio<TData = Awaited<ReturnType<typeof getReviewAudio>>, TError = UnauthorizedResponse | Problem>(
+export function useGetReviewAudio<TData = Awaited<ReturnType<typeof getReviewAudio>>, TError = ClipRedirectResponse | NotModifiedResponse | UnauthorizedResponse | Problem>(
  attemptId: string,
     questionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getReviewAudio>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
@@ -2140,6 +2186,14 @@ export const getGetAttemptImageUrl = (attemptId: string,
  * The asset must belong to a question in the caller's frozen attempt.
  * Images are available both while sitting and while reviewing a paper;
  * unlike listening audio, fetching them is not subject to a play limit.
+ *
+ * Where a public media bucket is configured this answers `302` and the
+ * picture is fetched from the CDN — and the runner payload carries that
+ * CDN address directly, so a current client never calls this route at all.
+ * It remains for clients holding an older payload.
+ *
+ * Without a public bucket it serves the bytes, cacheable:
+ * `private, max-age=3600` with the asset's SHA-256 as a strong `ETag`.
  * @summary Fetch an image used by a passage or answer choice
  */
 export const getAttemptImage = async (attemptId: string,
@@ -2166,7 +2220,7 @@ export const getGetAttemptImageQueryKey = (attemptId: string,
     }
 
 
-export const getGetAttemptImageQueryOptions = <TData = Awaited<ReturnType<typeof getAttemptImage>>, TError = UnauthorizedResponse | Problem>(attemptId: string,
+export const getGetAttemptImageQueryOptions = <TData = Awaited<ReturnType<typeof getAttemptImage>>, TError = MediaRedirectResponse | NotModifiedResponse | UnauthorizedResponse | Problem>(attemptId: string,
     assetId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAttemptImage>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
 ) => {
 
@@ -2186,10 +2240,10 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetAttemptImageQueryResult = NonNullable<Awaited<ReturnType<typeof getAttemptImage>>>
-export type GetAttemptImageQueryError = UnauthorizedResponse | Problem
+export type GetAttemptImageQueryError = MediaRedirectResponse | NotModifiedResponse | UnauthorizedResponse | Problem
 
 
-export function useGetAttemptImage<TData = Awaited<ReturnType<typeof getAttemptImage>>, TError = UnauthorizedResponse | Problem>(
+export function useGetAttemptImage<TData = Awaited<ReturnType<typeof getAttemptImage>>, TError = MediaRedirectResponse | NotModifiedResponse | UnauthorizedResponse | Problem>(
  attemptId: string,
     assetId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAttemptImage>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
@@ -2200,7 +2254,7 @@ export function useGetAttemptImage<TData = Awaited<ReturnType<typeof getAttemptI
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetAttemptImage<TData = Awaited<ReturnType<typeof getAttemptImage>>, TError = UnauthorizedResponse | Problem>(
+export function useGetAttemptImage<TData = Awaited<ReturnType<typeof getAttemptImage>>, TError = MediaRedirectResponse | NotModifiedResponse | UnauthorizedResponse | Problem>(
  attemptId: string,
     assetId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAttemptImage>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
@@ -2211,7 +2265,7 @@ export function useGetAttemptImage<TData = Awaited<ReturnType<typeof getAttemptI
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetAttemptImage<TData = Awaited<ReturnType<typeof getAttemptImage>>, TError = UnauthorizedResponse | Problem>(
+export function useGetAttemptImage<TData = Awaited<ReturnType<typeof getAttemptImage>>, TError = MediaRedirectResponse | NotModifiedResponse | UnauthorizedResponse | Problem>(
  attemptId: string,
     assetId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAttemptImage>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
@@ -2220,7 +2274,7 @@ export function useGetAttemptImage<TData = Awaited<ReturnType<typeof getAttemptI
  * @summary Fetch an image used by a passage or answer choice
  */
 
-export function useGetAttemptImage<TData = Awaited<ReturnType<typeof getAttemptImage>>, TError = UnauthorizedResponse | Problem>(
+export function useGetAttemptImage<TData = Awaited<ReturnType<typeof getAttemptImage>>, TError = MediaRedirectResponse | NotModifiedResponse | UnauthorizedResponse | Problem>(
  attemptId: string,
     assetId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAttemptImage>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
@@ -4477,6 +4531,11 @@ export const getGetPlacementAudioUrl = (sessionId: string,
  * seconds a Blob costs while an exam clock runs, and to ration a listen
  * to one under R-01. The placement test has neither a countdown nor a
  * ration, so it would be paying that complexity for nothing.
+ *
+ * Cacheable for the same reason it is un-ticketed: `private, max-age=3600`
+ * with the asset's SHA-256 as a strong `ETag`. R-32 says nothing about
+ * limiting replays, and a warm-up that made a learner re-download the clip
+ * every time they listened again would be inventing a cost to pay.
  * @summary The listening clip for a placement question
  */
 export const getPlacementAudio = async (sessionId: string,
@@ -4503,7 +4562,7 @@ export const getGetPlacementAudioQueryKey = (sessionId: string,
     }
 
 
-export const getGetPlacementAudioQueryOptions = <TData = Awaited<ReturnType<typeof getPlacementAudio>>, TError = UnauthorizedResponse | NotFoundResponse>(sessionId: string,
+export const getGetPlacementAudioQueryOptions = <TData = Awaited<ReturnType<typeof getPlacementAudio>>, TError = ClipRedirectResponse | NotModifiedResponse | UnauthorizedResponse | NotFoundResponse>(sessionId: string,
     questionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementAudio>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
 ) => {
 
@@ -4523,10 +4582,10 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetPlacementAudioQueryResult = NonNullable<Awaited<ReturnType<typeof getPlacementAudio>>>
-export type GetPlacementAudioQueryError = UnauthorizedResponse | NotFoundResponse
+export type GetPlacementAudioQueryError = ClipRedirectResponse | NotModifiedResponse | UnauthorizedResponse | NotFoundResponse
 
 
-export function useGetPlacementAudio<TData = Awaited<ReturnType<typeof getPlacementAudio>>, TError = UnauthorizedResponse | NotFoundResponse>(
+export function useGetPlacementAudio<TData = Awaited<ReturnType<typeof getPlacementAudio>>, TError = ClipRedirectResponse | NotModifiedResponse | UnauthorizedResponse | NotFoundResponse>(
  sessionId: string,
     questionId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementAudio>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
@@ -4537,7 +4596,7 @@ export function useGetPlacementAudio<TData = Awaited<ReturnType<typeof getPlacem
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetPlacementAudio<TData = Awaited<ReturnType<typeof getPlacementAudio>>, TError = UnauthorizedResponse | NotFoundResponse>(
+export function useGetPlacementAudio<TData = Awaited<ReturnType<typeof getPlacementAudio>>, TError = ClipRedirectResponse | NotModifiedResponse | UnauthorizedResponse | NotFoundResponse>(
  sessionId: string,
     questionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementAudio>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
@@ -4548,7 +4607,7 @@ export function useGetPlacementAudio<TData = Awaited<ReturnType<typeof getPlacem
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetPlacementAudio<TData = Awaited<ReturnType<typeof getPlacementAudio>>, TError = UnauthorizedResponse | NotFoundResponse>(
+export function useGetPlacementAudio<TData = Awaited<ReturnType<typeof getPlacementAudio>>, TError = ClipRedirectResponse | NotModifiedResponse | UnauthorizedResponse | NotFoundResponse>(
  sessionId: string,
     questionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementAudio>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
@@ -4557,7 +4616,7 @@ export function useGetPlacementAudio<TData = Awaited<ReturnType<typeof getPlacem
  * @summary The listening clip for a placement question
  */
 
-export function useGetPlacementAudio<TData = Awaited<ReturnType<typeof getPlacementAudio>>, TError = UnauthorizedResponse | NotFoundResponse>(
+export function useGetPlacementAudio<TData = Awaited<ReturnType<typeof getPlacementAudio>>, TError = ClipRedirectResponse | NotModifiedResponse | UnauthorizedResponse | NotFoundResponse>(
  sessionId: string,
     questionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementAudio>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
@@ -4595,6 +4654,9 @@ export const getGetPlacementImageUrl = (sessionId: string,
  * These carry the question on the picture-choice items, where the four
  * choices have no text at all — so a failure here is not cosmetic, it is
  * a question that cannot be answered.
+ *
+ * Cacheable: `private, max-age=3600` with the asset's SHA-256 as a strong
+ * `ETag`.
  * @summary Fetch a picture used by a passage or an answer choice
  */
 export const getPlacementImage = async (sessionId: string,
@@ -4621,7 +4683,7 @@ export const getGetPlacementImageQueryKey = (sessionId: string,
     }
 
 
-export const getGetPlacementImageQueryOptions = <TData = Awaited<ReturnType<typeof getPlacementImage>>, TError = UnauthorizedResponse | void>(sessionId: string,
+export const getGetPlacementImageQueryOptions = <TData = Awaited<ReturnType<typeof getPlacementImage>>, TError = MediaRedirectResponse | NotModifiedResponse | UnauthorizedResponse | void>(sessionId: string,
     assetId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementImage>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
 ) => {
 
@@ -4641,10 +4703,10 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetPlacementImageQueryResult = NonNullable<Awaited<ReturnType<typeof getPlacementImage>>>
-export type GetPlacementImageQueryError = UnauthorizedResponse | void
+export type GetPlacementImageQueryError = MediaRedirectResponse | NotModifiedResponse | UnauthorizedResponse | void
 
 
-export function useGetPlacementImage<TData = Awaited<ReturnType<typeof getPlacementImage>>, TError = UnauthorizedResponse | void>(
+export function useGetPlacementImage<TData = Awaited<ReturnType<typeof getPlacementImage>>, TError = MediaRedirectResponse | NotModifiedResponse | UnauthorizedResponse | void>(
  sessionId: string,
     assetId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementImage>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
@@ -4655,7 +4717,7 @@ export function useGetPlacementImage<TData = Awaited<ReturnType<typeof getPlacem
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetPlacementImage<TData = Awaited<ReturnType<typeof getPlacementImage>>, TError = UnauthorizedResponse | void>(
+export function useGetPlacementImage<TData = Awaited<ReturnType<typeof getPlacementImage>>, TError = MediaRedirectResponse | NotModifiedResponse | UnauthorizedResponse | void>(
  sessionId: string,
     assetId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementImage>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
@@ -4666,7 +4728,7 @@ export function useGetPlacementImage<TData = Awaited<ReturnType<typeof getPlacem
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetPlacementImage<TData = Awaited<ReturnType<typeof getPlacementImage>>, TError = UnauthorizedResponse | void>(
+export function useGetPlacementImage<TData = Awaited<ReturnType<typeof getPlacementImage>>, TError = MediaRedirectResponse | NotModifiedResponse | UnauthorizedResponse | void>(
  sessionId: string,
     assetId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementImage>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
@@ -4675,7 +4737,7 @@ export function useGetPlacementImage<TData = Awaited<ReturnType<typeof getPlacem
  * @summary Fetch a picture used by a passage or an answer choice
  */
 
-export function useGetPlacementImage<TData = Awaited<ReturnType<typeof getPlacementImage>>, TError = UnauthorizedResponse | void>(
+export function useGetPlacementImage<TData = Awaited<ReturnType<typeof getPlacementImage>>, TError = MediaRedirectResponse | NotModifiedResponse | UnauthorizedResponse | void>(
  sessionId: string,
     assetId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlacementImage>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
@@ -5953,6 +6015,782 @@ export function useListShadowCards<TData = Awaited<ReturnType<typeof listShadowC
 
 
 
+
+export const getListDictationSetsUrl = (params?: ListDictationSetsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/dictation/sets?${stringifiedParams}` : `/api/v1/dictation/sets`
+}
+
+/**
+ * Published sets that have at least one sentence.
+ *
+ * Ordered by distance from the learner's own level, never filtered by it
+ * — a level orders content and does not gate it (TCCN-345-3).
+ *
+ * `correctCount` counts sentences whose BEST result was đúng or gần
+ * đúng. A gần đúng counts because the learner heard every character
+ * (TCCN-427-1); a skipped sentence has no result and cannot count.
+ * @summary Bộ chép chính tả (R-36)
+ */
+export const listDictationSets = async (params?: ListDictationSetsParams, options?: Parameters<typeof apiFetch>[1]): Promise<DictationSetList> => {
+
+  return apiFetch<DictationSetList>(getListDictationSetsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListDictationSetsQueryKey = (params?: ListDictationSetsParams,) => {
+    return [
+    `/api/v1/dictation/sets`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListDictationSetsQueryOptions = <TData = Awaited<ReturnType<typeof listDictationSets>>, TError = UnauthorizedResponse>(params?: ListDictationSetsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDictationSets>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListDictationSetsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listDictationSets>>> = ({ signal }) => listDictationSets(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listDictationSets>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListDictationSetsQueryResult = NonNullable<Awaited<ReturnType<typeof listDictationSets>>>
+export type ListDictationSetsQueryError = UnauthorizedResponse
+
+
+export function useListDictationSets<TData = Awaited<ReturnType<typeof listDictationSets>>, TError = UnauthorizedResponse>(
+ params: undefined |  ListDictationSetsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDictationSets>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listDictationSets>>,
+          TError,
+          Awaited<ReturnType<typeof listDictationSets>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListDictationSets<TData = Awaited<ReturnType<typeof listDictationSets>>, TError = UnauthorizedResponse>(
+ params?: ListDictationSetsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDictationSets>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listDictationSets>>,
+          TError,
+          Awaited<ReturnType<typeof listDictationSets>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListDictationSets<TData = Awaited<ReturnType<typeof listDictationSets>>, TError = UnauthorizedResponse>(
+ params?: ListDictationSetsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDictationSets>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Bộ chép chính tả (R-36)
+ */
+
+export function useListDictationSets<TData = Awaited<ReturnType<typeof listDictationSets>>, TError = UnauthorizedResponse>(
+ params?: ListDictationSetsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDictationSets>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListDictationSetsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetDictationSetUrl = (setId: string,) => {
+
+
+
+
+  return `/api/v1/dictation/sets/${setId}`
+}
+
+/**
+ * Sentences, their audio, and how the learner has done on each.
+ *
+ * **No Korean, no translation, no dictionary.** Showing the sentence is
+ * the exercise gone (TCCN-421-1), and a translation is worse — the
+ * learner reads backwards from the meaning to the spelling and never
+ * listens (TCCN-421-6). The transcript arrives from the attempt
+ * endpoint and nowhere else.
+ *
+ * A DRAFT set answers 404, exactly as a nonexistent one does.
+ * @summary Everything SC-DICTATION renders before anyone types
+ */
+export const getDictationSet = async (setId: string, options?: Parameters<typeof apiFetch>[1]): Promise<DictationSetDetail> => {
+
+  return apiFetch<DictationSetDetail>(getGetDictationSetUrl(setId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDictationSetQueryKey = (setId: string,) => {
+    return [
+    `/api/v1/dictation/sets/${setId}`
+    ] as const;
+    }
+
+
+export const getGetDictationSetQueryOptions = <TData = Awaited<ReturnType<typeof getDictationSet>>, TError = UnauthorizedResponse | NotFoundResponse>(setId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDictationSet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDictationSetQueryKey(setId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDictationSet>>> = ({ signal }) => getDictationSet(setId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: setId !== null && setId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDictationSet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetDictationSetQueryResult = NonNullable<Awaited<ReturnType<typeof getDictationSet>>>
+export type GetDictationSetQueryError = UnauthorizedResponse | NotFoundResponse
+
+
+export function useGetDictationSet<TData = Awaited<ReturnType<typeof getDictationSet>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ setId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDictationSet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getDictationSet>>,
+          TError,
+          Awaited<ReturnType<typeof getDictationSet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDictationSet<TData = Awaited<ReturnType<typeof getDictationSet>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ setId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDictationSet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getDictationSet>>,
+          TError,
+          Awaited<ReturnType<typeof getDictationSet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetDictationSet<TData = Awaited<ReturnType<typeof getDictationSet>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ setId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDictationSet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Everything SC-DICTATION renders before anyone types
+ */
+
+export function useGetDictationSet<TData = Awaited<ReturnType<typeof getDictationSet>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ setId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getDictationSet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetDictationSetQueryOptions(setId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSubmitDictationAttemptUrl = (setId: string,
+    itemId: string,) => {
+
+
+
+
+  return `/api/v1/dictation/sets/${setId}/items/${itemId}/attempt`
+}
+
+/**
+ * Graded by comparing strings, never by calling a model: the result is
+ * deterministic and spends no R-11 credit (TCCN-423-4).
+ *
+ * Three levels, not two. Đúng · **gần đúng** · chưa đúng, where gần đúng
+ * is "only the spacing differs" — Korean 띄어쓰기 is a rule native
+ * speakers get wrong too, and marking it red teaches a learner their
+ * listening is bad when their orthography slipped (TCCN-423-2).
+ *
+ * The response is the only place the Korean crosses the wire, and it
+ * carries both strings marked character by character so the screen can
+ * put them side by side (TCCN-424-1).
+ *
+ * An empty submission is **422 with nothing recorded** (TCCN-424-3): a
+ * blank box is a prompt, not a wrong answer.
+ * @summary Chấm một câu đã gõ (YC-423, YC-424)
+ */
+export const submitDictationAttempt = async (setId: string,
+    itemId: string,
+    dictationAttemptRequest: DictationAttemptRequest, options?: Parameters<typeof apiFetch>[1]): Promise<DictationAttemptResult> => {
+
+  return apiFetch<DictationAttemptResult>(getSubmitDictationAttemptUrl(setId,itemId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(dictationAttemptRequest)
+  }
+);}
+
+
+
+
+
+export const getSubmitDictationAttemptMutationOptions = <TError = UnauthorizedResponse | NotFoundResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitDictationAttempt>>, TError,{setId: string;itemId: string;data: DictationAttemptRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitDictationAttempt>>, TError,{setId: string;itemId: string;data: DictationAttemptRequest}, TContext> => {
+
+const mutationKey = ['submitDictationAttempt'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitDictationAttempt>>, {setId: string;itemId: string;data: DictationAttemptRequest}> = (props) => {
+          const {setId,itemId,data} = props ?? {};
+
+          return  submitDictationAttempt(setId,itemId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitDictationAttemptMutationResult = NonNullable<Awaited<ReturnType<typeof submitDictationAttempt>>>
+    export type SubmitDictationAttemptMutationBody = DictationAttemptRequest
+    export type SubmitDictationAttemptMutationError = UnauthorizedResponse | NotFoundResponse | UnprocessableResponse
+
+    /**
+ * @summary Chấm một câu đã gõ (YC-423, YC-424)
+ */
+export const useSubmitDictationAttempt = <TError = UnauthorizedResponse | NotFoundResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitDictationAttempt>>, TError,{setId: string;itemId: string;data: DictationAttemptRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof submitDictationAttempt>>,
+        TError,
+        {setId: string;itemId: string;data: DictationAttemptRequest},
+        TContext
+      > => {
+      return useMutation(getSubmitDictationAttemptMutationOptions(options), queryClient);
+    }
+
+export const getSkipDictationItemUrl = (setId: string,
+    itemId: string,) => {
+
+
+
+
+  return `/api/v1/dictation/sets/${setId}/items/${itemId}/skip`
+}
+
+/**
+ * Moves to the next sentence and **records nothing**. Câu 7 is marked
+ * chưa làm, not sai, and the learner may come back to it whenever they
+ * like.
+ *
+ * Writing no result is the whole implementation of that: a skipped
+ * sentence has no row, so it can neither be counted wrong nor counted
+ * done.
+ * @summary Bỏ qua một câu (TCCN-425-1)
+ */
+export const skipDictationItem = async (setId: string,
+    itemId: string, options?: Parameters<typeof apiFetch>[1]): Promise<DictationSkipResult> => {
+
+  return apiFetch<DictationSkipResult>(getSkipDictationItemUrl(setId,itemId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getSkipDictationItemMutationOptions = <TError = UnauthorizedResponse | NotFoundResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof skipDictationItem>>, TError,{setId: string;itemId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof skipDictationItem>>, TError,{setId: string;itemId: string}, TContext> => {
+
+const mutationKey = ['skipDictationItem'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof skipDictationItem>>, {setId: string;itemId: string}> = (props) => {
+          const {setId,itemId} = props ?? {};
+
+          return  skipDictationItem(setId,itemId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SkipDictationItemMutationResult = NonNullable<Awaited<ReturnType<typeof skipDictationItem>>>
+
+    export type SkipDictationItemMutationError = UnauthorizedResponse | NotFoundResponse
+
+    /**
+ * @summary Bỏ qua một câu (TCCN-425-1)
+ */
+export const useSkipDictationItem = <TError = UnauthorizedResponse | NotFoundResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof skipDictationItem>>, TError,{setId: string;itemId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof skipDictationItem>>,
+        TError,
+        {setId: string;itemId: string},
+        TContext
+      > => {
+      return useMutation(getSkipDictationItemMutationOptions(options), queryClient);
+    }
+
+export const getListAdminDictationSetsUrl = (params?: ListAdminDictationSetsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/admin/dictation/sets?${stringifiedParams}` : `/api/v1/admin/dictation/sets`
+}
+
+/**
+ * rbac: `dictation:read:any`.
+ * @summary Every dictation set, drafts included
+ */
+export const listAdminDictationSets = async (params?: ListAdminDictationSetsParams, options?: Parameters<typeof apiFetch>[1]): Promise<AdminDictationSetList> => {
+
+  return apiFetch<AdminDictationSetList>(getListAdminDictationSetsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAdminDictationSetsQueryKey = (params?: ListAdminDictationSetsParams,) => {
+    return [
+    `/api/v1/admin/dictation/sets`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListAdminDictationSetsQueryOptions = <TData = Awaited<ReturnType<typeof listAdminDictationSets>>, TError = UnauthorizedResponse | ForbiddenResponse>(params?: ListAdminDictationSetsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminDictationSets>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminDictationSetsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminDictationSets>>> = ({ signal }) => listAdminDictationSets(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminDictationSets>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListAdminDictationSetsQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminDictationSets>>>
+export type ListAdminDictationSetsQueryError = UnauthorizedResponse | ForbiddenResponse
+
+
+export function useListAdminDictationSets<TData = Awaited<ReturnType<typeof listAdminDictationSets>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params: undefined |  ListAdminDictationSetsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminDictationSets>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAdminDictationSets>>,
+          TError,
+          Awaited<ReturnType<typeof listAdminDictationSets>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListAdminDictationSets<TData = Awaited<ReturnType<typeof listAdminDictationSets>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params?: ListAdminDictationSetsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminDictationSets>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAdminDictationSets>>,
+          TError,
+          Awaited<ReturnType<typeof listAdminDictationSets>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListAdminDictationSets<TData = Awaited<ReturnType<typeof listAdminDictationSets>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params?: ListAdminDictationSetsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminDictationSets>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Every dictation set, drafts included
+ */
+
+export function useListAdminDictationSets<TData = Awaited<ReturnType<typeof listAdminDictationSets>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params?: ListAdminDictationSetsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminDictationSets>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListAdminDictationSetsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetAdminDictationSetUrl = (setId: string,) => {
+
+
+
+
+  return `/api/v1/admin/dictation/sets/${setId}`
+}
+
+/**
+ * `rbac: dictation:read:any`. Carries `textKo` — a reviewer cannot pass a
+ * sentence they cannot read, which is exactly why these schemas are
+ * separate from the learner's and why the learner's are guarded by
+ * internal/api/contract/leak_test.go.
+ * @summary One set, with every sentence and where its review stands
+ */
+export const getAdminDictationSet = async (setId: string, options?: Parameters<typeof apiFetch>[1]): Promise<AdminDictationSetDetail> => {
+
+  return apiFetch<AdminDictationSetDetail>(getGetAdminDictationSetUrl(setId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAdminDictationSetQueryKey = (setId: string,) => {
+    return [
+    `/api/v1/admin/dictation/sets/${setId}`
+    ] as const;
+    }
+
+
+export const getGetAdminDictationSetQueryOptions = <TData = Awaited<ReturnType<typeof getAdminDictationSet>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(setId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminDictationSet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAdminDictationSetQueryKey(setId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminDictationSet>>> = ({ signal }) => getAdminDictationSet(setId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: setId !== null && setId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAdminDictationSet>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetAdminDictationSetQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminDictationSet>>>
+export type GetAdminDictationSetQueryError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse
+
+
+export function useGetAdminDictationSet<TData = Awaited<ReturnType<typeof getAdminDictationSet>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
+ setId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminDictationSet>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getAdminDictationSet>>,
+          TError,
+          Awaited<ReturnType<typeof getAdminDictationSet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetAdminDictationSet<TData = Awaited<ReturnType<typeof getAdminDictationSet>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
+ setId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminDictationSet>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getAdminDictationSet>>,
+          TError,
+          Awaited<ReturnType<typeof getAdminDictationSet>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetAdminDictationSet<TData = Awaited<ReturnType<typeof getAdminDictationSet>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
+ setId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminDictationSet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary One set, with every sentence and where its review stands
+ */
+
+export function useGetAdminDictationSet<TData = Awaited<ReturnType<typeof getAdminDictationSet>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
+ setId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminDictationSet>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetAdminDictationSetQueryOptions(setId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSetAdminDictationApprovalUrl = (setId: string,
+    itemId: string,) => {
+
+
+
+
+  return `/api/v1/admin/dictation/sets/${setId}/items/${itemId}/approval`
+}
+
+/**
+ * `rbac: dictation:approve`. REJECTED requires a reason — a sentence
+ * turned down with no reason is one nobody can fix.
+ *
+ * The verdict is always stamped against the sentence's CURRENT revision.
+ * Editing the Korean or replacing the audio afterwards makes it stale, and
+ * a stale verdict counts as unreviewed everywhere: in the counter, and at
+ * the publish gate.
+ * @summary Nghe duyệt một câu
+ */
+export const setAdminDictationApproval = async (setId: string,
+    itemId: string,
+    adminDictationApprovalRequest: AdminDictationApprovalRequest, options?: Parameters<typeof apiFetch>[1]): Promise<AdminDictationItem> => {
+
+  return apiFetch<AdminDictationItem>(getSetAdminDictationApprovalUrl(setId,itemId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(adminDictationApprovalRequest)
+  }
+);}
+
+
+
+
+
+export const getSetAdminDictationApprovalMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setAdminDictationApproval>>, TError,{setId: string;itemId: string;data: AdminDictationApprovalRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setAdminDictationApproval>>, TError,{setId: string;itemId: string;data: AdminDictationApprovalRequest}, TContext> => {
+
+const mutationKey = ['setAdminDictationApproval'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setAdminDictationApproval>>, {setId: string;itemId: string;data: AdminDictationApprovalRequest}> = (props) => {
+          const {setId,itemId,data} = props ?? {};
+
+          return  setAdminDictationApproval(setId,itemId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetAdminDictationApprovalMutationResult = NonNullable<Awaited<ReturnType<typeof setAdminDictationApproval>>>
+    export type SetAdminDictationApprovalMutationBody = AdminDictationApprovalRequest
+    export type SetAdminDictationApprovalMutationError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | UnprocessableResponse
+
+    /**
+ * @summary Nghe duyệt một câu
+ */
+export const useSetAdminDictationApproval = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setAdminDictationApproval>>, TError,{setId: string;itemId: string;data: AdminDictationApprovalRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof setAdminDictationApproval>>,
+        TError,
+        {setId: string;itemId: string;data: AdminDictationApprovalRequest},
+        TContext
+      > => {
+      return useMutation(getSetAdminDictationApprovalMutationOptions(options), queryClient);
+    }
+
+export const getPublishAdminDictationSetUrl = (setId: string,
+    params?: PublishAdminDictationSetParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/admin/dictation/sets/${setId}/publish?${stringifiedParams}` : `/api/v1/admin/dictation/sets/${setId}/publish`
+}
+
+/**
+ * `rbac: dictation:publish`. Blockers refuse; warnings do not, but must be
+ * accepted explicitly — a warning nobody has to acknowledge is a warning
+ * nobody reads.
+ *
+ * **200 whatever the report says.** A report carrying blockers is an
+ * answer, not an error: the screen renders the list and the reviewer works
+ * through it, which a 4xx would turn into a banner with the detail buried.
+ * @summary Đưa bộ vào ngân hàng
+ */
+export const publishAdminDictationSet = async (setId: string,
+    params?: PublishAdminDictationSetParams, options?: Parameters<typeof apiFetch>[1]): Promise<AdminDictationPublishReport> => {
+
+  return apiFetch<AdminDictationPublishReport>(getPublishAdminDictationSetUrl(setId,params),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getPublishAdminDictationSetMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishAdminDictationSet>>, TError,{setId: string;params?: PublishAdminDictationSetParams}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof publishAdminDictationSet>>, TError,{setId: string;params?: PublishAdminDictationSetParams}, TContext> => {
+
+const mutationKey = ['publishAdminDictationSet'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof publishAdminDictationSet>>, {setId: string;params?: PublishAdminDictationSetParams}> = (props) => {
+          const {setId,params} = props ?? {};
+
+          return  publishAdminDictationSet(setId,params,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PublishAdminDictationSetMutationResult = NonNullable<Awaited<ReturnType<typeof publishAdminDictationSet>>>
+
+    export type PublishAdminDictationSetMutationError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse
+
+    /**
+ * @summary Đưa bộ vào ngân hàng
+ */
+export const usePublishAdminDictationSet = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof publishAdminDictationSet>>, TError,{setId: string;params?: PublishAdminDictationSetParams}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof publishAdminDictationSet>>,
+        TError,
+        {setId: string;params?: PublishAdminDictationSetParams},
+        TContext
+      > => {
+      return useMutation(getPublishAdminDictationSetMutationOptions(options), queryClient);
+    }
 
 export const getListAdminExamsUrl = (params?: ListAdminExamsParams,) => {
   const normalizedParams = new URLSearchParams();

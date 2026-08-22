@@ -23,22 +23,25 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { ExamImage } from './examImage';
-import type { ReviewPassageKind } from './reviewPassageKind';
 
-export interface ReviewPassage {
-  id: string;
-  kind: ReviewPassageKind;
-  bodyKo?: string;
-  bodyVi?: string;
-  transcriptKo?: string;
-  transcriptVi?: string;
-  /**
-     * The clip, replayable without limit — TCCN-114-2 is explicit that
-     * R-01's single listen governs sitting the paper and not studying it
-     * afterwards. A CDN address on a deployment with a public bucket, and
-     * the authenticated review route otherwise.
-     */
-  audioUrl?: string;
-  images?: ExamImage[];
-}
+/**
+ * Four states rather than a boolean, because TCCN-424-1 asks for
+ * three distinct facts by name — "âm tiết nào thiếu, âm tiết nào
+ * thừa, âm tiết nào gõ khác" — and a screen rendering all three the
+ * same way has answered none of them.
+ *
+ * SAME also covers every character the comparison never looked at:
+ * spaces and punctuation, which normalisation drops. The one grade
+ * where spacing genuinely differs is CLOSE, and TCCN-423-2 forbids
+ * error marks there — so there is no case where a dropped character
+ * should be marked.
+ */
+export type DictationCharState = typeof DictationCharState[keyof typeof DictationCharState];
+
+
+export const DictationCharState = {
+  SAME: 'SAME',
+  MISSING: 'MISSING',
+  EXTRA: 'EXTRA',
+  CHANGED: 'CHANGED',
+} as const;
