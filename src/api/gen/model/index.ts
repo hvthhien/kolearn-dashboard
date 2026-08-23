@@ -205,6 +205,8 @@ export * from './runnerPassage';
 export * from './runnerPassageKind';
 export * from './runnerQuestion';
 export * from './runnerQuestionType';
+export * from './saveDictationSetRequest';
+export * from './saveDictationSetRequestVoiceKind';
 export * from './saveQuestionRequest';
 export * from './saveShadowGlossaryEntryInput';
 export * from './saveShadowGlossaryRequest';

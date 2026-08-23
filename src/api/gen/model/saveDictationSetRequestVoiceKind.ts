@@ -23,29 +23,11 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { ShadowReviewSummary } from './shadowReviewSummary';
-import type { ShadowVideoStatus } from './shadowVideoStatus';
 
-export interface AdminShadowVideoRow {
-  id: string;
-  title: string;
-  /**
-     * @minimum 1
-     * @maximum 6
-     */
-  level: number;
-  status: ShadowVideoStatus;
-  /**
-     * Absent on a video that has never gone out — which is the one thing
-     * that decides whether it can be deleted or only retired, and it is
-     * not derivable from `status`, because a RETIRED video is not
-     * published now and still must not be deleted. Carried on the row
-     * rather than looked up per video so the list can label its own
-     * buttons. AdminDictationSetRow carries it for the same reason.
-     */
-  publishedAt?: string;
-  durationMs?: number;
-  lineCount: number;
-  wordCount: number;
-  review: ShadowReviewSummary;
-}
+export type SaveDictationSetRequestVoiceKind = typeof SaveDictationSetRequestVoiceKind[keyof typeof SaveDictationSetRequestVoiceKind];
+
+
+export const SaveDictationSetRequestVoiceKind = {
+  HUMAN: 'HUMAN',
+  SYNTHETIC: 'SYNTHETIC',
+} as const;

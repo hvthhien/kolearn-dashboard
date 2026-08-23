@@ -90,7 +90,20 @@ export const VIDEO_READY: AdminShadowVideoDetail = {
   review: { total: 4, approved: 4, rejected: 0, unreviewed: 0 },
 }
 
-export const SHADOW_VIDEOS = [VIDEO_RESTAURANT, VIDEO_EMPTY, VIDEO_READY]
+/**
+ * One that has already gone out, so both remove buttons exist somewhere in the
+ * fixture set. `publishedAt` is what decides whether a row offers "Xoá" or
+ * "Gỡ", and a library of nothing but drafts would exercise only one of them.
+ */
+export const VIDEO_PUBLISHED: AdminShadowVideoDetail = {
+  ...VIDEO_READY,
+  id: 'sv-4',
+  title: 'Hỏi đường',
+  status: 'PUBLISHED',
+  publishedAt: '2026-08-01T09:00:00Z',
+}
+
+export const SHADOW_VIDEOS = [VIDEO_RESTAURANT, VIDEO_EMPTY, VIDEO_READY, VIDEO_PUBLISHED]
 
 function line(
   id: string,

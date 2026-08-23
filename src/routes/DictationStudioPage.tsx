@@ -1,8 +1,15 @@
 import { useState } from 'react'
-import { Link, useParams } from '@tanstack/react-router'
+import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
-import { getGetAdminDictationSetQueryKey, useGetAdminDictationSet } from '../api/gen/kolearn'
+import {
+  deleteAdminDictationSet,
+  getGetAdminDictationSetQueryKey,
+  getListAdminDictationSetsQueryKey,
+  retireAdminDictationSet,
+  useGetAdminDictationSet,
+} from '../api/gen/kolearn'
 import { userMessage } from '../lib/problem'
+import { useAuth } from '../lib/auth'
 import {
   Badge,
   Button,
@@ -14,24 +21,37 @@ import {
 } from '../components/ui'
 import { ReviewPanel } from '../features/dictation/ReviewPanel'
 import { PublishSetDialog } from '../features/dictation/PublishSetDialog'
+import { EditSetDialog } from '../features/dictation/EditSetDialog'
+import { RemoveDialog } from '../features/manage/RemoveDialog'
+import { removalFor } from '../features/manage/removal'
 
 /**
  * Xưởng chép chính tả — one set.
  *
- * Read-only about the content, and that is the whole shape of it. The
+ * Read-only about the CONTENT, and that is the whole shape of it. The
  * sentences, the translations, the dictionary and the anchors arrive through
- * `cmd/dictation-import`; the only thing this screen writes is the verdict.
+ * `cmd/dictation-import`; what this screen writes is the verdict, the four
+ * metadata fields, and whether the set still exists.
  *
  * That is not a stopgap. It is what the screen is for: the importer can do
  * everything except hear whether the audio says what the transcript claims, and
  * that single check is what stands between a mis-transcribed sentence and a
  * learner being marked wrong for hearing correctly.
+ *
+ * "Sửa thông tin" does not soften that line. It reaches the title, the level
+ * and the voice labels — the things the importer cannot fix afterwards because
+ * it was the manifest that was wrong — and no sentence goes back for another
+ * ear over a rename.
  */
 export function DictationStudioPage() {
   const { setId } = useParams({ from: '/dictation/$setId' })
   const { data, error, isPending } = useGetAdminDictationSet(setId)
   const [publishing, setPublishing] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [removing, setRemoving] = useState(false)
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
+  const { user } = useAuth()
 
   if (error != null) {
     return (
@@ -50,6 +70,18 @@ export function DictationStudioPage() {
 
   const ready = data.review.unreviewed === 0 && data.review.rejected === 0
 
+  const canWrite = user?.permissions.includes('dictation:write') ?? false
+  const canPublish = user?.permissions.includes('dictation:publish') ?? false
+  const removal = removalFor(data.publishedAt)
+  // Deleting is authoring and retiring is release, so the button is offered on
+  // whichever permission matches the operation this set would actually get.
+  const canRemove = removal === 'DELETE' ? canWrite : canPublish
+
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: getGetAdminDictationSetQueryKey(data.id) })
+    void queryClient.invalidateQueries({ queryKey: getListAdminDictationSetsQueryKey() })
+  }
+
   return (
     <PageShell>
       <Link to="/dictation" className="text-sm font-medium text-brand">
@@ -58,9 +90,16 @@ export function DictationStudioPage() {
 
       <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
         <PageTitle>{data.title}</PageTitle>
-        <Button onClick={() => setPublishing(true)} disabled={data.status === 'PUBLISHED'}>
-          {data.status === 'PUBLISHED' ? 'Đã xuất bản' : 'Xuất bản'}
-        </Button>
+        <div className="flex items-center gap-2">
+          {canWrite && (
+            <Button type="button" variant="secondary" onClick={() => setEditing(true)}>
+              Sửa thông tin
+            </Button>
+          )}
+          <Button onClick={() => setPublishing(true)} disabled={data.status === 'PUBLISHED'}>
+            {data.status === 'PUBLISHED' ? 'Đã xuất bản' : 'Xuất bản'}
+          </Button>
+        </div>
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted">
@@ -142,7 +181,56 @@ export function DictationStudioPage() {
         </>
       )}
 
+      {/* Last on the page, and behind a confirmation, because everything above
+          it is additive and this is the one control that takes something away.
+          Which operation it offers is not a choice presented here — the set's
+          own history decides, and RemoveDialog says which one it will run. */}
+      {canRemove && (
+        <section aria-labelledby="remove-section" className="mt-10 border-t border-line pt-6">
+          <SectionHeading id="remove-section">
+            {removal === 'DELETE' ? 'Xoá bộ này' : 'Gỡ khỏi ngân hàng'}
+          </SectionHeading>
+          <p className="mt-1 max-w-prose text-sm text-muted">
+            {removal === 'DELETE'
+              ? 'Bộ này chưa từng xuất bản, nên xoá được hẳn — cùng toàn bộ câu và từ điển. Nhập lại bằng lệnh nhập nếu cần.'
+              : 'Bộ này đã từng xuất bản nên không xoá được. Gỡ sẽ đưa nó ra khỏi danh sách của người học, còn kết quả chép và thẻ đã tạo thì giữ nguyên.'}
+          </p>
+          <div className="mt-3">
+            <Button
+              type="button"
+              variant={removal === 'DELETE' ? 'danger' : 'secondary'}
+              onClick={() => setRemoving(true)}
+            >
+              {removal === 'DELETE' ? 'Xoá hẳn bộ' : 'Gỡ khỏi ngân hàng'}
+            </Button>
+          </div>
+        </section>
+      )}
+
       {publishing && <PublishSetDialog set={data} onClose={() => setPublishing(false)} />}
+
+      {editing && (
+        <EditSetDialog set={data} onClose={() => setEditing(false)} onSaved={refresh} />
+      )}
+
+      {removing && (
+        <RemoveDialog
+          noun="bộ"
+          title={data.title}
+          publishedAt={data.publishedAt}
+          learnerRecord="kết quả chép của họ"
+          onDelete={() => deleteAdminDictationSet(data.id)}
+          onRetire={() => retireAdminDictationSet(data.id).then(() => undefined)}
+          onClose={() => setRemoving(false)}
+          onDone={(done) => {
+            refresh()
+            // Only a delete leaves nothing to come back to. A retired set is
+            // still reviewable and still republishable, so staying on it is
+            // what lets the next click be "fix the sentence and publish again".
+            if (done === 'DELETE') void navigate({ to: '/dictation' })
+          }}
+        />
+      )}
     </PageShell>
   )
 }

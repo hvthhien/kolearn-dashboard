@@ -1,9 +1,11 @@
 import { useRef, useState } from 'react'
-import { Link, useParams } from '@tanstack/react-router'
+import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import {
+  deleteAdminShadowVideo,
   getGetAdminShadowVideoQueryKey,
   getListAdminShadowVideosQueryKey,
+  retireAdminShadowVideo,
   saveAdminShadowGlossary,
   saveAdminShadowLines,
   saveAdminShadowVideo,
@@ -18,6 +20,8 @@ import { ApprovalPanel } from '../features/shadowing/ApprovalPanel'
 import { GlossaryEditor } from '../features/shadowing/GlossaryEditor'
 import { VideoUploadPanel } from '../features/shadowing/VideoUploadPanel'
 import { PublishVideoDialog } from '../features/shadowing/PublishVideoDialog'
+import { RemoveDialog } from '../features/manage/RemoveDialog'
+import { removalFor } from '../features/manage/removal'
 import { blocking, issueMessage, sortByStart, validateLines } from '../features/shadowing/lineRules'
 import {
   Badge,
@@ -87,9 +91,16 @@ function Studio({ video }: { video: AdminShadowVideoDetail }) {
   const [saved, setSaved] = useState(false)
   const [saveError, setSaveError] = useState<unknown>(null)
   const [publishing, setPublishing] = useState(false)
+  const [removing, setRemoving] = useState(false)
   const videoRef = useRef<HTMLVideoElement | null>(null)
+  const navigate = useNavigate()
 
   const canPublish = user?.permissions.includes('shadowing:publish') ?? false
+  const canWrite = user?.permissions.includes('shadowing:write') ?? false
+  const removal = removalFor(video.publishedAt)
+  // Deleting is authoring and retiring is release, so the button is offered on
+  // whichever permission matches the operation this video would actually get.
+  const canRemove = removal === 'DELETE' ? canWrite : canPublish
 
   const issues = validateLines(draft.lines, video.asset?.durationMs ?? null)
   const blockers = issues.filter(blocking)
@@ -298,11 +309,56 @@ function Studio({ video }: { video: AdminShadowVideoDetail }) {
         </WarnNote>
       </section>
 
+      {/* Last on the page, and behind a confirmation, because everything above
+          it is additive and this is the one control that takes something away.
+          Which operation it offers is not a choice presented here — the row's
+          own history decides, and RemoveDialog says which one it will run. */}
+      {canRemove && (
+        <section aria-labelledby="remove-section" className="mt-10 border-t border-line pt-6">
+          <SectionHeading id="remove-section">
+            {removal === 'DELETE' ? 'Xoá video này' : 'Gỡ khỏi ngân hàng'}
+          </SectionHeading>
+          <p className="mt-1 max-w-prose text-sm text-muted">
+            {removal === 'DELETE'
+              ? 'Video này chưa từng xuất bản, nên xoá được hẳn — cùng lời thoại và từ điển.'
+              : 'Video này đã từng xuất bản nên không xoá được. Gỡ sẽ đưa nó ra khỏi danh sách của người học, còn tiến độ và thẻ đã tạo thì giữ nguyên.'}
+          </p>
+          <div className="mt-3">
+            <Button
+              type="button"
+              variant={removal === 'DELETE' ? 'danger' : 'secondary'}
+              onClick={() => setRemoving(true)}
+            >
+              {removal === 'DELETE' ? 'Xoá hẳn video' : 'Gỡ khỏi ngân hàng'}
+            </Button>
+          </div>
+        </section>
+      )}
+
       {publishing && (
         <PublishVideoDialog
           videoId={video.id}
           onClose={() => setPublishing(false)}
           onPublished={() => void refresh()}
+        />
+      )}
+
+      {removing && (
+        <RemoveDialog
+          noun="video"
+          title={video.title}
+          publishedAt={video.publishedAt}
+          learnerRecord="tiến độ của họ"
+          onDelete={() => deleteAdminShadowVideo(video.id)}
+          onRetire={() => retireAdminShadowVideo(video.id).then(() => undefined)}
+          onClose={() => setRemoving(false)}
+          onDone={(done) => {
+            void refresh()
+            // Only a delete leaves nothing to come back to. A retired video is
+            // still editable and still republishable, so staying on it is what
+            // lets the next click be "fix the line and publish again".
+            if (done === 'DELETE') void navigate({ to: '/videos' })
+          }}
         />
       )}
     </PageShell>

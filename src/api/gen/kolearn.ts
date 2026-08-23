@@ -128,6 +128,7 @@ import type {
   ResetPasswordBody,
   ReviewAttempt200,
   ReviewAttemptParams,
+  SaveDictationSetRequest,
   SaveQuestionRequest,
   SaveShadowGlossaryRequest,
   SaveShadowLinesRequest,
@@ -6624,6 +6625,182 @@ export function useGetAdminDictationSet<TData = Awaited<ReturnType<typeof getAdm
 
 
 
+export const getSaveAdminDictationSetUrl = (setId: string,) => {
+
+
+
+
+  return `/api/v1/admin/dictation/sets/${setId}`
+}
+
+/**
+ * `rbac: dictation:write` — the permission migration 00023 seeded and no
+ * route has held until now.
+ *
+ * The metadata only: title, level, voice. Sentences, translations and the
+ * dictionary still arrive through `cmd/dictation-import` and cannot be
+ * edited here, which is the division the studio screen is built on. What
+ * this fixes is the class of mistake the importer cannot: a title typed
+ * wrong in the manifest, a set filed under the wrong TOPIK band, a voice
+ * label nobody filled in.
+ *
+ * No verdict is touched. Nothing here changes what a reviewer heard, so
+ * nothing here sends them back to hear it again — unlike an edit to a
+ * sentence, which bumps its revision and does exactly that.
+ * @summary Sửa thông tin bộ
+ */
+export const saveAdminDictationSet = async (setId: string,
+    saveDictationSetRequest: SaveDictationSetRequest, options?: Parameters<typeof apiFetch>[1]): Promise<AdminDictationSetDetail> => {
+
+  return apiFetch<AdminDictationSetDetail>(getSaveAdminDictationSetUrl(setId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(saveDictationSetRequest)
+  }
+);}
+
+
+
+
+
+export const getSaveAdminDictationSetMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveAdminDictationSet>>, TError,{setId: string;data: SaveDictationSetRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveAdminDictationSet>>, TError,{setId: string;data: SaveDictationSetRequest}, TContext> => {
+
+const mutationKey = ['saveAdminDictationSet'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveAdminDictationSet>>, {setId: string;data: SaveDictationSetRequest}> = (props) => {
+          const {setId,data} = props ?? {};
+
+          return  saveAdminDictationSet(setId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveAdminDictationSetMutationResult = NonNullable<Awaited<ReturnType<typeof saveAdminDictationSet>>>
+    export type SaveAdminDictationSetMutationBody = SaveDictationSetRequest
+    export type SaveAdminDictationSetMutationError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | UnprocessableResponse
+
+    /**
+ * @summary Sửa thông tin bộ
+ */
+export const useSaveAdminDictationSet = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveAdminDictationSet>>, TError,{setId: string;data: SaveDictationSetRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof saveAdminDictationSet>>,
+        TError,
+        {setId: string;data: SaveDictationSetRequest},
+        TContext
+      > => {
+      return useMutation(getSaveAdminDictationSetMutationOptions(options), queryClient);
+    }
+
+export const getDeleteAdminDictationSetUrl = (setId: string,) => {
+
+
+
+
+  return `/api/v1/admin/dictation/sets/${setId}`
+}
+
+/**
+ * `rbac: dictation:write`. A hard delete, and deliberately narrow: it
+ * refuses with **409** on any set that has ever been published, whatever
+ * its status is now.
+ *
+ * `published_at IS NULL` is the test, not `status <> 'PUBLISHED'`. A set
+ * that went out and was later retired still has learners' results hanging
+ * off it and cards naming its sentences as their source, and the row is
+ * the only thing that can still say where those came from. Retiring is
+ * what removes such a set from the learner's world; this is for the other
+ * kind — an import that went wrong, a set made to test the importer,
+ * content no learner has ever been able to reach.
+ *
+ * Because a set only becomes reachable by publishing, that same test is
+ * what makes the cascade safe: with no `published_at` there are no
+ * results, no bookmarks and no cards to lose.
+ *
+ * The rows in `assets` are left where they are, and so are the objects on
+ * the edge. Audio is content-addressed and outlives any one row pointing
+ * at it; reclaiming it is a sweep that knows every reference, not a side
+ * effect of one delete.
+ * @summary Xoá hẳn một bộ chưa từng xuất bản
+ */
+export const deleteAdminDictationSet = async (setId: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getDeleteAdminDictationSetUrl(setId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteAdminDictationSetMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminDictationSet>>, TError,{setId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteAdminDictationSet>>, TError,{setId: string}, TContext> => {
+
+const mutationKey = ['deleteAdminDictationSet'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAdminDictationSet>>, {setId: string}> = (props) => {
+          const {setId} = props ?? {};
+
+          return  deleteAdminDictationSet(setId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteAdminDictationSetMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAdminDictationSet>>>
+
+    export type DeleteAdminDictationSetMutationError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse
+
+    /**
+ * @summary Xoá hẳn một bộ chưa từng xuất bản
+ */
+export const useDeleteAdminDictationSet = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminDictationSet>>, TError,{setId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteAdminDictationSet>>,
+        TError,
+        {setId: string},
+        TContext
+      > => {
+      return useMutation(getDeleteAdminDictationSetMutationOptions(options), queryClient);
+    }
+
 export const getSetAdminDictationApprovalUrl = (setId: string,
     itemId: string,) => {
 
@@ -6790,6 +6967,92 @@ export const usePublishAdminDictationSet = <TError = UnauthorizedResponse | Forb
         TContext
       > => {
       return useMutation(getPublishAdminDictationSetMutationOptions(options), queryClient);
+    }
+
+export const getRetireAdminDictationSetUrl = (setId: string,) => {
+
+
+
+
+  return `/api/v1/admin/dictation/sets/${setId}/retire`
+}
+
+/**
+ * `rbac: dictation:publish` — the inverse of publish, held by whoever may
+ * publish, because deciding a set should stop reaching learners is the
+ * same decision as deciding it should reach them.
+ *
+ * Sets `status` to `RETIRED`. Every learner-facing query filters on
+ * `status = 'PUBLISHED'`, so the set leaves the list, the player and the
+ * card suggestions at once — while results, bookmarks and the cards
+ * naming its sentences all stay exactly where they are. That is the whole
+ * difference from delete, and it is why a published set cannot be deleted.
+ *
+ * Reversible: publishing again runs the gate and puts it back, so a set
+ * pulled over one bad sentence goes out again once the sentence is fixed.
+ *
+ * **409 on a set that was never published.** There is nothing to undo, and
+ * the answer for a draft no learner has seen is delete rather than retire.
+ * @summary Gỡ bộ khỏi ngân hàng
+ */
+export const retireAdminDictationSet = async (setId: string, options?: Parameters<typeof apiFetch>[1]): Promise<AdminDictationSetDetail> => {
+
+  return apiFetch<AdminDictationSetDetail>(getRetireAdminDictationSetUrl(setId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRetireAdminDictationSetMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retireAdminDictationSet>>, TError,{setId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof retireAdminDictationSet>>, TError,{setId: string}, TContext> => {
+
+const mutationKey = ['retireAdminDictationSet'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof retireAdminDictationSet>>, {setId: string}> = (props) => {
+          const {setId} = props ?? {};
+
+          return  retireAdminDictationSet(setId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RetireAdminDictationSetMutationResult = NonNullable<Awaited<ReturnType<typeof retireAdminDictationSet>>>
+
+    export type RetireAdminDictationSetMutationError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse
+
+    /**
+ * @summary Gỡ bộ khỏi ngân hàng
+ */
+export const useRetireAdminDictationSet = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retireAdminDictationSet>>, TError,{setId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof retireAdminDictationSet>>,
+        TError,
+        {setId: string},
+        TContext
+      > => {
+      return useMutation(getRetireAdminDictationSetMutationOptions(options), queryClient);
     }
 
 export const getListAdminExamsUrl = (params?: ListAdminExamsParams,) => {
@@ -8187,6 +8450,92 @@ export const useSaveAdminShadowVideo = <TError = UnauthorizedResponse | Forbidde
       return useMutation(getSaveAdminShadowVideoMutationOptions(options), queryClient);
     }
 
+export const getDeleteAdminShadowVideoUrl = (videoId: string,) => {
+
+
+
+
+  return `/api/v1/admin/shadowing/videos/${videoId}`
+}
+
+/**
+ * rbac: `shadowing:write`. A hard delete, refused with **409** on any
+ * video that has ever been published, whatever its status is now.
+ *
+ * `published_at IS NULL` is the test rather than `status <> 'PUBLISHED'`:
+ * a video that went out and was later retired still has tiến độ rows
+ * against its lines and cards naming those lines as their source, and the
+ * row is the only thing left that can say where they came from.
+ *
+ * A video only becomes reachable by publishing, so that same test is what
+ * makes the cascade safe — with no `published_at` there is no progress and
+ * no card to lose. Lines, dictionary and anchors go with it.
+ *
+ * The `assets` row and the object in the bucket are left alone. Thirty
+ * megabytes are worth reclaiming, but by a sweep that knows every
+ * reference, not by a delete that assumes it was the only one.
+ * @summary Xoá hẳn một video chưa từng xuất bản
+ */
+export const deleteAdminShadowVideo = async (videoId: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getDeleteAdminShadowVideoUrl(videoId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteAdminShadowVideoMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminShadowVideo>>, TError,{videoId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteAdminShadowVideo>>, TError,{videoId: string}, TContext> => {
+
+const mutationKey = ['deleteAdminShadowVideo'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAdminShadowVideo>>, {videoId: string}> = (props) => {
+          const {videoId} = props ?? {};
+
+          return  deleteAdminShadowVideo(videoId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteAdminShadowVideoMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAdminShadowVideo>>>
+
+    export type DeleteAdminShadowVideoMutationError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse
+
+    /**
+ * @summary Xoá hẳn một video chưa từng xuất bản
+ */
+export const useDeleteAdminShadowVideo = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminShadowVideo>>, TError,{videoId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteAdminShadowVideo>>,
+        TError,
+        {videoId: string},
+        TContext
+      > => {
+      return useMutation(getDeleteAdminShadowVideoMutationOptions(options), queryClient);
+    }
+
 export const getCreateShadowUploadTargetUrl = (videoId: string,) => {
 
 
@@ -8688,4 +9037,88 @@ export const usePublishAdminShadowVideo = <TError = UnauthorizedResponse | Forbi
         TContext
       > => {
       return useMutation(getPublishAdminShadowVideoMutationOptions(options), queryClient);
+    }
+
+export const getRetireAdminShadowVideoUrl = (videoId: string,) => {
+
+
+
+
+  return `/api/v1/admin/shadowing/videos/${videoId}/retire`
+}
+
+/**
+ * rbac: `shadowing:publish` — the inverse of publish, and the same
+ * decision, so the same permission.
+ *
+ * Sets `status` to `RETIRED`. Every learner-facing query filters on
+ * `status = 'PUBLISHED'`, so the video leaves the list and the player at
+ * once, while tiến độ and the cards made from its lines stay. That is
+ * the whole difference from delete, and why a published video cannot be
+ * deleted.
+ *
+ * Reversible: publishing again runs the gate and puts it back.
+ *
+ * **409 on a video that was never published**, where the answer is delete
+ * rather than retire.
+ * @summary Gỡ video khỏi ngân hàng
+ */
+export const retireAdminShadowVideo = async (videoId: string, options?: Parameters<typeof apiFetch>[1]): Promise<AdminShadowVideoDetail> => {
+
+  return apiFetch<AdminShadowVideoDetail>(getRetireAdminShadowVideoUrl(videoId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRetireAdminShadowVideoMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retireAdminShadowVideo>>, TError,{videoId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof retireAdminShadowVideo>>, TError,{videoId: string}, TContext> => {
+
+const mutationKey = ['retireAdminShadowVideo'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof retireAdminShadowVideo>>, {videoId: string}> = (props) => {
+          const {videoId} = props ?? {};
+
+          return  retireAdminShadowVideo(videoId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RetireAdminShadowVideoMutationResult = NonNullable<Awaited<ReturnType<typeof retireAdminShadowVideo>>>
+
+    export type RetireAdminShadowVideoMutationError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse
+
+    /**
+ * @summary Gỡ video khỏi ngân hàng
+ */
+export const useRetireAdminShadowVideo = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof retireAdminShadowVideo>>, TError,{videoId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof retireAdminShadowVideo>>,
+        TError,
+        {videoId: string},
+        TContext
+      > => {
+      return useMutation(getRetireAdminShadowVideoMutationOptions(options), queryClient);
     }

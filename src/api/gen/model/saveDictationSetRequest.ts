@@ -23,29 +23,20 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { ShadowReviewSummary } from './shadowReviewSummary';
-import type { ShadowVideoStatus } from './shadowVideoStatus';
+import type { SaveDictationSetRequestVoiceKind } from './saveDictationSetRequestVoiceKind';
 
-export interface AdminShadowVideoRow {
-  id: string;
+/**
+ * The metadata, and only the metadata — sentences and the dictionary come
+ * from cmd/dictation-import and are not editable through the API.
+ */
+export interface SaveDictationSetRequest {
+  /** @minLength 1 */
   title: string;
   /**
      * @minimum 1
      * @maximum 6
      */
   level: number;
-  status: ShadowVideoStatus;
-  /**
-     * Absent on a video that has never gone out — which is the one thing
-     * that decides whether it can be deleted or only retired, and it is
-     * not derivable from `status`, because a RETIRED video is not
-     * published now and still must not be deleted. Carried on the row
-     * rather than looked up per video so the list can label its own
-     * buttons. AdminDictationSetRow carries it for the same reason.
-     */
-  publishedAt?: string;
-  durationMs?: number;
-  lineCount: number;
-  wordCount: number;
-  review: ShadowReviewSummary;
+  voice?: string;
+  voiceKind?: SaveDictationSetRequestVoiceKind;
 }

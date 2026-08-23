@@ -1,10 +1,21 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { useListAdminDictationSets } from '../api/gen/kolearn'
-import type { AdminDictationSetRowStatus } from '../api/gen/model'
+import { useQueryClient } from '@tanstack/react-query'
+import {
+  deleteAdminDictationSet,
+  getListAdminDictationSetsQueryKey,
+  retireAdminDictationSet,
+  useListAdminDictationSets,
+} from '../api/gen/kolearn'
+import type { AdminDictationSetRow, AdminDictationSetRowStatus } from '../api/gen/model'
 import { userMessage } from '../lib/problem'
+import { useAuth } from '../lib/auth'
+import { EditSetDialog } from '../features/dictation/EditSetDialog'
+import { RemoveDialog } from '../features/manage/RemoveDialog'
+import { removalFor, removalLabel } from '../features/manage/removal'
 import {
   Badge,
+  Button,
   ErrorNote,
   FilterChips,
   PageShell,
@@ -38,13 +49,31 @@ const STATUS_LABEL: Record<AdminDictationSetRowStatus, string> = {
  * So what this list is for is finding the sets that still need an ear. The
  * "chưa nghe" count is the column that matters, and it includes verdicts that
  * went stale when a sentence was edited underneath them.
+ *
+ * The two row actions are the exceptions the importer cannot cover. "Sửa"
+ * reaches the four metadata fields and nothing else, because a title typed
+ * wrong in the manifest is not fixable by re-importing audio that is already
+ * correct. The remove button is deliberately not one operation: it reads
+ * `publishedAt` and offers either "Xoá" or "Gỡ", never a choice between them.
  */
 export function DictationSetListPage() {
   const [status, setStatus] = useState<StatusFilter>('ALL')
+  const [editing, setEditing] = useState<AdminDictationSetRow | null>(null)
+  const [removing, setRemoving] = useState<AdminDictationSetRow | null>(null)
+  const queryClient = useQueryClient()
+  const { user } = useAuth()
+
+  const canWrite = user?.permissions.includes('dictation:write') ?? false
+  const canPublish = user?.permissions.includes('dictation:publish') ?? false
 
   const { data, error, isPending, isFetching } = useListAdminDictationSets(
     status === 'ALL' ? undefined : { status },
   )
+
+  /* No params, so this is the prefix every status filter hangs off — a set
+     removed under "Tất cả" must not still be sitting in the cached "Nháp". */
+  const refresh = () =>
+    queryClient.invalidateQueries({ queryKey: getListAdminDictationSetsQueryKey() })
 
   return (
     <PageShell>
@@ -105,6 +134,7 @@ export function DictationSetListPage() {
                 <Th className="text-right">Câu</Th>
                 <Th className="text-right">Chưa nghe</Th>
                 <Th>Trạng thái</Th>
+                <Th className="text-right">Thao tác</Th>
               </tr>
             }
           >
@@ -142,10 +172,60 @@ export function DictationSetListPage() {
                     {STATUS_LABEL[set.status]}
                   </Badge>
                 </Td>
+                <Td className="text-right">
+                  <div className="flex justify-end gap-1">
+                    {canWrite && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setEditing(set)}
+                      >
+                        Sửa
+                      </Button>
+                    )}
+                    {/* Which permission this needs depends on which operation
+                        the row would get, because they are different
+                        operations — deleting is authoring, retiring is
+                        release. Hiding it is a courtesy; rbac is the rule. */}
+                    {(removalFor(set.publishedAt) === 'DELETE' ? canWrite : canPublish) && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="text-wrong hover:bg-wrong/10"
+                        onClick={() => setRemoving(set)}
+                      >
+                        {removalLabel(removalFor(set.publishedAt))}
+                      </Button>
+                    )}
+                  </div>
+                </Td>
               </tr>
             ))}
           </Table>
         </Refreshing>
+      )}
+
+      {editing && (
+        <EditSetDialog
+          set={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => void refresh()}
+        />
+      )}
+
+      {removing && (
+        <RemoveDialog
+          noun="bộ"
+          title={removing.title}
+          publishedAt={removing.publishedAt}
+          learnerRecord="kết quả chép của họ"
+          onDelete={() => deleteAdminDictationSet(removing.id)}
+          onRetire={() => retireAdminDictationSet(removing.id).then(() => undefined)}
+          onClose={() => setRemoving(null)}
+          onDone={() => void refresh()}
+        />
       )}
     </PageShell>
   )

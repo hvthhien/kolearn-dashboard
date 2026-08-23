@@ -149,6 +149,14 @@ export const MOCK_USER: AuthTokens['user'] = {
     'shadowing:write',
     'shadowing:approve',
     'shadowing:publish',
+    // Chép chính tả. content_admin holds all four in 00023's seed, and this
+    // list was one short of it until the studio grew a write of its own —
+    // dictation:write had been seeded and mounted on no route, so nothing
+    // noticed. A permission the mock omits is a button the tests never see.
+    'dictation:read:any',
+    'dictation:write',
+    'dictation:approve',
+    'dictation:publish',
   ],
 }
 
@@ -285,6 +293,9 @@ export const handlers = [
         title: v.title,
         level: v.level,
         status: v.status,
+        // The field the remove button reads. Omitting it here would make every
+        // row look deletable, including the ones learners have practised with.
+        publishedAt: v.publishedAt,
         durationMs: v.asset?.durationMs ?? 0,
         lineCount: v.lines.length,
         wordCount: v.glossary.length,
@@ -501,6 +512,51 @@ export const handlers = [
     return HttpResponse.json(video)
   }),
 
+  /* Removing a video is two operations, and which one applies is decided by
+     published_at rather than by the caller. The mock enforces the same refusal
+     the server does, because a screen tested against a mock that let a
+     published row be deleted is a screen tested against fiction. */
+
+  http.delete(`${BASE}/admin/shadowing/videos/:videoId`, ({ params }) => {
+    const i = state.videos.findIndex((v) => v.id === params.videoId)
+    const video = state.videos[i]
+    if (!video) return new HttpResponse(null, { status: 404 })
+    if (video.publishedAt) {
+      return HttpResponse.json(
+        {
+          title: 'Xung đột trạng thái',
+          status: 409,
+          code: 'shadowing_video_published',
+          detail: 'Video này đã từng xuất bản nên không xoá được — hãy gỡ khỏi ngân hàng',
+        },
+        { status: 409 },
+      )
+    }
+    state.videos.splice(i, 1)
+    return new HttpResponse(null, { status: 204 })
+  }),
+
+  http.post(`${BASE}/admin/shadowing/videos/:videoId/retire`, ({ params }) => {
+    const video = state.videos.find((v) => v.id === params.videoId)
+    if (!video) return new HttpResponse(null, { status: 404 })
+    if (!video.publishedAt) {
+      return HttpResponse.json(
+        {
+          title: 'Xung đột trạng thái',
+          status: 409,
+          code: 'shadowing_video_never_published',
+          detail:
+            'Video này chưa từng xuất bản nên không có gì để gỡ — xoá hẳn nếu không cần nữa',
+        },
+        { status: 409 },
+      )
+    }
+    video.status = 'RETIRED'
+    // publishedAt survives. It is the record that this video once went out, and
+    // it is what keeps the delete above refusing afterwards.
+    return HttpResponse.json(video)
+  }),
+
   http.post(`${BASE}/admin/shadowing/videos/:videoId/publish`, ({ params, request }) => {
     const video = state.videos.find((v) => v.id === params.videoId)
     if (!video) return new HttpResponse(null, { status: 404 })
@@ -514,6 +570,10 @@ export const handlers = [
       return HttpResponse.json(report)
     }
     video.status = 'PUBLISHED'
+    // Stamped, not merely flagged. published_at is what the server's delete
+    // gate reads, so a mock that only moved `status` would let the screen offer
+    // "Xoá" on a video the real backend refuses to delete.
+    video.publishedAt = '2026-08-23T09:00:00Z'
     return HttpResponse.json({ ...report, published: true })
   }),
 
@@ -577,6 +637,77 @@ export const handlers = [
     },
   ),
 
+  /* The metadata, and only the metadata. Sentences and the dictionary still
+     come from cmd/dictation-import — a mock that accepted them would be
+     describing an endpoint the server does not have. */
+
+  http.put(`${BASE}/admin/dictation/sets/:setId`, async ({ params, request }) => {
+    const set = dictationState.sets[params.setId as string]
+    if (!set) return new HttpResponse(null, { status: 404 })
+
+    const body = (await request.json()) as {
+      title: string
+      level: number
+      voice?: string
+      voiceKind?: 'HUMAN' | 'SYNTHETIC'
+    }
+    if (body.title.trim() === '') {
+      return HttpResponse.json(
+        {
+          title: 'Dữ liệu không hợp lệ',
+          status: 422,
+          code: 'dictation_title_required',
+          detail: 'Bộ phải có tên',
+        },
+        { status: 422 },
+      )
+    }
+    set.title = body.title.trim()
+    set.level = body.level
+    set.voice = body.voice ?? ''
+    set.voiceKind = body.voiceKind ?? 'SYNTHETIC'
+    // Not a verdict in sight, which is the whole contract of this endpoint: a
+    // rename is the same audio saying the same sentences.
+    return HttpResponse.json({ ...set, review: summariseDictation(set) })
+  }),
+
+  http.delete(`${BASE}/admin/dictation/sets/:setId`, ({ params }) => {
+    const set = dictationState.sets[params.setId as string]
+    if (!set) return new HttpResponse(null, { status: 404 })
+    if (set.publishedAt) {
+      return HttpResponse.json(
+        {
+          title: 'Xung đột trạng thái',
+          status: 409,
+          code: 'dictation_set_published',
+          detail: 'Bộ này đã từng xuất bản nên không xoá được — hãy gỡ khỏi ngân hàng',
+        },
+        { status: 409 },
+      )
+    }
+    delete dictationState.sets[params.setId as string]
+    return new HttpResponse(null, { status: 204 })
+  }),
+
+  http.post(`${BASE}/admin/dictation/sets/:setId/retire`, ({ params }) => {
+    const set = dictationState.sets[params.setId as string]
+    if (!set) return new HttpResponse(null, { status: 404 })
+    if (!set.publishedAt) {
+      return HttpResponse.json(
+        {
+          title: 'Xung đột trạng thái',
+          status: 409,
+          code: 'dictation_set_never_published',
+          detail: 'Bộ này chưa từng xuất bản nên không có gì để gỡ — xoá hẳn nếu không cần nữa',
+        },
+        { status: 409 },
+      )
+    }
+    set.status = 'RETIRED'
+    // publishedAt survives — see the shadowing retire handler above.
+    return HttpResponse.json({ ...set, review: summariseDictation(set) })
+  }),
+
   http.post(`${BASE}/admin/dictation/sets/:setId/publish`, ({ params, request }) => {
     const set = dictationState.sets[params.setId as string]
     if (!set) return new HttpResponse(null, { status: 404 })
@@ -590,6 +721,8 @@ export const handlers = [
       return HttpResponse.json(report)
     }
     set.status = 'PUBLISHED'
+    // Stamped, not merely flagged — see the shadowing publish handler above.
+    set.publishedAt = '2026-08-23T09:00:00Z'
     return HttpResponse.json({ ...report, published: true })
   }),
 

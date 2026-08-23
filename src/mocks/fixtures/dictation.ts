@@ -1,12 +1,16 @@
 import type { AdminDictationSetDetail } from '../../api/gen/model'
 
 /**
- * One dictation set in the state a reviewer actually opens it in: imported,
- * DRAFT, and nobody has heard anything yet.
+ * Two sets: one in the state a reviewer actually opens it in — imported, DRAFT,
+ * nobody has heard anything yet — and one that has already gone out.
  *
  * The sentences are the sample clip's and the seed video's, so what the mock
  * says and what `make dictation-import` produces are the same content — a mock
  * that drifts from the real corpus is a screen tested against fiction.
+ *
+ * The published one earns its place: `publishedAt` is what decides whether a
+ * row offers "Xoá" or "Gỡ", and a fixture set with nothing but drafts would
+ * exercise exactly one of the two on every screen that shows them.
  */
 export const DICTATION_SETS: Record<string, AdminDictationSetDetail> = {
   'ds-1': {
@@ -86,5 +90,37 @@ export const DICTATION_SETS: Record<string, AdminDictationSetDetail> = {
         occurrences: [{ itemId: 'di-2', charStart: 7, charEnd: 11, surfaceKo: '프로젝트' }],
       },
     ],
+  },
+  'ds-2': {
+    id: 'ds-2',
+    title: 'Chào hỏi hằng ngày',
+    level: 1,
+    voice: 'Nam',
+    voiceKind: 'HUMAN',
+    status: 'PUBLISHED',
+    // The field the remove button reads. A set that has been published can only
+    // be retired, and it stays that way after retiring — which is exactly the
+    // case a check against `status` alone would get wrong.
+    publishedAt: '2026-08-01T09:00:00Z',
+    review: { total: 1, approved: 1, rejected: 0, unreviewed: 0 },
+    items: [
+      {
+        id: 'di-9',
+        ordinal: 1,
+        textKo: '안녕하세요, 만나서 반갑습니다.',
+        textVi: 'Xin chào, rất vui được gặp bạn.',
+        audioUrl: 'https://media.test/exam-audio/ccc.mp3',
+        durationMs: 2100,
+        source: 'UPLOAD',
+        revision: 1,
+        approval: {
+          verdict: 'APPROVED',
+          stale: false,
+          reviewedByName: 'Người duyệt',
+          reviewedAt: '2026-07-31T08:00:00Z',
+        },
+      },
+    ],
+    glossary: [],
   },
 }

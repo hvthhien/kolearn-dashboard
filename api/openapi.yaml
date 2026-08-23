@@ -2109,6 +2109,71 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [studio]
+      operationId: saveAdminDictationSet
+      summary: Sửa thông tin bộ
+      description: |
+        `rbac: dictation:write` — the permission migration 00023 seeded and no
+        route has held until now.
+
+        The metadata only: title, level, voice. Sentences, translations and the
+        dictionary still arrive through `cmd/dictation-import` and cannot be
+        edited here, which is the division the studio screen is built on. What
+        this fixes is the class of mistake the importer cannot: a title typed
+        wrong in the manifest, a set filed under the wrong TOPIK band, a voice
+        label nobody filled in.
+
+        No verdict is touched. Nothing here changes what a reviewer heard, so
+        nothing here sends them back to hear it again — unlike an edit to a
+        sentence, which bumps its revision and does exactly that.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SaveDictationSetRequest' }
+      responses:
+        '200':
+          description: The set, as saved.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminDictationSetDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+    delete:
+      tags: [studio]
+      operationId: deleteAdminDictationSet
+      summary: Xoá hẳn một bộ chưa từng xuất bản
+      description: |
+        `rbac: dictation:write`. A hard delete, and deliberately narrow: it
+        refuses with **409** on any set that has ever been published, whatever
+        its status is now.
+
+        `published_at IS NULL` is the test, not `status <> 'PUBLISHED'`. A set
+        that went out and was later retired still has learners' results hanging
+        off it and cards naming its sentences as their source, and the row is
+        the only thing that can still say where those came from. Retiring is
+        what removes such a set from the learner's world; this is for the other
+        kind — an import that went wrong, a set made to test the importer,
+        content no learner has ever been able to reach.
+
+        Because a set only becomes reachable by publishing, that same test is
+        what makes the cascade safe: with no `published_at` there are no
+        results, no bookmarks and no cards to lose.
+
+        The rows in `assets` are left where they are, and so are the objects on
+        the edge. Audio is content-addressed and outlives any one row pointing
+        at it; reclaiming it is a sweep that knows every reference, not a side
+        effect of one delete.
+      responses:
+        '204':
+          description: Gone, with its sentences and its dictionary.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
 
   /admin/dictation/sets/{setId}/items/{itemId}/approval:
     parameters:
@@ -2173,6 +2238,40 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/dictation/sets/{setId}/retire:
+    parameters:
+      - $ref: '#/components/parameters/SetId'
+    post:
+      tags: [studio]
+      operationId: retireAdminDictationSet
+      summary: Gỡ bộ khỏi ngân hàng
+      description: |
+        `rbac: dictation:publish` — the inverse of publish, held by whoever may
+        publish, because deciding a set should stop reaching learners is the
+        same decision as deciding it should reach them.
+
+        Sets `status` to `RETIRED`. Every learner-facing query filters on
+        `status = 'PUBLISHED'`, so the set leaves the list, the player and the
+        card suggestions at once — while results, bookmarks and the cards
+        naming its sentences all stay exactly where they are. That is the whole
+        difference from delete, and it is why a published set cannot be deleted.
+
+        Reversible: publishing again runs the gate and puts it back, so a set
+        pulled over one bad sentence goes out again once the sentence is fixed.
+
+        **409 on a set that was never published.** There is nothing to undo, and
+        the answer for a draft no learner has seen is delete rather than retire.
+      responses:
+        '200':
+          description: The set, now retired.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminDictationSetDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
 
   # ── admin: ngân hàng đề (SC-BANK-ADMIN) ───────────────────────────────────
   #
@@ -2576,6 +2675,33 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '422': { $ref: '#/components/responses/Unprocessable' }
+    delete:
+      tags: [studio]
+      operationId: deleteAdminShadowVideo
+      summary: Xoá hẳn một video chưa từng xuất bản
+      description: |
+        rbac: `shadowing:write`. A hard delete, refused with **409** on any
+        video that has ever been published, whatever its status is now.
+
+        `published_at IS NULL` is the test rather than `status <> 'PUBLISHED'`:
+        a video that went out and was later retired still has tiến độ rows
+        against its lines and cards naming those lines as their source, and the
+        row is the only thing left that can say where they came from.
+
+        A video only becomes reachable by publishing, so that same test is what
+        makes the cascade safe — with no `published_at` there is no progress and
+        no card to lose. Lines, dictionary and anchors go with it.
+
+        The `assets` row and the object in the bucket are left alone. Thirty
+        megabytes are worth reclaiming, but by a sweep that knows every
+        reference, not by a delete that assumes it was the only one.
+      responses:
+        '204':
+          description: Gone, with its lines and its dictionary.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
 
   /admin/shadowing/videos/{videoId}/upload-target:
     parameters:
@@ -2784,6 +2910,38 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/shadowing/videos/{videoId}/retire:
+    parameters:
+      - $ref: '#/components/parameters/VideoId'
+    post:
+      tags: [studio]
+      operationId: retireAdminShadowVideo
+      summary: Gỡ video khỏi ngân hàng
+      description: |
+        rbac: `shadowing:publish` — the inverse of publish, and the same
+        decision, so the same permission.
+
+        Sets `status` to `RETIRED`. Every learner-facing query filters on
+        `status = 'PUBLISHED'`, so the video leaves the list and the player at
+        once, while tiến độ and the cards made from its lines stay. That is
+        the whole difference from delete, and why a published video cannot be
+        deleted.
+
+        Reversible: publishing again runs the gate and puts it back.
+
+        **409 on a video that was never published**, where the answer is delete
+        rather than retire.
+      responses:
+        '200':
+          description: The video, now retired.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminShadowVideoDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
 
 components:
 
@@ -5349,6 +5507,18 @@ components:
           items: { $ref: '#/components/schemas/AdminDictationGlossaryEntry' }
         review: { $ref: '#/components/schemas/AdminDictationReviewSummary' }
 
+    SaveDictationSetRequest:
+      type: object
+      required: [title, level]
+      description: |
+        The metadata, and only the metadata — sentences and the dictionary come
+        from cmd/dictation-import and are not editable through the API.
+      properties:
+        title: { type: string, minLength: 1 }
+        level: { type: integer, minimum: 1, maximum: 6 }
+        voice: { type: string }
+        voiceKind: { type: string, enum: [HUMAN, SYNTHETIC] }
+
     AdminDictationApprovalRequest:
       type: object
       required: [verdict]
@@ -5596,6 +5766,16 @@ components:
         title: { type: string }
         level: { type: integer, minimum: 1, maximum: 6 }
         status: { $ref: '#/components/schemas/ShadowVideoStatus' }
+        publishedAt:
+          type: string
+          format: date-time
+          description: |
+            Absent on a video that has never gone out — which is the one thing
+            that decides whether it can be deleted or only retired, and it is
+            not derivable from `status`, because a RETIRED video is not
+            published now and still must not be deleted. Carried on the row
+            rather than looked up per video so the list can label its own
+            buttons. AdminDictationSetRow carries it for the same reason.
         durationMs: { type: integer }
         lineCount: { type: integer }
         wordCount: { type: integer }
