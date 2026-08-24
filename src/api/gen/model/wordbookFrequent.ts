@@ -23,33 +23,23 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { ExamLevel } from './examLevel';
 
-export interface ExamListItem {
-  id: string;
-  code: string;
-  title: string;
-  level: ExamLevel;
-  year?: number;
-  questionCount: number;
-  /** How many times the caller has taken this exam. */
-  attemptCount: number;
+/**
+ * YC-507's *hay gặp* label. **Absent** for an entry found in one or two
+ * papers, and R-33 calls that "trạng thái bình thường — không phải thiếu
+ * dữ liệu": no dim badge, no "chưa đủ dữ liệu".
+ *
+ * It is a statistic over papers already sat, never a prediction. The
+ * screen must not say "từ này sẽ ra" or "nên học vì sắp thi" — same
+ * reason as điều cấm số 3 of ver1.1: the product does not forecast the
+ * real exam.
+ */
+export interface WordbookFrequent {
   /**
-     * The caller's best total. Absent when they have never submitted an
-     * attempt — which the list screen renders as its empty state rather
-     * than as a zero (R-13).
+     * How many published papers contain this headword, counted by PAPER
+     * and never by occurrence. A word appearing five times in one paper
+     * is one paper — that says something about that paper, not about how
+     * often the word comes up.
      */
-  bestScore?: number;
-  lastAttemptedAt?: string;
-  /**
-     * Whether this paper has a bảng từ vựng a learner can open
-     * (R-33, YC-506).
-     *
-     * SC-TEST-LIST is one of the two mandatory ways in, and neither
-     * requires having sat the paper — "Không bắt phải làm đề mới được xem
-     * bảng." False for a paper nobody has authored one for, and false for
-     * one whose entries are all still incomplete, so the screen never
-     * offers a control that leads to an empty page.
-     */
-  hasWordbook?: boolean;
+  examCount: number;
 }

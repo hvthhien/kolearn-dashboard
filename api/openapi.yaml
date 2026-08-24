@@ -38,6 +38,8 @@ tags:
   - name: writing
   - name: shadowing
   - name: dictation
+  - name: wordbook
+  - name: assistant
   - name: studio
   - name: admin
 
@@ -1296,7 +1298,116 @@ paths:
                       types can check. Summing `items` is that fallback, and it
                       is correct whenever the response was not truncated.
                     items: { $ref: '#/components/schemas/WeaknessCategoryRow' }
+                  insufficientData:
+                    type: boolean
+                    description: |
+                      There is not yet enough behind this learner to name a
+                      weakness, so `items` and `categories` are empty on
+                      purpose (TCCN-541-5): the screen says "Chưa đủ dữ liệu để
+                      chỉ ra điểm yếu" and offers one thing that can be done
+                      right now.
+
+                      A flag rather than an inference from two empty arrays,
+                      because they mean different things. Empty with this false
+                      is "you have made no mistakes we can group"; empty with it
+                      true is "you have not done enough for us to tell", and
+                      only the second owes the learner a next step.
+
+                      The thresholds behind it are rows in `weakness_policies`,
+                      not constants — a bank of five papers and a bank of fifty
+                      do not agree about how much is enough.
         '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /me/weakness/topics/{topicId}/recommendations:
+    get:
+      tags: [weakness]
+      operationId: getTopicRecommendations
+      summary: Ôn lại — what this chủ điểm opens onto (YC-541, YC-542)
+      description: |
+        The đề xuất panel for one chủ điểm of the weakness table. Two blocks,
+        never merged, câu chưa từng gặp always first:
+
+        1. **Câu chưa từng gặp** — questions on this chủ điểm from the bank the
+           learner has never been served, in any attempt.
+        2. **Làm lại câu đã sai** — the questions they actually got wrong on it,
+           gathered across every sitting rather than within one (R-08).
+
+        The split is a constraint and not a way of laying out a list. Redoing
+        the exact questions already missed mostly measures whether the answer
+        is remembered, not whether the pattern is understood; merging the two
+        lets a learner answer six remembered questions correctly and conclude
+        they have it, while a new question still goes wrong (YC-542).
+
+        A block with nothing behind it is **absent**, never present with a zero
+        and never padded with off-topic questions to look full. An empty
+        `blocks` is the state where the screen says "Chưa có bài tập cho chủ
+        điểm này" and offers something else.
+
+        No model is called and no `R-11` quota is charged, however many times
+        the panel is reopened (TCCN-541-3): both counts are joins over chủ điểm
+        already attached to questions (R-06) and độ khó already assigned by
+        hand (YC-303).
+      parameters:
+        - name: topicId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: What each block would open. Unseen first.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TopicRecommendations' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /me/weakness/topics/{topicId}/practice:
+    post:
+      tags: [weakness]
+      operationId: startTopicPractice
+      summary: Open one block as a lượt Luyện tập (YC-542)
+      description: |
+        Creates a PRACTICE attempt holding the questions of the chosen block.
+
+        Always PRACTICE and always without a band. The questions come from
+        several papers at once, so the run has no blueprint of its own and no
+        honest total: "không quy đổi cấp độ, vì không phải đề đầy đủ"
+        (TCCN-542-2). It is scored and logged like any other run — a question
+        still wrong is marked sai lặp lại by the same rule (R-08), and the
+        error log gains rows rather than having any rewritten, so returning to
+        the weakness screen shows the fraction moved (TCCN-545-1).
+
+        R-03 still holds: one live attempt at a time. A learner with an
+        unfinished run gets the same 409 and the same `inProgressAttempt` as
+        every other way of starting one.
+      parameters:
+        - name: topicId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [block]
+              properties:
+                block: { $ref: '#/components/schemas/PracticeBlockKind' }
+      responses:
+        '201':
+          description: The run, ready to sit.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AttemptRunner' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: |
+            Another attempt is already in progress, or the block the client was
+            offered has since emptied.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/AttemptInProgressProblem' }
 
   # ── placement: kiểm tra đầu vào (SC-PLACEMENT) ────────────────────────────
 
@@ -2068,6 +2179,220 @@ paths:
   # textKo, so a sentence whose audio and transcript disagree marks a learner
   # wrong for hearing correctly, and they cannot tell that from their own
   # mistake.
+
+  # ── wordbook (R-33 · SC-EXAM-WORDBOOK) ────────────────────────────────────
+
+  /exams/{examId}/wordbook:
+    parameters:
+      - $ref: '#/components/parameters/ExamId'
+    get:
+      tags: [wordbook]
+      operationId: getExamWordbook
+      summary: One paper's bảng từ vựng, both lists
+      description: |
+        Every entry of both lists in one response, with the caller's own card
+        state for each.
+
+        **Not paginated, deliberately.** YC-504 and YC-507 require every filter
+        chip to show the number of entries matching it — "Chưa lưu 164", "Hay
+        gặp 26" — and a page cannot produce an honest one. A paper's wordbook
+        is a few hundred entries; the client narrows what it already holds.
+
+        Only entries with all six things appear (R-33: "thiếu một thứ thì mục
+        đó chưa hiện ra được"). An incomplete entry is absent, not dimmed and
+        not locked.
+
+        A paper with no wordbook answers 404, and so does one whose entries are
+        all incomplete. That is TCCN-501-5 — "Đề này chưa có bảng từ vựng." is
+        a designed state with its own copy, and an empty array would be
+        indistinguishable from a filter that matched nothing.
+      responses:
+        '200':
+          description: Both lists, in Từ vựng then Ngữ pháp order.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Wordbook' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /exams/{examId}/wordbook/entries/{entryId}/questions/{questionId}:
+    parameters:
+      - $ref: '#/components/parameters/ExamId'
+      - $ref: '#/components/parameters/EntryId'
+      - $ref: '#/components/parameters/QuestionId'
+    get:
+      tags: [wordbook]
+      operationId: getWordbookSourceSentence
+      summary: The original sentence behind "câu 14"
+      description: |
+        TCCN-501-3: touching a position opens the question it names and shows
+        the sentence verbatim.
+
+        **No choices, no answer key, no explanation.** YC-506 lets a learner
+        open a wordbook from SC-TEST-LIST without having sat the paper — and
+        they may still sit it — so this must not become a way to read the
+        answers. `internal/api/contract/leak_test.go` is where that stays true.
+      responses:
+        '200':
+          description: The stem, the passage it is read with, and where the headword sits.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WordbookSourceSentence' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /wordbook/entries/{entryId}/audio:
+    parameters:
+      - $ref: '#/components/parameters/EntryId'
+    get:
+      tags: [wordbook]
+      operationId: getWordbookAudio
+      summary: A pronunciation clip, on a deployment with no public bucket
+      description: |
+        The fallback behind `Wordbook.items[].audioUrl`. Where a public bucket
+        is configured that field is a CDN address and this route is never
+        called; without one it is a path to here.
+
+        It rations nothing — R-33 gives a learner unlimited replays — so unlike
+        the exam-audio ticket route the only thing it enforces is that the
+        caller is signed in.
+      responses:
+        '200':
+          description: The clip.
+          content:
+            audio/*:
+              schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ── assistant (R-37 · SC-CHATBOT) ─────────────────────────────────────────
+  #
+  # Three routes and no fourth for the allowance. TCCN-563-1 is about ordering
+  # rather than display — the number has to be on screen before the learner
+  # types anything — so it rides on the opening payload instead of a call the
+  # panel would have to make separately.
+  #
+  # There is deliberately no route here that accepts audio. TCCN-568-3: the
+  # product removed every recording surface and therefore carries no
+  # biometric-data obligation, and R-37 is blunt that one voice button on a
+  # side feature would drag all of it back.
+
+  /me/assistant:
+    get:
+      tags: [assistant]
+      operationId: getAssistantPanel
+      summary: Everything the trợ lý panel needs to open (YC-561, YC-563, R-11)
+      description: |
+        One request, because two would leave a frame in which the panel is open
+        and knows neither the allowance nor what to suggest — which is the empty
+        chat box `TCCN-562-6` forbids.
+
+        The anchor parameters describe what the learner has on screen. They
+        change the suggestions and the context an answer is built from; none of
+        them is required, and a panel opened with none of them still works.
+      parameters:
+        - name: screen
+          in: query
+          schema:
+            type: string
+            enum: [EXAM_WORDBOOK, REVIEW, TEST_RESULT, WEAKNESS, DECK]
+        - name: examId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: entryId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: attemptId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: questionId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: The allowance, the suggestions, and this learner's history.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AssistantPanel' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /me/assistant/questions:
+    post:
+      tags: [assistant]
+      operationId: askAssistant
+      summary: Ask one question (YC-562, YC-564, YC-566, YC-567)
+      description: |
+        Returns `200` for every outcome that produced a turn, including the two
+        where no answer was written — `NO_QUOTA` and `FAILED`. Both are things
+        that happened and are now stored, and each renders as its own line in
+        the thread with its own next step. `TCCN-562-5` asks for a retry button
+        beside the failure and for the typed question to stay in the box, and a
+        problem response gives the client the error but no turn to attach either
+        to.
+
+        Whether the turn cost a lượt is on `turn.charged`, and the balance after
+        it is on `quota`. `OFF_TOPIC` and `FAILED` never charge (`TCCN-567-1`),
+        and neither does an answer served from an earlier identical question
+        (`TCCN-564-1`, flagged as `turn.fromSaved`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AssistantAskRequest' }
+      responses:
+        '200':
+          description: The turn, and the allowance after it.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AssistantAskResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: |
+            The anchor names an attempt that is still in progress. `TCCN-566-1`
+            and `YC-565`: the launcher is not drawn during a paper, so this is
+            unreachable from the app.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '503':
+          description: |
+            This deployment has no AI provider configured, so there is nothing
+            to answer with. Nothing is broken — `AssistantPanel.available` is
+            `false` and the client draws no launcher, so a request arriving here
+            is a stale client or a direct API call.
+
+            Unlike other 5xx responses in this API, `detail` is populated: a
+            503 is only ever constructed deliberately, and on a
+            missing-configuration path the reason is the useful part.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /me/assistant/turns:
+    delete:
+      tags: [assistant]
+      operationId: deleteAssistantHistory
+      summary: Xoá toàn bộ lịch sử hỏi đáp (YC-568)
+      description: |
+        A real delete, not a retraction flag — `TCCN-568-2` says "xoá thật", and
+        R-37 files it beside "không dùng nội dung hỏi đáp vào việc gì khác".
+        The confirmation the criterion asks for happens in the client before
+        this is called.
+
+        The spent allowance does not come back, and `quota` is returned so the
+        panel can redraw the same figure it had: "xoá lịch sử không phải cách
+        lấy thêm lượt".
+      responses:
+        '200':
+          description: How many turns went, and the untouched allowance.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AssistantDeleteResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
 
   /admin/dictation/sets:
     get:
@@ -2992,6 +3317,11 @@ components:
       in: path
       required: true
       schema: { type: string, format: uuid }
+    EntryId:
+      name: entryId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
     VideoId:
       name: videoId
       in: path
@@ -3191,6 +3521,207 @@ components:
       type: string
       enum: [PRACTICE, EXAM]
 
+    MyCardWordbookSource:
+      type: object
+      required: [examId, examCode, examTitle, entryId]
+      description: |
+        One paper whose bảng từ vựng holds this word — a destination, not a
+        label. SC-EXAM-WORDBOOK opens on an exam and scrolls to an entry, so a
+        client can make this a link.
+
+        It carries no meaning and no example: the card's own back already holds
+        the contextual meaning it was saved with. This answers where, not what.
+      properties:
+        examId: { type: string, format: uuid }
+        examCode: { type: string }
+        examTitle: { type: string }
+        entryId: { type: string, format: uuid }
+
+    Wordbook:
+      type: object
+      required: [examId, examCode, examTitle, bankSize, items]
+      properties:
+        examId: { type: string, format: uuid }
+        examCode: { type: string }
+        examTitle: { type: string }
+        bankSize:
+          type: integer
+          description: |
+            How many papers have been published in the bank — the denominator
+            of every *hay gặp* label, sent once rather than repeated on each
+            entry because it is a fact about the bank and not about the word.
+
+            R-33 requires the label to carry its count: "Hay gặp — 4 trong 12
+            đề" lets a learner judge how much to trust it, where a bare star
+            cannot be judged.
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/WordbookItem' }
+
+    WordbookItem:
+      type: object
+      required: [id, kind, headwordKo, readingLatin, partOfSpeech, contextMeaningVi, meaningVi, audioUrl, examples, occurrences]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { $ref: '#/components/schemas/WordbookKind' }
+        headwordKo: { type: string }
+        readingLatin:
+          type: string
+          description: Cách đọc, in Latin script — R-33's second of six things.
+        partOfSpeech: { $ref: '#/components/schemas/WordbookPartOfSpeech' }
+        contextMeaningVi:
+          type: string
+          description: |
+            The meaning in THIS paper, and the primary one — R-33 shows it
+            first and offers the general meaning as "xem thêm".
+
+            It may never repeat `meaningVi`. That is điều cấm số 2 of ver1.2:
+            copying the gloss across "biến bảng này thành một danh sách từ mà
+            bất kỳ app miễn phí nào cũng có". Enforced by a database CHECK and
+            by the import gate, so a client can render both lines knowing they
+            say different things.
+        meaningVi:
+          type: string
+          description: Nghĩa chung, available as "see also" and never in place of the above.
+        audioUrl:
+          type: string
+          description: |
+            Where the pre-generated clip lives.
+
+            **Absolute** on a deployment with a public bucket — hand it to an
+            `<audio>` element, and the tenth play is a browser cache hit that
+            reaches no server. **Root-relative** without one, where it
+            addresses this API and needs a credential. Tell them apart by the
+            leading slash, not by parsing: a public base URL may legitimately
+            be http on localhost.
+
+            The clip is a file, never a call. YC-502: synthesising on play is
+            "biến phí theo đầu người" with no ceiling.
+        examples:
+          type: array
+          minItems: 2
+          maxItems: 2
+          description: |
+            Đúng hai, không một, không ba (R-33). An entry that does not have
+            exactly two is not returned at all.
+          items: { $ref: '#/components/schemas/WordbookExample' }
+        occurrences:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/WordbookOccurrence' }
+        frequent: { $ref: '#/components/schemas/WordbookFrequent' }
+        card: { $ref: '#/components/schemas/WordbookCardRef' }
+
+    WordbookPartOfSpeech:
+      type: string
+      enum: [NOUN, VERB, ADJECTIVE, ADVERB, GRAMMAR_PATTERN]
+      description: |
+        The same five values ShadowPartOfSpeech carries, and the same five the
+        dictation glossary uses inline. A third copy rather than one shared
+        schema, matching what is already here — merging them is a rename across
+        three generated clients and belongs in its own change, not in this one.
+
+    WordbookKind:
+      type: string
+      enum: [VOCAB, GRAMMAR]
+      description: |
+        R-33's two lists. They are rendered apart and never merged: "người học
+        ôn từ vựng và ôn ngữ pháp là hai việc khác nhau, và họ thường chỉ muốn
+        làm một trong hai tại một lúc."
+
+    WordbookExample:
+      type: object
+      required: [textKo, textVi]
+      properties:
+        textKo: { type: string }
+        textVi: { type: string }
+        fromQuestionOrdinal:
+          type: integer
+          description: |
+            The number printed on the paper, when this sentence came out of it
+            — a real sentence is preferred because "người học vừa gặp câu đó,
+            nối lại được ngay".
+
+            Absent for a câu soạn thêm. TCCN-502-3 makes that absence
+            meaningful: a written sentence records no position at all rather
+            than a vague one.
+
+    WordbookOccurrence:
+      type: object
+      required: [questionId, displayOrdinal, sectionKind]
+      properties:
+        questionId: { type: string, format: uuid }
+        displayOrdinal:
+          type: integer
+          description: |
+            The number printed on the paper — which on a TOPIK II reading
+            question is not the storage ordinal, because those restart at 1
+            after Listening and Writing occupy 1–54.
+        sectionKind: { $ref: '#/components/schemas/SectionKind' }
+
+    WordbookFrequent:
+      type: object
+      required: [examCount]
+      description: |
+        YC-507's *hay gặp* label. **Absent** for an entry found in one or two
+        papers, and R-33 calls that "trạng thái bình thường — không phải thiếu
+        dữ liệu": no dim badge, no "chưa đủ dữ liệu".
+
+        It is a statistic over papers already sat, never a prediction. The
+        screen must not say "từ này sẽ ra" or "nên học vì sắp thi" — same
+        reason as điều cấm số 3 of ver1.1: the product does not forecast the
+        real exam.
+      properties:
+        examCount:
+          type: integer
+          description: |
+            How many published papers contain this headword, counted by PAPER
+            and never by occurrence. A word appearing five times in one paper
+            is one paper — that says something about that paper, not about how
+            often the word comes up.
+
+    WordbookCardRef:
+      type: object
+      required: [id, state]
+      description: |
+        The caller's card for this word, from any source — a wrong answer, a
+        video, another paper's wordbook. One deck (R-15), and ver1.2's overview
+        calls that "nguyên tắc lớn nhất của cả sản phẩm".
+
+        Present on load rather than discovered by trying to save, because
+        YC-504 filters on it and TCCN-503-3 needs the screen to know before the
+        learner presses anything.
+      properties:
+        id: { type: string, format: uuid }
+        state: { $ref: '#/components/schemas/CardState' }
+
+    WordbookSourceSentence:
+      type: object
+      required: [questionId, displayOrdinal, sectionKind, stemKo, inPassage, charStart, charEnd]
+      properties:
+        questionId: { type: string, format: uuid }
+        displayOrdinal: { type: integer }
+        sectionKind: { $ref: '#/components/schemas/SectionKind' }
+        stemKo: { type: string }
+        stemVi: { type: string }
+        passageKo:
+          type: string
+          description: |
+            The passage the question is read with, when it has one. For a
+            listening question this is the transcript — the wordbook is read
+            after the paper, so there is nothing left to ration.
+        passageVi: { type: string }
+        inPassage:
+          type: boolean
+          description: Which of the two texts above the offsets below measure.
+        charStart:
+          type: integer
+          description: |
+            Where the headword sits, in **Unicode code points** — the unit
+            every offset in this API uses. Postgres `substring()`, Go `[]rune`
+            and JavaScript `Array.from()` agree; `String.slice` does not.
+        charEnd: { type: integer }
+
     ExamListItem:
       type: object
       required: [id, code, title, level, questionCount, attemptCount]
@@ -3211,6 +3742,17 @@ components:
             attempt — which the list screen renders as its empty state rather
             than as a zero (R-13).
         lastAttemptedAt: { type: string, format: date-time }
+        hasWordbook:
+          type: boolean
+          description: |
+            Whether this paper has a bảng từ vựng a learner can open
+            (R-33, YC-506).
+
+            SC-TEST-LIST is one of the two mandatory ways in, and neither
+            requires having sat the paper — "Không bắt phải làm đề mới được xem
+            bảng." False for a paper nobody has authored one for, and false for
+            one whose entries are all still incomplete, so the screen never
+            offers a control that leads to an empty page.
 
     ExamDetail:
       type: object
@@ -3519,11 +4061,21 @@ components:
     AttemptResult:
       type: object
       required:
-        [attemptId, mode, totalScore, maxTotalScore, correctCount, wrongCount,
-         skippedCount, voidedCount, sections, submittedAt]
+        [attemptId, examId, mode, totalScore, maxTotalScore, correctCount, wrongCount,
+         skippedCount, voidedCount, sections, submittedAt, hasWordbook]
       properties:
         attemptId: { type: string, format: uuid }
+        examId: { type: string, format: uuid }
         examTitle: { type: string }
+        hasWordbook:
+          type: boolean
+          description: |
+            Whether this paper has a bảng từ vựng to offer (R-33, YC-506).
+
+            SC-TEST-RESULT is the first of the two mandatory entry points, and
+            R-33 calls it the moment a learner wants it most — "đây là lúc
+            người học muốn nhất". False for a paper with no wordbook, so the
+            screen offers nothing rather than a control that leads nowhere.
         mode: { $ref: '#/components/schemas/AttemptMode' }
         totalScore: { type: integer }
         maxTotalScore: { type: integer }
@@ -3900,10 +4452,22 @@ components:
             and that plays a video this card has no video for. Widening it is a
             decision about that screen, not a side effect of recording where a
             card came from.
+        sourceWordbookEntryId:
+          type: string
+          format: uuid
+          description: |
+            The bảng từ vựng entry this word was saved from (R-33, YC-503).
+
+            Recorded whether a card was created or one already existed, which
+            is what makes TCCN-503-3 answerable: saving 접수 from this paper
+            having already saved it from a video creates **no second card**,
+            and the card that exists gains a line saying it also appears here.
+            The response still reports `alreadyExisted: true`, so the screen
+            says "Từ này đã có trong bộ thẻ của bạn" and offers the way to it.
 
     CardResult:
       type: object
-      required: [id, type, front, deckId, deckName, alreadyExisted]
+      required: [id, type, front, deckId, deckName, state, alreadyExisted]
       properties:
         id: { type: string, format: uuid }
         type: { type: string }
@@ -3911,6 +4475,16 @@ components:
         back: { type: string }
         deckId: { type: string, format: uuid }
         deckName: { type: string }
+        state:
+          allOf: [{ $ref: '#/components/schemas/CardState' }]
+          description: |
+            R-15's three states.
+
+            A card that was just created is always Mới, so on that branch this
+            is a constant. The other branch is why it travels: a word saved
+            from a video three weeks ago may be Đang học, and a screen that
+            shows state — SC-EXAM-WORDBOOK does, because YC-504 filters on it —
+            would otherwise guess Mới or refetch a whole list to find out.
         alreadyExisted:
           type: boolean
           description: |
@@ -3942,7 +4516,7 @@ components:
         One card as it appears in the learner's own collection.
 
         Carries no review schedule; see the note on `GET /me/cards`.
-      required: [id, type, front, deckId, deckName, state, topics, createdAt]
+      required: [id, type, front, deckId, deckName, state, topics, createdAt, wordbookSources]
       properties:
         id: { type: string, format: uuid }
         type:
@@ -3966,6 +4540,21 @@ components:
             to the weakness picture, and the screen says so in those words.
           items: { $ref: '#/components/schemas/Topic' }
         createdAt: { type: string, format: date-time }
+        wordbookSources:
+          type: array
+          description: |
+            Which papers' bảng từ vựng hold this word (R-33, YC-503).
+
+            A LIST, and the only provenance on a card that is one. The three
+            below each answer "thẻ này từ đâu ra" with a single place, which is
+            right for them — a card is made from one wrong answer, one line,
+            one sentence. A word is in as many papers as it is in, and
+            TCCN-503-3 makes that visible on a card the learner already had.
+
+            Empty for a card from any other source, never absent, so a client
+            has one branch rather than two. A paper withdrawn from the bank
+            drops out of the list rather than becoming a link to a 404.
+          items: { $ref: '#/components/schemas/MyCardWordbookSource' }
         source:
           allOf: [{ $ref: '#/components/schemas/MyCardSource' }]
           description: |
@@ -4230,6 +4819,135 @@ components:
         topicId: { type: string, format: uuid }
         topicName: { type: string }
 
+    AssistantPanel:
+      type: object
+      required: [quota, suggestions, turns, available]
+      properties:
+        quota:
+          allOf:
+            - $ref: '#/components/schemas/WritingQuota'
+          description: |
+            The ASSIST bucket. Same shape as the grading allowance because it is
+            the same ledger (00010) — R-11 rations both, in two buckets.
+        suggestions:
+          type: array
+          items: { type: string }
+          description: |
+            Two or three starter questions anchored to what is on screen
+            (`TCCN-562-6`). Written from the anchor, never generated: they show
+            before the learner has spent anything, so a model call here would
+            make opening the panel cost a lượt.
+        turns:
+          type: array
+          items: { $ref: '#/components/schemas/AssistantTurn' }
+          description: Oldest first, so the panel reads downward (`TCCN-568-1`).
+        available:
+          type: boolean
+          description: |
+            False when no AI provider is configured. The client hides the
+            launcher outright rather than drawing a button that cannot answer —
+            the same reasoning as `YC-565`'s "ẩn hẳn, không hiện ở trạng thái mờ".
+
+    AssistantTurn:
+      type: object
+      required: [id, askedAt, question, outcome, charged, fromSaved]
+      properties:
+        id: { type: string, format: uuid }
+        askedAt: { type: string, format: date-time }
+        question: { type: string }
+        outcome:
+          type: string
+          enum: [ANSWERED, GUIDED, NO_DATA, DECLINED, OFF_TOPIC, NO_QUOTA, FAILED]
+        answer:
+          allOf:
+            - $ref: '#/components/schemas/AssistantAnswer'
+          description: Absent for `NO_QUOTA` and `FAILED` — the question was kept, not answered.
+        charged:
+          type: boolean
+          description: Whether this turn cost a lượt. On screen it is what makes `TCCN-564-1` and `TCCN-567-1` visible rather than merely true.
+        fromSaved:
+          type: boolean
+          description: |
+            Served from an earlier identical question about the same thing
+            (`TCCN-564-1`). The client says so and offers "hỏi lại để sinh mới",
+            which does charge.
+
+    AssistantAnswer:
+      type: object
+      required: [kind, text, links]
+      properties:
+        kind:
+          type: string
+          enum: [ANSWERED, GUIDED, NO_DATA, DECLINED, OFF_TOPIC]
+        text: { type: string }
+        links:
+          type: array
+          items: { $ref: '#/components/schemas/AssistantLink' }
+
+    AssistantLink:
+      type: object
+      required: [screen, label]
+      properties:
+        screen:
+          type: string
+          enum: [WEAKNESS, EXAM_WORDBOOK, DECK, PLACEMENT, REVIEW]
+          description: |
+            A destination, not a path. The client maps it to a route — a URL in
+            this field would be a URL the model could invent, and a broken "ôn
+            lại ở đây" costs more trust than the answer earned.
+        label: { type: string }
+        topicId: { type: string, format: uuid }
+        examId: { type: string, format: uuid }
+        entryId: { type: string, format: uuid }
+
+    AssistantAskRequest:
+      type: object
+      required: [question]
+      properties:
+        question: { type: string, maxLength: 500 }
+        anchor: { $ref: '#/components/schemas/AssistantAnchor' }
+        regenerate:
+          type: boolean
+          description: |
+            Skip the saved answer and pay for a fresh one. `TCCN-564-1`'s "hỏi
+            lại để sinh mới" button, and that turn does charge — the criterion
+            says so, and the button says so before it is pressed.
+
+    AssistantAnchor:
+      type: object
+      description: |
+        What the learner had on screen. Context for the answer, and part of the
+        dedupe key: R-37 scopes the saved answer to "cùng một câu hỏi về cùng
+        một mục từ", so the same words asked over two papers are two questions.
+      properties:
+        screen:
+          type: string
+          enum: [EXAM_WORDBOOK, REVIEW, TEST_RESULT, WEAKNESS, DECK]
+        examId: { type: string, format: uuid }
+        entryId: { type: string, format: uuid }
+        attemptId: { type: string, format: uuid }
+        questionId: { type: string, format: uuid }
+
+    AssistantAskResult:
+      type: object
+      required: [turn, quota]
+      properties:
+        turn: { $ref: '#/components/schemas/AssistantTurn' }
+        quota:
+          allOf:
+            - $ref: '#/components/schemas/WritingQuota'
+          description: The allowance after this turn, so the counter on screen cannot drift from the ledger.
+
+    AssistantDeleteResult:
+      type: object
+      required: [deleted, quota]
+      properties:
+        deleted: { type: integer }
+        quota:
+          allOf:
+            - $ref: '#/components/schemas/WritingQuota'
+          description: Returned unchanged. "Hạn mức đã dùng không được hoàn lại" (`TCCN-568-2`).
+
     WritingQuota:
       type: object
       required: [bucket, remaining, limit, resetsAt]
@@ -4366,8 +5084,69 @@ components:
           description: The "3 từ bài viết" half — one row, two attributed sources.
         repeatWrongCount:
           type: integer
-          description: Wrong again on a retry. Sorted first (R-08).
+          description: |
+            Wrong again on a retry. Breaks the tie between two chủ điểm of
+            equal ratio (R-08, TCCN-543-1).
+        recentWrongStreak:
+          type: integer
+          description: |
+            How many of the most recent encounters were wrong, counting back
+            from the latest and stopping at the first that was not.
+
+            The second half of TCCN-541-2's reason — "vì bạn sai 8 trên 11 lần
+            gặp mẫu này, và 2 lần gần nhất vẫn sai" — and the one part of it
+            the totals cannot supply, because it is about order rather than
+            amount. Zero means the latest encounter was not wrong, which is a
+            different statement from never wrong: the client says nothing
+            rather than "0 lần".
+
+            Optional in the schema although this server always sends it, for
+            the reason `categories` gives above — the learner app deploys
+            separately, so a new client may reach an old instance.
+        resolved:
+          type: boolean
+          description: |
+            The last few encounters were all correct, so this chủ điểm has left
+            the đề xuất list however bad its history is (TCCN-544-1). It stays
+            in the table, badged, and returns on its own the moment it goes
+            wrong again, because it is derived from the log rather than stored.
         lastSeenAt: { type: string, format: date-time }
+
+    PracticeBlockKind:
+      type: string
+      description: |
+        Which half of YC-542's split a run came from. Kept apart on the wire
+        because they are kept apart everywhere else: the two measure different
+        things and must never be merged into one list.
+      enum: [UNSEEN_QUESTIONS, WRONG_REDO]
+
+    TopicPracticeBlock:
+      type: object
+      required: [block, count]
+      properties:
+        block: { $ref: '#/components/schemas/PracticeBlockKind' }
+        count:
+          type: integer
+          minimum: 1
+          description: |
+            How many questions pressing this block opens, which is also how
+            many the run will hold. Never zero — an empty block is absent from
+            `blocks` rather than present with a count of none.
+
+            Capped, so it is a promise the run keeps rather than the size of a
+            pool it would then take a slice of.
+
+    TopicRecommendations:
+      type: object
+      required: [blocks]
+      properties:
+        blocks:
+          type: array
+          description: |
+            Unseen first, and that order is fixed rather than sorted: "câu chưa
+            từng gặp đứng trước" is a rule about which block leads, not a
+            ranking that could come out the other way on some learner's data.
+          items: { $ref: '#/components/schemas/TopicPracticeBlock' }
 
     WeaknessCategoryRow:
       type: object

@@ -23,33 +23,13 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { ExamLevel } from './examLevel';
+import type { TopicPracticeBlock } from './topicPracticeBlock';
 
-export interface ExamListItem {
-  id: string;
-  code: string;
-  title: string;
-  level: ExamLevel;
-  year?: number;
-  questionCount: number;
-  /** How many times the caller has taken this exam. */
-  attemptCount: number;
+export interface TopicRecommendations {
   /**
-     * The caller's best total. Absent when they have never submitted an
-     * attempt — which the list screen renders as its empty state rather
-     * than as a zero (R-13).
+     * Unseen first, and that order is fixed rather than sorted: "câu chưa
+     * từng gặp đứng trước" is a rule about which block leads, not a
+     * ranking that could come out the other way on some learner's data.
      */
-  bestScore?: number;
-  lastAttemptedAt?: string;
-  /**
-     * Whether this paper has a bảng từ vựng a learner can open
-     * (R-33, YC-506).
-     *
-     * SC-TEST-LIST is one of the two mandatory ways in, and neither
-     * requires having sat the paper — "Không bắt phải làm đề mới được xem
-     * bảng." False for a paper nobody has authored one for, and false for
-     * one whose entries are all still incomplete, so the screen never
-     * offers a control that leads to an empty page.
-     */
-  hasWordbook?: boolean;
+  blocks: TopicPracticeBlock[];
 }

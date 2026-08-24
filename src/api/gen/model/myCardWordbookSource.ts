@@ -23,29 +23,18 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { CardState } from './cardState';
 
-export interface CardResult {
-  id: string;
-  type: string;
-  front: string;
-  back?: string;
-  deckId: string;
-  deckName: string;
-  /**
-     * R-15's three states.
-     *
-     * A card that was just created is always Mới, so on that branch this
-     * is a constant. The other branch is why it travels: a word saved
-     * from a video three weeks ago may be Đang học, and a screen that
-     * shows state — SC-EXAM-WORDBOOK does, because YC-504 filters on it —
-     * would otherwise guess Mới or refetch a whole list to find out.
-     */
-  state: CardState;
-  /**
-     * True when a card for this term was already in the collection. The
-     * existing card is returned unchanged — in particular its review
-     * schedule is untouched (TCCN-115-2).
-     */
-  alreadyExisted: boolean;
+/**
+ * One paper whose bảng từ vựng holds this word — a destination, not a
+ * label. SC-EXAM-WORDBOOK opens on an exam and scrolls to an entry, so a
+ * client can make this a link.
+ *
+ * It carries no meaning and no example: the card's own back already holds
+ * the contextual meaning it was saved with. This answers where, not what.
+ */
+export interface MyCardWordbookSource {
+  examId: string;
+  examCode: string;
+  examTitle: string;
+  entryId: string;
 }

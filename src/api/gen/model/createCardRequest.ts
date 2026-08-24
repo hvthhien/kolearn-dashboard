@@ -64,4 +64,15 @@ export interface CreateCardRequest {
      * card came from.
      */
   sourceDictationItemId?: string;
+  /**
+     * The bảng từ vựng entry this word was saved from (R-33, YC-503).
+     *
+     * Recorded whether a card was created or one already existed, which
+     * is what makes TCCN-503-3 answerable: saving 접수 from this paper
+     * having already saved it from a video creates **no second card**,
+     * and the card that exists gains a line saying it also appears here.
+     * The response still reports `alreadyExisted: true`, so the screen
+     * says "Từ này đã có trong bộ thẻ của bạn" and offers the way to it.
+     */
+  sourceWordbookEntryId?: string;
 }

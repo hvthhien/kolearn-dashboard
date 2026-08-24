@@ -23,29 +23,16 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { CardState } from './cardState';
 
-export interface CardResult {
-  id: string;
-  type: string;
-  front: string;
-  back?: string;
-  deckId: string;
-  deckName: string;
-  /**
-     * R-15's three states.
-     *
-     * A card that was just created is always Mới, so on that branch this
-     * is a constant. The other branch is why it travels: a word saved
-     * from a video three weeks ago may be Đang học, and a screen that
-     * shows state — SC-EXAM-WORDBOOK does, because YC-504 filters on it —
-     * would otherwise guess Mới or refetch a whole list to find out.
-     */
-  state: CardState;
-  /**
-     * True when a card for this term was already in the collection. The
-     * existing card is returned unchanged — in particular its review
-     * schedule is untouched (TCCN-115-2).
-     */
-  alreadyExisted: boolean;
-}
+/**
+ * Which half of YC-542's split a run came from. Kept apart on the wire
+ * because they are kept apart everywhere else: the two measure different
+ * things and must never be merged into one list.
+ */
+export type PracticeBlockKind = typeof PracticeBlockKind[keyof typeof PracticeBlockKind];
+
+
+export const PracticeBlockKind = {
+  UNSEEN_QUESTIONS: 'UNSEEN_QUESTIONS',
+  WRONG_REDO: 'WRONG_REDO',
+} as const;

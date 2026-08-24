@@ -23,33 +23,18 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { ExamLevel } from './examLevel';
+import type { PracticeBlockKind } from './practiceBlockKind';
 
-export interface ExamListItem {
-  id: string;
-  code: string;
-  title: string;
-  level: ExamLevel;
-  year?: number;
-  questionCount: number;
-  /** How many times the caller has taken this exam. */
-  attemptCount: number;
+export interface TopicPracticeBlock {
+  block: PracticeBlockKind;
   /**
-     * The caller's best total. Absent when they have never submitted an
-     * attempt — which the list screen renders as its empty state rather
-     * than as a zero (R-13).
-     */
-  bestScore?: number;
-  lastAttemptedAt?: string;
-  /**
-     * Whether this paper has a bảng từ vựng a learner can open
-     * (R-33, YC-506).
+     * How many questions pressing this block opens, which is also how
+     * many the run will hold. Never zero — an empty block is absent from
+     * `blocks` rather than present with a count of none.
      *
-     * SC-TEST-LIST is one of the two mandatory ways in, and neither
-     * requires having sat the paper — "Không bắt phải làm đề mới được xem
-     * bảng." False for a paper nobody has authored one for, and false for
-     * one whose entries are all still incomplete, so the screen never
-     * offers a control that leads to an empty page.
+     * Capped, so it is a promise the run keeps rather than the size of a
+     * pool it would then take a slice of.
+     * @minimum 1
      */
-  hasWordbook?: boolean;
+  count: number;
 }

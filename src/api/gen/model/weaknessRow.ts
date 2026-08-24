@@ -38,7 +38,33 @@ export interface WeaknessRow {
   mcqWrongCount: number;
   /** The "3 từ bài viết" half — one row, two attributed sources. */
   writingWrongCount: number;
-  /** Wrong again on a retry. Sorted first (R-08). */
+  /**
+     * Wrong again on a retry. Breaks the tie between two chủ điểm of
+     * equal ratio (R-08, TCCN-543-1).
+     */
   repeatWrongCount: number;
+  /**
+     * How many of the most recent encounters were wrong, counting back
+     * from the latest and stopping at the first that was not.
+     *
+     * The second half of TCCN-541-2's reason — "vì bạn sai 8 trên 11 lần
+     * gặp mẫu này, và 2 lần gần nhất vẫn sai" — and the one part of it
+     * the totals cannot supply, because it is about order rather than
+     * amount. Zero means the latest encounter was not wrong, which is a
+     * different statement from never wrong: the client says nothing
+     * rather than "0 lần".
+     *
+     * Optional in the schema although this server always sends it, for
+     * the reason `categories` gives above — the learner app deploys
+     * separately, so a new client may reach an old instance.
+     */
+  recentWrongStreak?: number;
+  /**
+     * The last few encounters were all correct, so this chủ điểm has left
+     * the đề xuất list however bad its history is (TCCN-544-1). It stays
+     * in the table, badged, and returns on its own the moment it goes
+     * wrong again, because it is derived from the log rather than stored.
+     */
+  resolved?: boolean;
   lastSeenAt?: string;
 }

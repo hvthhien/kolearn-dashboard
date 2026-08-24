@@ -23,29 +23,19 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { CardState } from './cardState';
 
-export interface CardResult {
-  id: string;
-  type: string;
-  front: string;
-  back?: string;
-  deckId: string;
-  deckName: string;
-  /**
-     * R-15's three states.
-     *
-     * A card that was just created is always Mới, so on that branch this
-     * is a constant. The other branch is why it travels: a word saved
-     * from a video three weeks ago may be Đang học, and a screen that
-     * shows state — SC-EXAM-WORDBOOK does, because YC-504 filters on it —
-     * would otherwise guess Mới or refetch a whole list to find out.
-     */
-  state: CardState;
-  /**
-     * True when a card for this term was already in the collection. The
-     * existing card is returned unchanged — in particular its review
-     * schedule is untouched (TCCN-115-2).
-     */
-  alreadyExisted: boolean;
-}
+/**
+ * A destination, not a path. The client maps it to a route — a URL in
+ * this field would be a URL the model could invent, and a broken "ôn
+ * lại ở đây" costs more trust than the answer earned.
+ */
+export type AssistantLinkScreen = typeof AssistantLinkScreen[keyof typeof AssistantLinkScreen];
+
+
+export const AssistantLinkScreen = {
+  WEAKNESS: 'WEAKNESS',
+  EXAM_WORDBOOK: 'EXAM_WORDBOOK',
+  DECK: 'DECK',
+  PLACEMENT: 'PLACEMENT',
+  REVIEW: 'REVIEW',
+} as const;

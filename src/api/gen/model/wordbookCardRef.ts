@@ -23,33 +23,18 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { ExamLevel } from './examLevel';
+import type { CardState } from './cardState';
 
-export interface ExamListItem {
+/**
+ * The caller's card for this word, from any source — a wrong answer, a
+ * video, another paper's wordbook. One deck (R-15), and ver1.2's overview
+ * calls that "nguyên tắc lớn nhất của cả sản phẩm".
+ *
+ * Present on load rather than discovered by trying to save, because
+ * YC-504 filters on it and TCCN-503-3 needs the screen to know before the
+ * learner presses anything.
+ */
+export interface WordbookCardRef {
   id: string;
-  code: string;
-  title: string;
-  level: ExamLevel;
-  year?: number;
-  questionCount: number;
-  /** How many times the caller has taken this exam. */
-  attemptCount: number;
-  /**
-     * The caller's best total. Absent when they have never submitted an
-     * attempt — which the list screen renders as its empty state rather
-     * than as a zero (R-13).
-     */
-  bestScore?: number;
-  lastAttemptedAt?: string;
-  /**
-     * Whether this paper has a bảng từ vựng a learner can open
-     * (R-33, YC-506).
-     *
-     * SC-TEST-LIST is one of the two mandatory ways in, and neither
-     * requires having sat the paper — "Không bắt phải làm đề mới được xem
-     * bảng." False for a paper nobody has authored one for, and false for
-     * one whose entries are all still incomplete, so the screen never
-     * offers a control that leads to an empty page.
-     */
-  hasWordbook?: boolean;
+  state: CardState;
 }

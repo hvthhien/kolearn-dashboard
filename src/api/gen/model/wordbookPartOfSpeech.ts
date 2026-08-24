@@ -23,29 +23,20 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { CardState } from './cardState';
 
-export interface CardResult {
-  id: string;
-  type: string;
-  front: string;
-  back?: string;
-  deckId: string;
-  deckName: string;
-  /**
-     * R-15's three states.
-     *
-     * A card that was just created is always Mới, so on that branch this
-     * is a constant. The other branch is why it travels: a word saved
-     * from a video three weeks ago may be Đang học, and a screen that
-     * shows state — SC-EXAM-WORDBOOK does, because YC-504 filters on it —
-     * would otherwise guess Mới or refetch a whole list to find out.
-     */
-  state: CardState;
-  /**
-     * True when a card for this term was already in the collection. The
-     * existing card is returned unchanged — in particular its review
-     * schedule is untouched (TCCN-115-2).
-     */
-  alreadyExisted: boolean;
-}
+/**
+ * The same five values ShadowPartOfSpeech carries, and the same five the
+ * dictation glossary uses inline. A third copy rather than one shared
+ * schema, matching what is already here — merging them is a rename across
+ * three generated clients and belongs in its own change, not in this one.
+ */
+export type WordbookPartOfSpeech = typeof WordbookPartOfSpeech[keyof typeof WordbookPartOfSpeech];
+
+
+export const WordbookPartOfSpeech = {
+  NOUN: 'NOUN',
+  VERB: 'VERB',
+  ADJECTIVE: 'ADJECTIVE',
+  ADVERB: 'ADVERB',
+  GRAMMAR_PATTERN: 'GRAMMAR_PATTERN',
+} as const;

@@ -31,7 +31,17 @@ import type { SectionResult } from './sectionResult';
 
 export interface AttemptResult {
   attemptId: string;
+  examId: string;
   examTitle?: string;
+  /**
+     * Whether this paper has a bảng từ vựng to offer (R-33, YC-506).
+     *
+     * SC-TEST-RESULT is the first of the two mandatory entry points, and
+     * R-33 calls it the moment a learner wants it most — "đây là lúc
+     * người học muốn nhất". False for a paper with no wordbook, so the
+     * screen offers nothing rather than a control that leads nowhere.
+     */
+  hasWordbook: boolean;
   mode: AttemptMode;
   totalScore: number;
   maxTotalScore: number;

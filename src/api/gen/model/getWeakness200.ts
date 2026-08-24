@@ -43,4 +43,22 @@ export type GetWeakness200 = {
      * is correct whenever the response was not truncated.
      */
   categories?: WeaknessCategoryRow[];
+  /**
+     * There is not yet enough behind this learner to name a
+     * weakness, so `items` and `categories` are empty on
+     * purpose (TCCN-541-5): the screen says "Chưa đủ dữ liệu để
+     * chỉ ra điểm yếu" and offers one thing that can be done
+     * right now.
+     *
+     * A flag rather than an inference from two empty arrays,
+     * because they mean different things. Empty with this false
+     * is "you have made no mistakes we can group"; empty with it
+     * true is "you have not done enough for us to tell", and
+     * only the second owes the learner a next step.
+     *
+     * The thresholds behind it are rows in `weakness_policies`,
+     * not constants — a bank of five papers and a bank of fifty
+     * do not agree about how much is enough.
+     */
+  insufficientData?: boolean;
 };

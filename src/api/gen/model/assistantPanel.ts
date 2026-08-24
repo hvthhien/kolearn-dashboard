@@ -23,33 +23,28 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { ExamLevel } from './examLevel';
+import type { AssistantTurn } from './assistantTurn';
+import type { WritingQuota } from './writingQuota';
 
-export interface ExamListItem {
-  id: string;
-  code: string;
-  title: string;
-  level: ExamLevel;
-  year?: number;
-  questionCount: number;
-  /** How many times the caller has taken this exam. */
-  attemptCount: number;
+export interface AssistantPanel {
   /**
-     * The caller's best total. Absent when they have never submitted an
-     * attempt — which the list screen renders as its empty state rather
-     * than as a zero (R-13).
+     * The ASSIST bucket. Same shape as the grading allowance because it is
+     * the same ledger (00010) — R-11 rations both, in two buckets.
      */
-  bestScore?: number;
-  lastAttemptedAt?: string;
+  quota: WritingQuota;
   /**
-     * Whether this paper has a bảng từ vựng a learner can open
-     * (R-33, YC-506).
-     *
-     * SC-TEST-LIST is one of the two mandatory ways in, and neither
-     * requires having sat the paper — "Không bắt phải làm đề mới được xem
-     * bảng." False for a paper nobody has authored one for, and false for
-     * one whose entries are all still incomplete, so the screen never
-     * offers a control that leads to an empty page.
+     * Two or three starter questions anchored to what is on screen
+     * (`TCCN-562-6`). Written from the anchor, never generated: they show
+     * before the learner has spent anything, so a model call here would
+     * make opening the panel cost a lượt.
      */
-  hasWordbook?: boolean;
+  suggestions: string[];
+  /** Oldest first, so the panel reads downward (`TCCN-568-1`). */
+  turns: AssistantTurn[];
+  /**
+     * False when no AI provider is configured. The client hides the
+     * launcher outright rather than drawing a button that cannot answer —
+     * the same reasoning as `YC-565`'s "ẩn hẳn, không hiện ở trạng thái mờ".
+     */
+  available: boolean;
 }

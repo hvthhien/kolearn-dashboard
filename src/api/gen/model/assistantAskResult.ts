@@ -23,29 +23,11 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { CardState } from './cardState';
+import type { AssistantTurn } from './assistantTurn';
+import type { WritingQuota } from './writingQuota';
 
-export interface CardResult {
-  id: string;
-  type: string;
-  front: string;
-  back?: string;
-  deckId: string;
-  deckName: string;
-  /**
-     * R-15's three states.
-     *
-     * A card that was just created is always Mới, so on that branch this
-     * is a constant. The other branch is why it travels: a word saved
-     * from a video three weeks ago may be Đang học, and a screen that
-     * shows state — SC-EXAM-WORDBOOK does, because YC-504 filters on it —
-     * would otherwise guess Mới or refetch a whole list to find out.
-     */
-  state: CardState;
-  /**
-     * True when a card for this term was already in the collection. The
-     * existing card is returned unchanged — in particular its review
-     * schedule is untouched (TCCN-115-2).
-     */
-  alreadyExisted: boolean;
+export interface AssistantAskResult {
+  turn: AssistantTurn;
+  /** The allowance after this turn, so the counter on screen cannot drift from the ledger. */
+  quota: WritingQuota;
 }

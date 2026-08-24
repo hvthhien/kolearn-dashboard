@@ -28,6 +28,7 @@ import type { MyCardDictationSource } from './myCardDictationSource';
 import type { MyCardShadowSource } from './myCardShadowSource';
 import type { MyCardSource } from './myCardSource';
 import type { MyCardType } from './myCardType';
+import type { MyCardWordbookSource } from './myCardWordbookSource';
 import type { Topic } from './topic';
 
 /**
@@ -55,6 +56,20 @@ export interface MyCard {
      */
   topics: Topic[];
   createdAt: string;
+  /**
+     * Which papers' bảng từ vựng hold this word (R-33, YC-503).
+     *
+     * A LIST, and the only provenance on a card that is one. The three
+     * below each answer "thẻ này từ đâu ra" with a single place, which is
+     * right for them — a card is made from one wrong answer, one line,
+     * one sentence. A word is in as many papers as it is in, and
+     * TCCN-503-3 makes that visible on a card the learner already had.
+     *
+     * Empty for a card from any other source, never absent, so a client
+     * has one branch rather than two. A paper withdrawn from the bank
+     * drops out of the list rather than becoming a link to a 404.
+     */
+  wordbookSources: MyCardWordbookSource[];
   /**
      * Absent when the card has no source question, or when the exam it
      * came from has been removed — `cards.source_question_id` is

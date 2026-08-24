@@ -56,6 +56,10 @@ import type {
   AdminShadowVideoList,
   AnswerLockedProblem,
   AnswerState,
+  AssistantAskRequest,
+  AssistantAskResult,
+  AssistantDeleteResult,
+  AssistantPanel,
   AttemptEventRequest,
   AttemptInProgressProblem,
   AttemptResult,
@@ -82,6 +86,7 @@ import type {
   ExamDetail,
   ForbiddenResponse,
   ForgotPasswordBody,
+  GetAssistantPanelParams,
   GetAttemptTopicSummary200,
   GetWeakness200,
   GetWeaknessParams,
@@ -147,14 +152,18 @@ import type {
   ShadowVideoList,
   StartAttemptRequest,
   StartPlacementRequest,
+  StartTopicPracticeBody,
   StreamTicketedAudioParams,
   SubmitSection200,
   TooManyRequestsResponse,
   Topic,
+  TopicRecommendations,
   UnauthorizedResponse,
   UnprocessableResponse,
   UpdateAttemptBody,
   VerifyEmailBody,
+  Wordbook,
+  WordbookSourceSentence,
   WritingBatchSubmitResult,
   WritingDraft,
   WritingQuota,
@@ -3890,6 +3899,215 @@ export function useGetWeakness<TData = Awaited<ReturnType<typeof getWeakness>>, 
 
 
 
+export const getGetTopicRecommendationsUrl = (topicId: string,) => {
+
+
+
+
+  return `/api/v1/me/weakness/topics/${topicId}/recommendations`
+}
+
+/**
+ * The đề xuất panel for one chủ điểm of the weakness table. Two blocks,
+ * never merged, câu chưa từng gặp always first:
+ *
+ * 1. **Câu chưa từng gặp** — questions on this chủ điểm from the bank the
+ *    learner has never been served, in any attempt.
+ * 2. **Làm lại câu đã sai** — the questions they actually got wrong on it,
+ *    gathered across every sitting rather than within one (R-08).
+ *
+ * The split is a constraint and not a way of laying out a list. Redoing
+ * the exact questions already missed mostly measures whether the answer
+ * is remembered, not whether the pattern is understood; merging the two
+ * lets a learner answer six remembered questions correctly and conclude
+ * they have it, while a new question still goes wrong (YC-542).
+ *
+ * A block with nothing behind it is **absent**, never present with a zero
+ * and never padded with off-topic questions to look full. An empty
+ * `blocks` is the state where the screen says "Chưa có bài tập cho chủ
+ * điểm này" and offers something else.
+ *
+ * No model is called and no `R-11` quota is charged, however many times
+ * the panel is reopened (TCCN-541-3): both counts are joins over chủ điểm
+ * already attached to questions (R-06) and độ khó already assigned by
+ * hand (YC-303).
+ * @summary Ôn lại — what this chủ điểm opens onto (YC-541, YC-542)
+ */
+export const getTopicRecommendations = async (topicId: string, options?: Parameters<typeof apiFetch>[1]): Promise<TopicRecommendations> => {
+
+  return apiFetch<TopicRecommendations>(getGetTopicRecommendationsUrl(topicId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTopicRecommendationsQueryKey = (topicId: string,) => {
+    return [
+    `/api/v1/me/weakness/topics/${topicId}/recommendations`
+    ] as const;
+    }
+
+
+export const getGetTopicRecommendationsQueryOptions = <TData = Awaited<ReturnType<typeof getTopicRecommendations>>, TError = UnauthorizedResponse>(topicId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTopicRecommendations>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTopicRecommendationsQueryKey(topicId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTopicRecommendations>>> = ({ signal }) => getTopicRecommendations(topicId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: topicId !== null && topicId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTopicRecommendations>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetTopicRecommendationsQueryResult = NonNullable<Awaited<ReturnType<typeof getTopicRecommendations>>>
+export type GetTopicRecommendationsQueryError = UnauthorizedResponse
+
+
+export function useGetTopicRecommendations<TData = Awaited<ReturnType<typeof getTopicRecommendations>>, TError = UnauthorizedResponse>(
+ topicId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTopicRecommendations>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTopicRecommendations>>,
+          TError,
+          Awaited<ReturnType<typeof getTopicRecommendations>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetTopicRecommendations<TData = Awaited<ReturnType<typeof getTopicRecommendations>>, TError = UnauthorizedResponse>(
+ topicId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTopicRecommendations>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getTopicRecommendations>>,
+          TError,
+          Awaited<ReturnType<typeof getTopicRecommendations>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetTopicRecommendations<TData = Awaited<ReturnType<typeof getTopicRecommendations>>, TError = UnauthorizedResponse>(
+ topicId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTopicRecommendations>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Ôn lại — what this chủ điểm opens onto (YC-541, YC-542)
+ */
+
+export function useGetTopicRecommendations<TData = Awaited<ReturnType<typeof getTopicRecommendations>>, TError = UnauthorizedResponse>(
+ topicId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getTopicRecommendations>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetTopicRecommendationsQueryOptions(topicId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getStartTopicPracticeUrl = (topicId: string,) => {
+
+
+
+
+  return `/api/v1/me/weakness/topics/${topicId}/practice`
+}
+
+/**
+ * Creates a PRACTICE attempt holding the questions of the chosen block.
+ *
+ * Always PRACTICE and always without a band. The questions come from
+ * several papers at once, so the run has no blueprint of its own and no
+ * honest total: "không quy đổi cấp độ, vì không phải đề đầy đủ"
+ * (TCCN-542-2). It is scored and logged like any other run — a question
+ * still wrong is marked sai lặp lại by the same rule (R-08), and the
+ * error log gains rows rather than having any rewritten, so returning to
+ * the weakness screen shows the fraction moved (TCCN-545-1).
+ *
+ * R-03 still holds: one live attempt at a time. A learner with an
+ * unfinished run gets the same 409 and the same `inProgressAttempt` as
+ * every other way of starting one.
+ * @summary Open one block as a lượt Luyện tập (YC-542)
+ */
+export const startTopicPractice = async (topicId: string,
+    startTopicPracticeBody: StartTopicPracticeBody, options?: Parameters<typeof apiFetch>[1]): Promise<AttemptRunner> => {
+
+  return apiFetch<AttemptRunner>(getStartTopicPracticeUrl(topicId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(startTopicPracticeBody)
+  }
+);}
+
+
+
+
+
+export const getStartTopicPracticeMutationOptions = <TError = UnauthorizedResponse | NotFoundResponse | AttemptInProgressProblem,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startTopicPractice>>, TError,{topicId: string;data: StartTopicPracticeBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof startTopicPractice>>, TError,{topicId: string;data: StartTopicPracticeBody}, TContext> => {
+
+const mutationKey = ['startTopicPractice'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof startTopicPractice>>, {topicId: string;data: StartTopicPracticeBody}> = (props) => {
+          const {topicId,data} = props ?? {};
+
+          return  startTopicPractice(topicId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StartTopicPracticeMutationResult = NonNullable<Awaited<ReturnType<typeof startTopicPractice>>>
+    export type StartTopicPracticeMutationBody = StartTopicPracticeBody
+    export type StartTopicPracticeMutationError = UnauthorizedResponse | NotFoundResponse | AttemptInProgressProblem
+
+    /**
+ * @summary Open one block as a lượt Luyện tập (YC-542)
+ */
+export const useStartTopicPractice = <TError = UnauthorizedResponse | NotFoundResponse | AttemptInProgressProblem,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startTopicPractice>>, TError,{topicId: string;data: StartTopicPracticeBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof startTopicPractice>>,
+        TError,
+        {topicId: string;data: StartTopicPracticeBody},
+        TContext
+      > => {
+      return useMutation(getStartTopicPracticeMutationOptions(options), queryClient);
+    }
+
 export const getGetPlacementAvailabilityUrl = () => {
 
 
@@ -6409,6 +6627,632 @@ export const useSkipDictationItem = <TError = UnauthorizedResponse | NotFoundRes
         TContext
       > => {
       return useMutation(getSkipDictationItemMutationOptions(options), queryClient);
+    }
+
+export const getGetExamWordbookUrl = (examId: string,) => {
+
+
+
+
+  return `/api/v1/exams/${examId}/wordbook`
+}
+
+/**
+ * Every entry of both lists in one response, with the caller's own card
+ * state for each.
+ *
+ * **Not paginated, deliberately.** YC-504 and YC-507 require every filter
+ * chip to show the number of entries matching it — "Chưa lưu 164", "Hay
+ * gặp 26" — and a page cannot produce an honest one. A paper's wordbook
+ * is a few hundred entries; the client narrows what it already holds.
+ *
+ * Only entries with all six things appear (R-33: "thiếu một thứ thì mục
+ * đó chưa hiện ra được"). An incomplete entry is absent, not dimmed and
+ * not locked.
+ *
+ * A paper with no wordbook answers 404, and so does one whose entries are
+ * all incomplete. That is TCCN-501-5 — "Đề này chưa có bảng từ vựng." is
+ * a designed state with its own copy, and an empty array would be
+ * indistinguishable from a filter that matched nothing.
+ * @summary One paper's bảng từ vựng, both lists
+ */
+export const getExamWordbook = async (examId: string, options?: Parameters<typeof apiFetch>[1]): Promise<Wordbook> => {
+
+  return apiFetch<Wordbook>(getGetExamWordbookUrl(examId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetExamWordbookQueryKey = (examId: string,) => {
+    return [
+    `/api/v1/exams/${examId}/wordbook`
+    ] as const;
+    }
+
+
+export const getGetExamWordbookQueryOptions = <TData = Awaited<ReturnType<typeof getExamWordbook>>, TError = UnauthorizedResponse | NotFoundResponse>(examId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getExamWordbook>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetExamWordbookQueryKey(examId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getExamWordbook>>> = ({ signal }) => getExamWordbook(examId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: examId !== null && examId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getExamWordbook>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetExamWordbookQueryResult = NonNullable<Awaited<ReturnType<typeof getExamWordbook>>>
+export type GetExamWordbookQueryError = UnauthorizedResponse | NotFoundResponse
+
+
+export function useGetExamWordbook<TData = Awaited<ReturnType<typeof getExamWordbook>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ examId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getExamWordbook>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getExamWordbook>>,
+          TError,
+          Awaited<ReturnType<typeof getExamWordbook>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetExamWordbook<TData = Awaited<ReturnType<typeof getExamWordbook>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ examId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getExamWordbook>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getExamWordbook>>,
+          TError,
+          Awaited<ReturnType<typeof getExamWordbook>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetExamWordbook<TData = Awaited<ReturnType<typeof getExamWordbook>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ examId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getExamWordbook>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary One paper's bảng từ vựng, both lists
+ */
+
+export function useGetExamWordbook<TData = Awaited<ReturnType<typeof getExamWordbook>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ examId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getExamWordbook>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetExamWordbookQueryOptions(examId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetWordbookSourceSentenceUrl = (examId: string,
+    entryId: string,
+    questionId: string,) => {
+
+
+
+
+  return `/api/v1/exams/${examId}/wordbook/entries/${entryId}/questions/${questionId}`
+}
+
+/**
+ * TCCN-501-3: touching a position opens the question it names and shows
+ * the sentence verbatim.
+ *
+ * **No choices, no answer key, no explanation.** YC-506 lets a learner
+ * open a wordbook from SC-TEST-LIST without having sat the paper — and
+ * they may still sit it — so this must not become a way to read the
+ * answers. `internal/api/contract/leak_test.go` is where that stays true.
+ * @summary The original sentence behind "câu 14"
+ */
+export const getWordbookSourceSentence = async (examId: string,
+    entryId: string,
+    questionId: string, options?: Parameters<typeof apiFetch>[1]): Promise<WordbookSourceSentence> => {
+
+  return apiFetch<WordbookSourceSentence>(getGetWordbookSourceSentenceUrl(examId,entryId,questionId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetWordbookSourceSentenceQueryKey = (examId: string,
+    entryId: string,
+    questionId: string,) => {
+    return [
+    `/api/v1/exams/${examId}/wordbook/entries/${entryId}/questions/${questionId}`
+    ] as const;
+    }
+
+
+export const getGetWordbookSourceSentenceQueryOptions = <TData = Awaited<ReturnType<typeof getWordbookSourceSentence>>, TError = UnauthorizedResponse | NotFoundResponse>(examId: string,
+    entryId: string,
+    questionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWordbookSourceSentence>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetWordbookSourceSentenceQueryKey(examId,entryId,questionId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWordbookSourceSentence>>> = ({ signal }) => getWordbookSourceSentence(examId,entryId,questionId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: examId !== null && examId !== undefined && entryId !== null && entryId !== undefined && questionId !== null && questionId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWordbookSourceSentence>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetWordbookSourceSentenceQueryResult = NonNullable<Awaited<ReturnType<typeof getWordbookSourceSentence>>>
+export type GetWordbookSourceSentenceQueryError = UnauthorizedResponse | NotFoundResponse
+
+
+export function useGetWordbookSourceSentence<TData = Awaited<ReturnType<typeof getWordbookSourceSentence>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ examId: string,
+    entryId: string,
+    questionId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWordbookSourceSentence>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getWordbookSourceSentence>>,
+          TError,
+          Awaited<ReturnType<typeof getWordbookSourceSentence>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetWordbookSourceSentence<TData = Awaited<ReturnType<typeof getWordbookSourceSentence>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ examId: string,
+    entryId: string,
+    questionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWordbookSourceSentence>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getWordbookSourceSentence>>,
+          TError,
+          Awaited<ReturnType<typeof getWordbookSourceSentence>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetWordbookSourceSentence<TData = Awaited<ReturnType<typeof getWordbookSourceSentence>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ examId: string,
+    entryId: string,
+    questionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWordbookSourceSentence>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary The original sentence behind "câu 14"
+ */
+
+export function useGetWordbookSourceSentence<TData = Awaited<ReturnType<typeof getWordbookSourceSentence>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ examId: string,
+    entryId: string,
+    questionId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWordbookSourceSentence>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetWordbookSourceSentenceQueryOptions(examId,entryId,questionId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetWordbookAudioUrl = (entryId: string,) => {
+
+
+
+
+  return `/api/v1/wordbook/entries/${entryId}/audio`
+}
+
+/**
+ * The fallback behind `Wordbook.items[].audioUrl`. Where a public bucket
+ * is configured that field is a CDN address and this route is never
+ * called; without one it is a path to here.
+ *
+ * It rations nothing — R-33 gives a learner unlimited replays — so unlike
+ * the exam-audio ticket route the only thing it enforces is that the
+ * caller is signed in.
+ * @summary A pronunciation clip, on a deployment with no public bucket
+ */
+export const getWordbookAudio = async (entryId: string, options?: Parameters<typeof apiFetch>[1]): Promise<Blob> => {
+
+  return apiFetch<Blob>(getGetWordbookAudioUrl(entryId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetWordbookAudioQueryKey = (entryId: string,) => {
+    return [
+    `/api/v1/wordbook/entries/${entryId}/audio`
+    ] as const;
+    }
+
+
+export const getGetWordbookAudioQueryOptions = <TData = Awaited<ReturnType<typeof getWordbookAudio>>, TError = UnauthorizedResponse | NotFoundResponse>(entryId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWordbookAudio>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetWordbookAudioQueryKey(entryId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWordbookAudio>>> = ({ signal }) => getWordbookAudio(entryId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: entryId !== null && entryId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWordbookAudio>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetWordbookAudioQueryResult = NonNullable<Awaited<ReturnType<typeof getWordbookAudio>>>
+export type GetWordbookAudioQueryError = UnauthorizedResponse | NotFoundResponse
+
+
+export function useGetWordbookAudio<TData = Awaited<ReturnType<typeof getWordbookAudio>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ entryId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWordbookAudio>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getWordbookAudio>>,
+          TError,
+          Awaited<ReturnType<typeof getWordbookAudio>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetWordbookAudio<TData = Awaited<ReturnType<typeof getWordbookAudio>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ entryId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWordbookAudio>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getWordbookAudio>>,
+          TError,
+          Awaited<ReturnType<typeof getWordbookAudio>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetWordbookAudio<TData = Awaited<ReturnType<typeof getWordbookAudio>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ entryId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWordbookAudio>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary A pronunciation clip, on a deployment with no public bucket
+ */
+
+export function useGetWordbookAudio<TData = Awaited<ReturnType<typeof getWordbookAudio>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ entryId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWordbookAudio>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetWordbookAudioQueryOptions(entryId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetAssistantPanelUrl = (params?: GetAssistantPanelParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/me/assistant?${stringifiedParams}` : `/api/v1/me/assistant`
+}
+
+/**
+ * One request, because two would leave a frame in which the panel is open
+ * and knows neither the allowance nor what to suggest — which is the empty
+ * chat box `TCCN-562-6` forbids.
+ *
+ * The anchor parameters describe what the learner has on screen. They
+ * change the suggestions and the context an answer is built from; none of
+ * them is required, and a panel opened with none of them still works.
+ * @summary Everything the trợ lý panel needs to open (YC-561, YC-563, R-11)
+ */
+export const getAssistantPanel = async (params?: GetAssistantPanelParams, options?: Parameters<typeof apiFetch>[1]): Promise<AssistantPanel> => {
+
+  return apiFetch<AssistantPanel>(getGetAssistantPanelUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAssistantPanelQueryKey = (params?: GetAssistantPanelParams,) => {
+    return [
+    `/api/v1/me/assistant`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetAssistantPanelQueryOptions = <TData = Awaited<ReturnType<typeof getAssistantPanel>>, TError = UnauthorizedResponse | ForbiddenResponse>(params?: GetAssistantPanelParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAssistantPanel>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAssistantPanelQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAssistantPanel>>> = ({ signal }) => getAssistantPanel(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAssistantPanel>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetAssistantPanelQueryResult = NonNullable<Awaited<ReturnType<typeof getAssistantPanel>>>
+export type GetAssistantPanelQueryError = UnauthorizedResponse | ForbiddenResponse
+
+
+export function useGetAssistantPanel<TData = Awaited<ReturnType<typeof getAssistantPanel>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params: undefined |  GetAssistantPanelParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAssistantPanel>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getAssistantPanel>>,
+          TError,
+          Awaited<ReturnType<typeof getAssistantPanel>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetAssistantPanel<TData = Awaited<ReturnType<typeof getAssistantPanel>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params?: GetAssistantPanelParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAssistantPanel>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getAssistantPanel>>,
+          TError,
+          Awaited<ReturnType<typeof getAssistantPanel>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetAssistantPanel<TData = Awaited<ReturnType<typeof getAssistantPanel>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params?: GetAssistantPanelParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAssistantPanel>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Everything the trợ lý panel needs to open (YC-561, YC-563, R-11)
+ */
+
+export function useGetAssistantPanel<TData = Awaited<ReturnType<typeof getAssistantPanel>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params?: GetAssistantPanelParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAssistantPanel>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetAssistantPanelQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAskAssistantUrl = () => {
+
+
+
+
+  return `/api/v1/me/assistant/questions`
+}
+
+/**
+ * Returns `200` for every outcome that produced a turn, including the two
+ * where no answer was written — `NO_QUOTA` and `FAILED`. Both are things
+ * that happened and are now stored, and each renders as its own line in
+ * the thread with its own next step. `TCCN-562-5` asks for a retry button
+ * beside the failure and for the typed question to stay in the box, and a
+ * problem response gives the client the error but no turn to attach either
+ * to.
+ *
+ * Whether the turn cost a lượt is on `turn.charged`, and the balance after
+ * it is on `quota`. `OFF_TOPIC` and `FAILED` never charge (`TCCN-567-1`),
+ * and neither does an answer served from an earlier identical question
+ * (`TCCN-564-1`, flagged as `turn.fromSaved`).
+ * @summary Ask one question (YC-562, YC-564, YC-566, YC-567)
+ */
+export const askAssistant = async (assistantAskRequest: AssistantAskRequest, options?: Parameters<typeof apiFetch>[1]): Promise<AssistantAskResult> => {
+
+  return apiFetch<AssistantAskResult>(getAskAssistantUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(assistantAskRequest)
+  }
+);}
+
+
+
+
+
+export const getAskAssistantMutationOptions = <TError = BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | Problem,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof askAssistant>>, TError,{data: AssistantAskRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof askAssistant>>, TError,{data: AssistantAskRequest}, TContext> => {
+
+const mutationKey = ['askAssistant'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof askAssistant>>, {data: AssistantAskRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  askAssistant(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AskAssistantMutationResult = NonNullable<Awaited<ReturnType<typeof askAssistant>>>
+    export type AskAssistantMutationBody = AssistantAskRequest
+    export type AskAssistantMutationError = BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | Problem
+
+    /**
+ * @summary Ask one question (YC-562, YC-564, YC-566, YC-567)
+ */
+export const useAskAssistant = <TError = BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | Problem,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof askAssistant>>, TError,{data: AssistantAskRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof askAssistant>>,
+        TError,
+        {data: AssistantAskRequest},
+        TContext
+      > => {
+      return useMutation(getAskAssistantMutationOptions(options), queryClient);
+    }
+
+export const getDeleteAssistantHistoryUrl = () => {
+
+
+
+
+  return `/api/v1/me/assistant/turns`
+}
+
+/**
+ * A real delete, not a retraction flag — `TCCN-568-2` says "xoá thật", and
+ * R-37 files it beside "không dùng nội dung hỏi đáp vào việc gì khác".
+ * The confirmation the criterion asks for happens in the client before
+ * this is called.
+ *
+ * The spent allowance does not come back, and `quota` is returned so the
+ * panel can redraw the same figure it had: "xoá lịch sử không phải cách
+ * lấy thêm lượt".
+ * @summary Xoá toàn bộ lịch sử hỏi đáp (YC-568)
+ */
+export const deleteAssistantHistory = async ( options?: Parameters<typeof apiFetch>[1]): Promise<AssistantDeleteResult> => {
+
+  return apiFetch<AssistantDeleteResult>(getDeleteAssistantHistoryUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteAssistantHistoryMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAssistantHistory>>, TError,void, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteAssistantHistory>>, TError,void, TContext> => {
+
+const mutationKey = ['deleteAssistantHistory'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAssistantHistory>>, void> = () => {
+
+
+          return  deleteAssistantHistory(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteAssistantHistoryMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAssistantHistory>>>
+
+    export type DeleteAssistantHistoryMutationError = UnauthorizedResponse | ForbiddenResponse
+
+    /**
+ * @summary Xoá toàn bộ lịch sử hỏi đáp (YC-568)
+ */
+export const useDeleteAssistantHistory = <TError = UnauthorizedResponse | ForbiddenResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAssistantHistory>>, TError,void, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteAssistantHistory>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getDeleteAssistantHistoryMutationOptions(options), queryClient);
     }
 
 export const getListAdminDictationSetsUrl = (params?: ListAdminDictationSetsParams,) => {
