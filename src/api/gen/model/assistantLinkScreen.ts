@@ -28,14 +28,34 @@
  * A destination, not a path. The client maps it to a route — a URL in
  * this field would be a URL the model could invent, and a broken "ôn
  * lại ở đây" costs more trust than the answer earned.
+ *
+ * Every id below is optional in the schema, but not every screen can
+ * do without one: `EXAM`, `EXAM_WORDBOOK`, `REVIEW` and
+ * `ATTEMPT_RESULT` have nowhere to land and are dropped if theirs is
+ * missing, while `SHADOWING` and `DICTATION` fall back to their list.
+ * The server also drops any id it did not put in front of the model,
+ * rather than passing on a destination that does not exist.
+ *
+ * ⛔ There is deliberately no value for a paper being sat — neither
+ * `SC-TEST-DO` nor the placement runner. `YC-565` hides the trợ lý on
+ * both, and a link into them would be that breach arriving from the
+ * other direction.
  */
 export type AssistantLinkScreen = typeof AssistantLinkScreen[keyof typeof AssistantLinkScreen];
 
 
 export const AssistantLinkScreen = {
   WEAKNESS: 'WEAKNESS',
+  REVIEW: 'REVIEW',
+  ATTEMPT_RESULT: 'ATTEMPT_RESULT',
+  ATTEMPT_HISTORY: 'ATTEMPT_HISTORY',
+  EXAM_LIST: 'EXAM_LIST',
+  EXAM: 'EXAM',
   EXAM_WORDBOOK: 'EXAM_WORDBOOK',
   DECK: 'DECK',
+  CARD_STUDY: 'CARD_STUDY',
+  SHADOWING: 'SHADOWING',
+  DICTATION: 'DICTATION',
   PLACEMENT: 'PLACEMENT',
-  REVIEW: 'REVIEW',
+  SETTINGS: 'SETTINGS',
 } as const;

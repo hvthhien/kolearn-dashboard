@@ -30,10 +30,28 @@ export interface AssistantLink {
      * A destination, not a path. The client maps it to a route — a URL in
      * this field would be a URL the model could invent, and a broken "ôn
      * lại ở đây" costs more trust than the answer earned.
+     *
+     * Every id below is optional in the schema, but not every screen can
+     * do without one: `EXAM`, `EXAM_WORDBOOK`, `REVIEW` and
+     * `ATTEMPT_RESULT` have nowhere to land and are dropped if theirs is
+     * missing, while `SHADOWING` and `DICTATION` fall back to their list.
+     * The server also drops any id it did not put in front of the model,
+     * rather than passing on a destination that does not exist.
+     *
+     * ⛔ There is deliberately no value for a paper being sat — neither
+     * `SC-TEST-DO` nor the placement runner. `YC-565` hides the trợ lý on
+     * both, and a link into them would be that breach arriving from the
+     * other direction.
      */
   screen: AssistantLinkScreen;
   label: string;
   topicId?: string;
   examId?: string;
   entryId?: string;
+  /** One lượt làm bài, on `REVIEW` and `ATTEMPT_RESULT`. */
+  attemptId?: string;
+  /** One video nhại theo, on `SHADOWING`. */
+  videoId?: string;
+  /** One bộ chép chính tả, on `DICTATION`. */
+  setId?: string;
 }
