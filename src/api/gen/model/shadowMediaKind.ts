@@ -23,31 +23,22 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { SaveShadowChunkInput } from './saveShadowChunkInput';
 
-export interface SaveShadowLineInput {
-  /**
-     * Omitted for a new line. Present to keep an existing line's identity
-     * — and with it its approval, when nothing about it changed.
-     */
-  id?: string;
-  /** @minimum 0 */
-  startMs: number;
-  /** @minimum 1 */
-  endMs: number;
-  /** @minLength 1 */
-  textKo: string;
-  textVi?: string;
-  speaker?: string;
-  /**
-     * Replaced wholesale on every save, like the glossary's occurrences: a
-     * chunk has no identity worth preserving — nothing points at one — so
-     * there is nothing to match up and nothing to strand.
-     *
-     * Omitted and empty mean the same thing, and it is the honest one:
-     * this line has no chunks. A client that has not been taught about
-     * them sends nothing and clears none, because it also sends no line it
-     * did not first read.
-     */
-  chunks?: SaveShadowChunkInput[];
-}
+/**
+ * What the item is built on. A podcast episode is a shadowing source in
+ * every way that matters — a voice, a script, timings — and needs no
+ * moving picture, so `AUDIO` is a first-class kind rather than a video
+ * with the picture missing.
+ *
+ * Fixed when the draft is created and unchangeable afterwards: the
+ * placeholder asset row a draft reserves is referenced immediately, and
+ * the database refuses to change a referenced asset's kind. See
+ * `CreateShadowVideoRequest.mediaKind`.
+ */
+export type ShadowMediaKind = typeof ShadowMediaKind[keyof typeof ShadowMediaKind];
+
+
+export const ShadowMediaKind = {
+  VIDEO: 'VIDEO',
+  AUDIO: 'AUDIO',
+} as const;

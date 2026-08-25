@@ -23,31 +23,21 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { SaveShadowChunkInput } from './saveShadowChunkInput';
 
-export interface SaveShadowLineInput {
-  /**
-     * Omitted for a new line. Present to keep an existing line's identity
-     * — and with it its approval, when nothing about it changed.
-     */
-  id?: string;
-  /** @minimum 0 */
-  startMs: number;
-  /** @minimum 1 */
-  endMs: number;
-  /** @minLength 1 */
-  textKo: string;
-  textVi?: string;
-  speaker?: string;
-  /**
-     * Replaced wholesale on every save, like the glossary's occurrences: a
-     * chunk has no identity worth preserving — nothing points at one — so
-     * there is nothing to match up and nothing to strand.
-     *
-     * Omitted and empty mean the same thing, and it is the honest one:
-     * this line has no chunks. A client that has not been taught about
-     * them sends nothing and clears none, because it also sends no line it
-     * did not first read.
-     */
-  chunks?: SaveShadowChunkInput[];
-}
+/**
+ * Which role a file plays. It decides the accepted MIME types and the
+ * byte ceiling — both the server's to choose, which is why this names the
+ * role rather than letting the browser send a type and a size and be
+ * believed about them.
+ *
+ * It also decides one thing that is easy to miss: confirming `MEDIA`
+ * retires every line's approval, because every stretch of audio has just
+ * been replaced. Confirming `THUMBNAIL` does not.
+ */
+export type ShadowUploadPurpose = typeof ShadowUploadPurpose[keyof typeof ShadowUploadPurpose];
+
+
+export const ShadowUploadPurpose = {
+  MEDIA: 'MEDIA',
+  THUMBNAIL: 'THUMBNAIL',
+} as const;

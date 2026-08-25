@@ -23,13 +23,33 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { ShadowUploadPurpose } from './shadowUploadPurpose';
 
 export interface CreateShadowUploadTargetRequest {
   /** @minLength 1 */
   fileName: string;
+  /**
+     * Held to the accept-list for this item's own `mediaKind`, not to a
+     * flat one: an author who started an audio item and drops an `.mp4`
+     * into it has made a mistake, and a flat list would take the file and
+     * leave the row and the object disagreeing.
+     *
+     * `MEDIA` on a `VIDEO` item: `video/mp4`. On an `AUDIO` item:
+     * `audio/mpeg`, `audio/mp4`. `THUMBNAIL`, either kind: `image/png`,
+     * `image/jpeg`, `image/webp` — no SVG, which is a document that can
+     * carry script and would be served from an origin this product owns.
+     */
   mimeType: string;
   /** @minimum 1 */
   byteSize: number;
+  /**
+     * `MEDIA` when absent. Also lands in the minted object key, which is
+     * what lets the confirm below check that an object was minted for the
+     * role it is about to be attached to — without it, an image uploaded
+     * through a `MEDIA` target could be confirmed as a `THUMBNAIL`, and
+     * both halves would look correct in isolation.
+     */
+  purpose?: ShadowUploadPurpose;
   /**
      * Lower-case hex of the file's SHA-256, when the client computed one.
      * Signed into the PUT so R2 verifies the digest on write and rejects

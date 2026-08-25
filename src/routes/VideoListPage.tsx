@@ -8,7 +8,11 @@ import {
   retireAdminShadowVideo,
   useListAdminShadowVideos,
 } from '../api/gen/kolearn'
-import type { AdminShadowVideoRow, ShadowVideoStatus } from '../api/gen/model'
+import type {
+  AdminShadowVideoRow,
+  ShadowMediaKind,
+  ShadowVideoStatus,
+} from '../api/gen/model'
 import { userMessage } from '../lib/problem'
 import { useAuth } from '../lib/auth'
 import { RemoveDialog } from '../features/manage/RemoveDialog'
@@ -77,11 +81,24 @@ export function VideoListPage() {
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: getListAdminShadowVideosQueryKey() })
 
-  const create = async () => {
+  /**
+   * The kind is chosen HERE and can never be changed afterwards.
+   *
+   * Not a preference — a constraint the database imposes. A draft reserves a
+   * placeholder asset row and points at it immediately, and from that moment
+   * the kind of that row is frozen: an audio file uploaded into a video draft
+   * is refused at confirm time with no way forward except deleting the draft.
+   * Choosing before any bytes exist costs one extra click and removes the trap.
+   */
+  const create = async (mediaKind: ShadowMediaKind) => {
     setBusy(true)
     setError(null)
     try {
-      const created = await createAdminShadowVideo({ title: 'Video mới', level: 2 })
+      const created = await createAdminShadowVideo({
+        title: mediaKind === 'AUDIO' ? 'Ngữ liệu âm thanh mới' : 'Video mới',
+        level: 2,
+        mediaKind,
+      })
       await navigate({ to: '/videos/$videoId', params: { videoId: created.id } })
     } catch (err) {
       setError(err)
@@ -93,9 +110,18 @@ export function VideoListPage() {
     <PageShell>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <PageTitle>Xưởng video</PageTitle>
-        <Button onClick={() => void create()} disabled={busy}>
-          Tạo video mới
-        </Button>
+        {/* Two buttons rather than a dialog with a radio in it. The choice is
+            unchangeable and there are exactly two of them, so making it the
+            click itself is both fewer steps and harder to make absent-mindedly
+            than a form whose first field already has a default. */}
+        <span className="flex flex-wrap gap-2">
+          <Button onClick={() => void create('VIDEO')} disabled={busy}>
+            Tạo video mới
+          </Button>
+          <Button variant="secondary" onClick={() => void create('AUDIO')} disabled={busy}>
+            Tạo ngữ liệu âm thanh
+          </Button>
+        </span>
       </div>
 
       <FilterChips<StatusFilter>
@@ -118,11 +144,16 @@ export function VideoListPage() {
         <SkeletonList rows={3} label="Đang tải danh sách video…" />
       ) : data.items.length === 0 ? (
         <EmptyState
-          title="Chưa có video nào"
+          title="Chưa có ngữ liệu nào"
           action={
-            <Button onClick={() => void create()} disabled={busy}>
-              Tạo video mới
-            </Button>
+            <span className="flex flex-wrap justify-center gap-2">
+              <Button onClick={() => void create('VIDEO')} disabled={busy}>
+                Tạo video mới
+              </Button>
+              <Button variant="secondary" onClick={() => void create('AUDIO')} disabled={busy}>
+                Tạo ngữ liệu âm thanh
+              </Button>
+            </span>
           }
         >
           Video nhại theo được dựng ở công cụ ngoài rồi tải lên đây.
@@ -135,6 +166,7 @@ export function VideoListPage() {
               <tr>
                 <Th>Chủ đề</Th>
                 <Th>Cấp độ</Th>
+                <Th>Loại</Th>
                 <Th>Số câu</Th>
                 <Th>Duyệt</Th>
                 <Th>Trạng thái</Th>
@@ -150,6 +182,7 @@ export function VideoListPage() {
                   </Link>
                 </Td>
                 <Td className="tabular-nums">TOPIK{v.level}</Td>
+                <Td>{v.mediaKind === 'AUDIO' ? 'Âm thanh' : 'Video'}</Td>
                 <Td className="text-right tabular-nums">{v.lineCount}</Td>
                 <Td>
                   <span className="tabular-nums">

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useCallback } from 'react'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import {
@@ -16,9 +16,14 @@ import { userMessage } from '../lib/problem'
 import { useAuth } from '../lib/auth'
 import { useShadowDraft } from '../features/shadowing/useShadowDraft'
 import { LineEditor } from '../features/shadowing/LineEditor'
+import { decodeSpeechRuns, proposeChunks } from '../features/shadowing/chunks'
+import type { Segment } from '../features/shadowing/segment'
 import { ApprovalPanel } from '../features/shadowing/ApprovalPanel'
 import { GlossaryEditor } from '../features/shadowing/GlossaryEditor'
-import { VideoUploadPanel } from '../features/shadowing/VideoUploadPanel'
+import {
+  ThumbnailUploadPanel,
+  VideoUploadPanel,
+} from '../features/shadowing/VideoUploadPanel'
 import { PublishVideoDialog } from '../features/shadowing/PublishVideoDialog'
 import { RemoveDialog } from '../features/manage/RemoveDialog'
 import { removalFor } from '../features/manage/removal'
@@ -87,6 +92,47 @@ function Studio({ video }: { video: AdminShadowVideoDetail }) {
     useShadowDraft(video)
 
   const [activeLine, setActiveLine] = useState(0)
+
+  /**
+   * The speech runs in the whole media, decoded once and reused.
+   *
+   * Once, because decoding a thirty-megabyte file per line is a studio that
+   * stops responding — and because the runs do not depend on which line is
+   * being chunked. Lazily, because most sessions never touch this button and
+   * paying the download on every open would tax everybody for a feature some
+   * videos do not need.
+   */
+  const speechRuns = useRef<Segment[] | null>(null)
+  const [chunkError, setChunkError] = useState<string | null>(null)
+
+  const proposeChunksFor = useCallback(
+    (index: number) => {
+      const line = draft.lines[index]
+      const url = video.asset?.playbackUrl
+      if (!line || !url) return
+
+      void (async () => {
+        setChunkError(null)
+        try {
+          if (speechRuns.current === null) {
+            speechRuns.current = await decodeSpeechRuns(await (await fetch(url)).blob())
+          }
+          const chunks = proposeChunks(speechRuns.current, line)
+          if (chunks.length === 0) {
+            // An honest empty answer, not a failure: a short line with no
+            // internal pause is one nobody needs to split.
+            setChunkError('Câu này không có khoảng nghỉ nào đủ dài để chia cụm.')
+            return
+          }
+          setLine(index, { chunks })
+        } catch {
+          setChunkError('Không đọc được âm thanh của ngữ liệu này để chia cụm.')
+        }
+      })()
+    },
+    [draft.lines, video.asset?.playbackUrl, setLine],
+  )
+
   const [busy, setBusy] = useState(false)
   const [saved, setSaved] = useState(false)
   const [saveError, setSaveError] = useState<unknown>(null)
@@ -115,6 +161,15 @@ function Studio({ video }: { video: AdminShadowVideoDetail }) {
       textKo: l.textKo,
       textVi: l.textVi,
       speaker: l.speaker,
+      // Every field linesRequest sends has to be here, or the two shapes never
+      // match and the video reads as dirty from the moment it loads — which
+      // disables the approval buttons for a change nobody made.
+      chunks: l.chunks.map((c) => ({
+        startMs: c.startMs,
+        endMs: c.endMs,
+        charStart: c.charStart,
+        charEnd: c.charEnd,
+      })),
     })),
   )
 
@@ -173,10 +228,14 @@ function Studio({ video }: { video: AdminShadowVideoDetail }) {
       )}
 
       <section aria-labelledby="video-section" className="mt-6">
-        <SectionHeading id="video-section">Video</SectionHeading>
+        <SectionHeading id="video-section">
+          {video.mediaKind === 'AUDIO' ? 'Âm thanh' : 'Video'}
+        </SectionHeading>
         <VideoUploadPanel
           videoId={video.id}
+          mediaKind={video.mediaKind}
           asset={video.asset}
+          thumbnail={video.thumbnail}
           lineCount={video.lines.length}
           videoRef={videoRef}
           onUploaded={() => void refresh()}
@@ -186,12 +245,23 @@ function Studio({ video }: { video: AdminShadowVideoDetail }) {
               lines: segments.map((s) => ({
                 startMs: s.startMs,
                 endMs: s.endMs,
+                chunks: [],
                 textKo: '',
                 textVi: '',
                 speaker: '',
               })),
             }))
           }
+        />
+      </section>
+
+      <section aria-labelledby="thumb-section" className="mt-6">
+        <SectionHeading id="thumb-section">Ảnh xem trước</SectionHeading>
+        <ThumbnailUploadPanel
+          videoId={video.id}
+          mediaKind={video.mediaKind}
+          thumbnail={video.thumbnail}
+          onUploaded={() => void refresh()}
         />
       </section>
 
@@ -262,10 +332,12 @@ function Studio({ video }: { video: AdminShadowVideoDetail }) {
             </ul>
           )}
 
+          {chunkError !== null && <WarnNote>{chunkError}</WarnNote>}
           <LineEditor
             lines={draft.lines}
             activeIndex={activeLine}
             videoRef={videoRef}
+            onProposeChunks={video.asset ? proposeChunksFor : undefined}
             onActivate={setActiveLine}
             onChangeLine={setLine}
             onChangeLines={(lines) => set('lines', lines)}

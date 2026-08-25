@@ -25,15 +25,30 @@
  */
 import type { ShadowGlossaryEntry } from './shadowGlossaryEntry';
 import type { ShadowLine } from './shadowLine';
+import type { ShadowMediaKind } from './shadowMediaKind';
 import type { ShadowProgress } from './shadowProgress';
 
 export interface ShadowVideoDetail {
   id: string;
   title: string;
   durationMs: number;
+  mediaKind: ShadowMediaKind;
+  /**
+     * What the learner looks at, fed to the media element's `poster`. On
+     * an `AUDIO` item this is the entire visual surface of the screen,
+     * which is why the publish gate refuses a published audio item
+     * without one. On a `VIDEO` item it is a poster frame and optional.
+     */
+  thumbnailUrl?: string;
   /**
      * An absolute public URL on the Cloudflare R2 custom domain, read
      * straight by a `<video>` element with no credential.
+     *
+     * Still `playbackUrl` and still read by a `<video>` element when the
+     * bytes are an `.mp3`. Every browser plays audio through a video
+     * element, and keeping one element is what keeps the line loop, the
+     * speed control and the layout identical across both kinds instead of
+     * forking them.
      *
      * Deliberately unlike an attempt's audio, which is one learner's
      * frozen paper under R-01's single-play rule and therefore goes

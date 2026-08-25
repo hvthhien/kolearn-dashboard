@@ -23,6 +23,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { ShadowUploadPurpose } from './shadowUploadPurpose';
 
 export interface ConfirmShadowUploadRequest {
   /** @minLength 1 */
@@ -31,7 +32,24 @@ export interface ConfirmShadowUploadRequest {
      * Measured by the browser from the file it just uploaded. Trusted
      * only as far as the publish gate, which refuses a video whose last
      * line ends after this — so a wrong duration cannot ship.
+     *
+     * Required for `MEDIA` and ignored for `THUMBNAIL`. It left the
+     * required list when posters arrived: an image has no duration, and
+     * demanding a positive one for both would make a poster upload
+     * impossible to express. A `MEDIA` confirm without it is still
+     * refused, by the handler rather than by the schema.
      * @minimum 1
      */
-  durationMs: number;
+  durationMs?: number;
+  /**
+     * `MEDIA` when absent. Decides which column the object is attached to
+     * — and one thing more that is easy to miss: a `MEDIA` confirm
+     * retires every line's approval by bumping its revision, because
+     * every stretch of audio has just been replaced. A `THUMBNAIL`
+     * confirm must not, and does not. Getting that backwards would send
+     * every approved line back to `UNREVIEWED` each time somebody swapped
+     * a picture, with no symptom until the publish gate refused a video
+     * that was ready an hour ago.
+     */
+  purpose?: ShadowUploadPurpose;
 }

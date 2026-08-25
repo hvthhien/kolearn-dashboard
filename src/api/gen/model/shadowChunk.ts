@@ -23,34 +23,34 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { ShadowChunk } from './shadowChunk';
-import type { ShadowTerm } from './shadowTerm';
 
-export interface ShadowLine {
-  id: string;
+/**
+ * A phrase inside one line — a **cụm từ**, and the unit under the
+ * sentence.
+ *
+ * It answers a problem the sentence unit cannot: a twelve-second line is
+ * not shadowable as one piece by the learner who most needs to shadow it,
+ * and "play the whole sentence again" is the wrong answer to "I lost it
+ * after the fourth word".
+ *
+ * Same conventions as `ShadowTerm` — a half-open span in Unicode CODE
+ * POINTS over the line's `textKo`, sliced with `Array.from`, never
+ * `String.slice`.
+ *
+ * A line with NO chunks is its own single chunk. That is what makes this a
+ * pure addition: every line authored before chunks existed keeps working,
+ * and the player's phrase control is simply unavailable on material nobody
+ * has chunked.
+ *
+ * Progress does not move with them. A line counts as practised when its
+ * LAST chunk finishes, or when it is played whole — so "3 / 24 câu" means
+ * what it has always meant.
+ */
+export interface ShadowChunk {
   /** @minimum 1 */
   ordinal: number;
-  /** @minimum 0 */
   startMs: number;
-  /** @minimum 1 */
   endMs: number;
-  textKo: string;
-  /**
-     * Required, and the opposite of PlacementQuestion's rule. There a
-     * gloss would let a learner read their way to a level measuring
-     * someone who will not exist on exam day. Here the gloss under the
-     * current line **is** the screen: shadowing a sentence you do not
-     * understand is parroting (TCCN-352-9). The publish gate is what
-     * makes "required" true.
-     */
-  textVi: string;
-  /** 민수 / 지수. Absent when the material has no named speakers. */
-  speaker?: string;
-  /**
-     * Never null. Empty is the ordinary case — most lines are short enough
-     * to shadow whole — and means "this line is one unit".
-     */
-  chunks: ShadowChunk[];
-  terms: ShadowTerm[];
-  practised: boolean;
+  charStart: number;
+  charEnd: number;
 }

@@ -27,6 +27,7 @@ import type { AdminShadowAsset } from './adminShadowAsset';
 import type { AdminShadowGlossaryEntry } from './adminShadowGlossaryEntry';
 import type { AdminShadowLine } from './adminShadowLine';
 import type { AdminShadowVideoDetailVoiceKind } from './adminShadowVideoDetailVoiceKind';
+import type { ShadowMediaKind } from './shadowMediaKind';
 import type { ShadowReviewSummary } from './shadowReviewSummary';
 import type { ShadowVideoStatus } from './shadowVideoStatus';
 import type { Topic } from './topic';
@@ -40,10 +41,22 @@ export interface AdminShadowVideoDetail {
      */
   level: number;
   status: ShadowVideoStatus;
+  mediaKind: ShadowMediaKind;
   voice: string;
   voiceKind: AdminShadowVideoDetailVoiceKind;
   publishedAt?: string;
+  /**
+     * Absent until real bytes land. A draft reserves a placeholder asset
+     * row, and reporting that as present is what would leave the studio
+     * showing a broken player instead of an upload panel.
+     */
   asset?: AdminShadowAsset;
+  /**
+     * The poster, when one has been uploaded. Same type as `asset`, and
+     * its `durationMs` is always 0 — an image has no duration, which is
+     * why its presence is decided on byte size alone.
+     */
+  thumbnail?: AdminShadowAsset;
   topics: Topic[];
   lines: AdminShadowLine[];
   glossary: AdminShadowGlossaryEntry[];

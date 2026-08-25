@@ -23,6 +23,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { ShadowMediaKind } from './shadowMediaKind';
 
 /**
  * Carries no level, deliberately. The list is ordered by level on the
@@ -34,6 +35,14 @@ export interface ShadowVideoListItem {
   id: string;
   title: string;
   durationMs: number;
+  mediaKind: ShadowMediaKind;
+  /**
+     * Absent on a video that never got a poster, which is a normal state
+     * — the row falls back to a generic icon. A published `AUDIO` item
+     * always has one: the publish gate refuses it otherwise, in Go and
+     * again in a database trigger.
+     */
+  thumbnailUrl?: string;
   lineCount: number;
   wordCount: number;
   /**

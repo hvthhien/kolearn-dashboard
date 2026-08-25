@@ -18,6 +18,13 @@ export type LineIssue =
   | { kind: 'missing-translation'; ordinal: number }
   | { kind: 'missing-speaker'; ordinal: number }
 
+export interface EditableChunk {
+  startMs: number
+  endMs: number
+  charStart: number
+  charEnd: number
+}
+
 export interface EditableLine {
   id?: string
   startMs: number
@@ -25,6 +32,8 @@ export interface EditableLine {
   textKo: string
   textVi: string
   speaker: string
+  /** Empty on a line nobody has split, which is most of them. */
+  chunks: EditableChunk[]
 }
 
 /**

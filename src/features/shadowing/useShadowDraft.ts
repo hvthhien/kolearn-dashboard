@@ -40,6 +40,12 @@ function toDraft(video: AdminShadowVideoDetail): ShadowDraft {
       textKo: l.textKo,
       textVi: l.textVi,
       speaker: l.speaker,
+      chunks: l.chunks.map((c) => ({
+        startMs: c.startMs,
+        endMs: c.endMs,
+        charStart: c.charStart,
+        charEnd: c.charEnd,
+      })),
     })),
     glossary: video.glossary.map((g) => ({ ...g, occurrences: [...g.occurrences] })),
   }
@@ -103,6 +109,10 @@ export function useShadowDraft(video: AdminShadowVideoDetail) {
         textKo: l.textKo.trim(),
         textVi: l.textVi.trim(),
         speaker: l.speaker.trim(),
+        // Sent even when empty: the server replaces the whole set, so omitting
+        // it on a line an author just un-split would leave the old chunks in
+        // place with no way to say otherwise.
+        chunks: l.chunks,
       })),
     }),
     [draft.lines],

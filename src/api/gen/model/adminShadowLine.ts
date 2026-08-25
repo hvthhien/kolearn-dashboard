@@ -24,6 +24,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { AdminShadowApproval } from './adminShadowApproval';
+import type { AdminShadowChunk } from './adminShadowChunk';
 
 export interface AdminShadowLine {
   id: string;
@@ -36,7 +37,15 @@ export interface AdminShadowLine {
   textKo: string;
   textVi: string;
   speaker: string;
-  /** Bumped whenever the timing, the Korean, or the video asset changes. */
+  /**
+     * Bumped whenever the timing, the Korean, or the video asset changes.
+     *
+     * Chunking a line does NOT bump it. An approval is a native speaker's
+     * verdict on a stretch of audio, and splitting that stretch into
+     * phrases changes not one sample of it.
+     */
   revision: number;
   approval: AdminShadowApproval;
+  /** Never null. Empty means the line is its own single unit. */
+  chunks: AdminShadowChunk[];
 }

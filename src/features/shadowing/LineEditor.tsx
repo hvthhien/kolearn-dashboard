@@ -23,6 +23,7 @@ export function LineEditor({
   onActivate,
   onChangeLine,
   onChangeLines,
+  onProposeChunks,
 }: {
   lines: EditableLine[]
   activeIndex: number
@@ -30,6 +31,9 @@ export function LineEditor({
   onActivate: (index: number) => void
   onChangeLine: (index: number, patch: Partial<EditableLine>) => void
   onChangeLines: (lines: EditableLine[]) => void
+  /** Undefined while the media has not been decoded — the button says so
+   *  rather than disappearing. */
+  onProposeChunks?: (index: number) => void
 }) {
   const playheadMs = () => Math.round((videoRef.current?.currentTime ?? 0) * 1000)
 
@@ -63,6 +67,7 @@ export function LineEditor({
       textKo: '',
       textVi: '',
       speaker: at?.speaker ?? '',
+      chunks: [],
     })
     onChangeLines(next)
   }
@@ -84,8 +89,11 @@ export function LineEditor({
     next.splice(
       index,
       1,
-      { ...line, endMs: cut },
-      { startMs: cut, endMs: line.endMs, textKo: '', textVi: '', speaker: line.speaker },
+      // Splitting a line throws its chunks away rather than trying to divide
+      // them: the Korean of the second half is empty, so every offset in it
+      // would point at nothing. Re-proposing is one click.
+      { ...line, endMs: cut, chunks: [] },
+      { startMs: cut, endMs: line.endMs, textKo: '', textVi: '', speaker: line.speaker, chunks: [] },
     )
     onChangeLines(next)
   }
@@ -193,6 +201,24 @@ export function LineEditor({
               </Field>
             </div>
 
+            {line.chunks.length > 0 && (
+              <ol className="mt-2 flex flex-wrap gap-1">
+                {line.chunks.map((c, n) => (
+                  <li
+                    key={n}
+                    className="rounded-lg border border-line bg-white px-2 py-1"
+                  >
+                    <span className="font-mono text-[11px] tabular-nums text-muted">
+                      {formatMs(c.startMs)}–{formatMs(c.endMs)}
+                    </span>{' '}
+                    <span className="ko text-sm">
+                      {[...line.textKo].slice(c.charStart, c.charEnd).join('')}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            )}
+
             <div className="mt-3 flex flex-wrap gap-2">
               <Button type="button" variant="secondary" onClick={() => preview(line)}>
                 Nghe thử câu này
@@ -200,6 +226,29 @@ export function LineEditor({
               <Button type="button" variant="ghost" onClick={() => splitAt(i)}>
                 Tách tại vị trí đang phát
               </Button>
+              {/*
+                Chia cụm is not Tách câu, and the two are easy to confuse.
+
+                Tách makes two LINES out of one — two units of approval, two
+                rows in the transcript. Chia cụm leaves one line and one
+                approval, and gives the learner somewhere smaller to loop
+                inside it. Only the second is reversible with one click, which
+                is why it sits beside its own "Bỏ chia cụm".
+              */}
+              {onProposeChunks && (
+                <Button type="button" variant="ghost" onClick={() => onProposeChunks(i)}>
+                  Chia cụm tự động
+                </Button>
+              )}
+              {line.chunks.length > 0 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => onChangeLine(i, { chunks: [] })}
+                >
+                  Bỏ chia cụm ({line.chunks.length})
+                </Button>
+              )}
               <Button
                 type="button"
                 variant="ghost"

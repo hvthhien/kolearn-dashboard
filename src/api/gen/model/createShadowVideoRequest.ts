@@ -23,6 +23,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { ShadowMediaKind } from './shadowMediaKind';
 
 export interface CreateShadowVideoRequest {
   /** @minLength 1 */
@@ -32,4 +33,17 @@ export interface CreateShadowVideoRequest {
      * @maximum 6
      */
   level: number;
+  /**
+     * `VIDEO` when absent, so callers written before audio existed keep
+     * working unchanged.
+     *
+     * This is the ONE moment the kind can be chosen. The placeholder
+     * asset row a draft reserves is referenced immediately, and from that
+     * moment the database refuses to change its kind — so a
+     * confirm-upload cannot turn a `VIDEO` draft into an `AUDIO` one when
+     * an `.mp3` lands. It costs nothing to choose here: the author picks
+     * in the same dialog they type the title into, before any bytes
+     * exist.
+     */
+  mediaKind?: ShadowMediaKind;
 }

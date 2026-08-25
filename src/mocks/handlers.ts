@@ -5,6 +5,7 @@ import type {
   AdminDictationSetDetail,
   AdminExamDetail,
   AdminShadowVideoDetail,
+  ShadowMediaKind,
   ShadowPublishReport,
   AdminQuestion,
   AdminQuestionRow,
@@ -293,6 +294,7 @@ export const handlers = [
         title: v.title,
         level: v.level,
         status: v.status,
+        mediaKind: v.mediaKind,
         // The field the remove button reads. Omitting it here would make every
         // row look deletable, including the ones learners have practised with.
         publishedAt: v.publishedAt,
@@ -305,12 +307,19 @@ export const handlers = [
   }),
 
   http.post(`${BASE}/admin/shadowing/videos`, async ({ request }) => {
-    const body = (await request.json()) as { title: string; level: number }
+    const body = (await request.json()) as {
+      title: string
+      level: number
+      mediaKind?: ShadowMediaKind
+    }
     const created: AdminShadowVideoDetail = {
       id: `sv-${state.videos.length + 1}-${body.title.length}`,
       title: body.title,
       level: body.level,
       status: 'DRAFT',
+      // Absent means VIDEO, matching the server: callers written before audio
+      // existed keep working unchanged.
+      mediaKind: body.mediaKind ?? 'VIDEO',
       voice: '',
       voiceKind: 'SYNTHETIC',
       topics: [],
@@ -355,6 +364,7 @@ export const handlers = [
         textKo: string
         textVi: string
         speaker: string
+        chunks?: { startMs: number; endMs: number; charStart: number; charEnd: number }[]
       }[]
     }
 
@@ -381,6 +391,16 @@ export const handlers = [
         approval: before
           ? { ...before.approval, stale: changed || before.approval.stale }
           : { verdict: 'UNREVIEWED' as const, stale: false },
+        // The surface is sliced by the server, never sent — so the mock slices
+        // it too, or the studio would round-trip a field the real API fills in.
+        chunks: (incoming.chunks ?? []).map((c, n) => ({
+          ordinal: n + 1,
+          startMs: c.startMs,
+          endMs: c.endMs,
+          charStart: c.charStart,
+          charEnd: c.charEnd,
+          surfaceKo: [...incoming.textKo].slice(c.charStart, c.charEnd).join(''),
+        })),
       }
     })
     video.review = summarise(video)

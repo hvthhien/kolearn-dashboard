@@ -2,7 +2,13 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { http, HttpResponse } from 'msw'
 import { server } from '../../mocks/server'
 import { setAccessToken } from '../../lib/http'
-import { MAX_BYTES, probeVideoFile, uploadShadowingVideo, VideoRejected } from './uploadVideo'
+import {
+  MAX_BYTES,
+  probeThumbnailFile,
+  probeVideoFile,
+  uploadShadowingVideo,
+  VideoRejected,
+} from './uploadVideo'
 
 /**
  * The three-call sequence, and the two properties that make it safe.
@@ -131,7 +137,29 @@ describe('TCCN-354-8: tệp sai định dạng hoặc quá lớn bị chặn s�
     // swept afterwards.
     expect(seen).toHaveLength(0)
 
-    await expect(probeVideoFile(wrong)).rejects.toThrow(/Chỉ nhận tệp \.mp4/)
+    // The message names the kind THIS item is, not a rule in general: an author
+    // who picked the wrong kind at creation has a different problem from one who
+    // picked the wrong file, and only the first is worth deleting a draft over.
+    await expect(probeVideoFile(wrong)).rejects.toThrow(/Ngữ liệu này là video.*\.mp4/)
+  })
+
+  it('refuses an mp4 dropped into an audio item, naming which kind it is', async () => {
+    const mp4 = new File([new Uint8Array(16)], 'a.mp4', { type: 'video/mp4' })
+
+    await expect(probeVideoFile(mp4, 'AUDIO')).rejects.toThrow(/Ngữ liệu này là âm thanh/)
+    expect(seen).toHaveLength(0)
+  })
+
+  it('refuses a poster that is not an image, and one nobody could read', async () => {
+    const notImage = new File([new Uint8Array(16)], 'a.mp4', { type: 'video/mp4' })
+    await expect(probeThumbnailFile(notImage)).rejects.toThrow(/chỉ nhận \.png/)
+
+    // 8 MB, against a poster every row of the learner's list loads one of.
+    const huge = new File([new Uint8Array(8)], 'a.png', { type: 'image/png' })
+    Object.defineProperty(huge, 'size', { value: 9 * 1024 * 1024 })
+    await expect(probeThumbnailFile(huge)).rejects.toThrow(/vượt giới hạn/)
+
+    expect(seen).toHaveLength(0)
   })
 
   it('names the real size when the file is too big', async () => {

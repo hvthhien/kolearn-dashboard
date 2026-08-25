@@ -6160,6 +6160,33 @@ components:
       type: string
       enum: [DRAFT, IN_REVIEW, PUBLISHED, RETIRED]
 
+    ShadowMediaKind:
+      type: string
+      description: |
+        What the item is built on. A podcast episode is a shadowing source in
+        every way that matters — a voice, a script, timings — and needs no
+        moving picture, so `AUDIO` is a first-class kind rather than a video
+        with the picture missing.
+
+        Fixed when the draft is created and unchangeable afterwards: the
+        placeholder asset row a draft reserves is referenced immediately, and
+        the database refuses to change a referenced asset's kind. See
+        `CreateShadowVideoRequest.mediaKind`.
+      enum: [VIDEO, AUDIO]
+
+    ShadowUploadPurpose:
+      type: string
+      description: |
+        Which role a file plays. It decides the accepted MIME types and the
+        byte ceiling — both the server's to choose, which is why this names the
+        role rather than letting the browser send a type and a size and be
+        believed about them.
+
+        It also decides one thing that is easy to miss: confirming `MEDIA`
+        retires every line's approval, because every stretch of audio has just
+        been replaced. Confirming `THUMBNAIL` does not.
+      enum: [MEDIA, THUMBNAIL]
+
     ShadowApprovalVerdict:
       type: string
       description: |
@@ -6185,7 +6212,7 @@ components:
 
     ShadowVideoListItem:
       type: object
-      required: [id, title, durationMs, lineCount, wordCount, practisedCount]
+      required: [id, title, durationMs, lineCount, wordCount, practisedCount, mediaKind]
       description: |
         Carries no level, deliberately. The list is ordered by level on the
         server and the screen never shows one; a field on the wire is one
@@ -6195,6 +6222,14 @@ components:
         id: { type: string, format: uuid }
         title: { type: string }
         durationMs: { type: integer }
+        mediaKind: { $ref: '#/components/schemas/ShadowMediaKind' }
+        thumbnailUrl:
+          type: string
+          description: |
+            Absent on a video that never got a poster, which is a normal state
+            — the row falls back to a generic icon. A published `AUDIO` item
+            always has one: the publish gate refuses it otherwise, in Go and
+            again in a database trigger.
         lineCount: { type: integer }
         wordCount: { type: integer }
         practisedCount:
@@ -6630,9 +6665,40 @@ components:
         charStart: { type: integer, minimum: 0 }
         charEnd: { type: integer, minimum: 1 }
 
+    ShadowChunk:
+      type: object
+      required: [ordinal, startMs, endMs, charStart, charEnd]
+      description: |
+        A phrase inside one line — a **cụm từ**, and the unit under the
+        sentence.
+
+        It answers a problem the sentence unit cannot: a twelve-second line is
+        not shadowable as one piece by the learner who most needs to shadow it,
+        and "play the whole sentence again" is the wrong answer to "I lost it
+        after the fourth word".
+
+        Same conventions as `ShadowTerm` — a half-open span in Unicode CODE
+        POINTS over the line's `textKo`, sliced with `Array.from`, never
+        `String.slice`.
+
+        A line with NO chunks is its own single chunk. That is what makes this a
+        pure addition: every line authored before chunks existed keeps working,
+        and the player's phrase control is simply unavailable on material nobody
+        has chunked.
+
+        Progress does not move with them. A line counts as practised when its
+        LAST chunk finishes, or when it is played whole — so "3 / 24 câu" means
+        what it has always meant.
+      properties:
+        ordinal: { type: integer, minimum: 1 }
+        startMs: { type: integer }
+        endMs: { type: integer }
+        charStart: { type: integer }
+        charEnd: { type: integer }
+
     ShadowLine:
       type: object
-      required: [id, ordinal, startMs, endMs, textKo, textVi, terms, practised]
+      required: [id, ordinal, startMs, endMs, textKo, textVi, terms, chunks, practised]
       properties:
         id: { type: string, format: uuid }
         ordinal: { type: integer, minimum: 1 }
@@ -6651,6 +6717,12 @@ components:
         speaker:
           type: string
           description: 민수 / 지수. Absent when the material has no named speakers.
+        chunks:
+          type: array
+          description: |
+            Never null. Empty is the ordinary case — most lines are short enough
+            to shadow whole — and means "this line is one unit".
+          items: { $ref: '#/components/schemas/ShadowChunk' }
         terms:
           type: array
           items: { $ref: '#/components/schemas/ShadowTerm' }
@@ -6675,16 +6747,30 @@ components:
 
     ShadowVideoDetail:
       type: object
-      required: [id, title, durationMs, playbackUrl, lines, glossary, progress]
+      required: [id, title, durationMs, playbackUrl, mediaKind, lines, glossary, progress]
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
         durationMs: { type: integer }
+        mediaKind: { $ref: '#/components/schemas/ShadowMediaKind' }
+        thumbnailUrl:
+          type: string
+          description: |
+            What the learner looks at, fed to the media element's `poster`. On
+            an `AUDIO` item this is the entire visual surface of the screen,
+            which is why the publish gate refuses a published audio item
+            without one. On a `VIDEO` item it is a poster frame and optional.
         playbackUrl:
           type: string
           description: |
             An absolute public URL on the Cloudflare R2 custom domain, read
             straight by a `<video>` element with no credential.
+
+            Still `playbackUrl` and still read by a `<video>` element when the
+            bytes are an `.mp3`. Every browser plays audio through a video
+            element, and keeping one element is what keeps the line loop, the
+            speed control and the layout identical across both kinds instead of
+            forking them.
 
             Deliberately unlike an attempt's audio, which is one learner's
             frozen paper under R-01's single-play rule and therefore goes
@@ -6758,9 +6844,27 @@ components:
             stale verdict as unreviewed (TCCN-354-4). Computed by the server so
             the client never compares revisions itself.
 
+    AdminShadowChunk:
+      type: object
+      required: [ordinal, startMs, endMs, charStart, charEnd, surfaceKo]
+      description: |
+        A cụm từ as the studio sees it. It carries `surfaceKo` where the
+        learner's `ShadowChunk` does not — the characters the chunk claims,
+        redundant against the line on purpose, exactly as
+        `AdminShadowOccurrence` carries it. It is what shows an author a drifted
+        offset in a diff, and what the database compares against before it will
+        accept the row.
+      properties:
+        ordinal: { type: integer, minimum: 1 }
+        startMs: { type: integer }
+        endMs: { type: integer }
+        charStart: { type: integer }
+        charEnd: { type: integer }
+        surfaceKo: { type: string }
+
     AdminShadowLine:
       type: object
-      required: [id, ordinal, startMs, endMs, textKo, textVi, speaker, revision, approval]
+      required: [id, ordinal, startMs, endMs, textKo, textVi, speaker, revision, approval, chunks]
       properties:
         id: { type: string, format: uuid }
         ordinal: { type: integer, minimum: 1 }
@@ -6771,8 +6875,17 @@ components:
         speaker: { type: string }
         revision:
           type: integer
-          description: Bumped whenever the timing, the Korean, or the video asset changes.
+          description: |
+            Bumped whenever the timing, the Korean, or the video asset changes.
+
+            Chunking a line does NOT bump it. An approval is a native speaker's
+            verdict on a stretch of audio, and splitting that stretch into
+            phrases changes not one sample of it.
         approval: { $ref: '#/components/schemas/AdminShadowApproval' }
+        chunks:
+          type: array
+          description: Never null. Empty means the line is its own single unit.
+          items: { $ref: '#/components/schemas/AdminShadowChunk' }
 
     AdminShadowOccurrence:
       type: object
@@ -6817,12 +6930,13 @@ components:
 
     AdminShadowVideoRow:
       type: object
-      required: [id, title, level, status, lineCount, wordCount, review]
+      required: [id, title, level, status, mediaKind, lineCount, wordCount, review]
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
         level: { type: integer, minimum: 1, maximum: 6 }
         status: { $ref: '#/components/schemas/ShadowVideoStatus' }
+        mediaKind: { $ref: '#/components/schemas/ShadowMediaKind' }
         publishedAt:
           type: string
           format: date-time
@@ -6848,16 +6962,28 @@ components:
 
     AdminShadowVideoDetail:
       type: object
-      required: [id, title, level, status, voice, voiceKind, topics, lines, glossary, review]
+      required: [id, title, level, status, mediaKind, voice, voiceKind, topics, lines, glossary, review]
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
         level: { type: integer, minimum: 1, maximum: 6 }
         status: { $ref: '#/components/schemas/ShadowVideoStatus' }
+        mediaKind: { $ref: '#/components/schemas/ShadowMediaKind' }
         voice: { type: string }
         voiceKind: { type: string, enum: [HUMAN, SYNTHETIC] }
         publishedAt: { type: string, format: date-time }
-        asset: { $ref: '#/components/schemas/AdminShadowAsset' }
+        asset:
+          allOf: [{ $ref: '#/components/schemas/AdminShadowAsset' }]
+          description: |
+            Absent until real bytes land. A draft reserves a placeholder asset
+            row, and reporting that as present is what would leave the studio
+            showing a broken player instead of an upload panel.
+        thumbnail:
+          allOf: [{ $ref: '#/components/schemas/AdminShadowAsset' }]
+          description: |
+            The poster, when one has been uploaded. Same type as `asset`, and
+            its `durationMs` is always 0 — an image has no duration, which is
+            why its presence is decided on byte size alone.
         topics:
           type: array
           items: { $ref: '#/components/schemas/Topic' }
@@ -6875,6 +7001,19 @@ components:
       properties:
         title: { type: string, minLength: 1 }
         level: { type: integer, minimum: 1, maximum: 6 }
+        mediaKind:
+          allOf: [{ $ref: '#/components/schemas/ShadowMediaKind' }]
+          description: |
+            `VIDEO` when absent, so callers written before audio existed keep
+            working unchanged.
+
+            This is the ONE moment the kind can be chosen. The placeholder
+            asset row a draft reserves is referenced immediately, and from that
+            moment the database refuses to change its kind — so a
+            confirm-upload cannot turn a `VIDEO` draft into an `AUDIO` one when
+            an `.mp3` lands. It costs nothing to choose here: the author picks
+            in the same dialog they type the title into, before any bytes
+            exist.
 
     SaveShadowVideoRequest:
       type: object
@@ -6903,6 +7042,32 @@ components:
         textKo: { type: string, minLength: 1 }
         textVi: { type: string }
         speaker: { type: string }
+        chunks:
+          type: array
+          description: |
+            Replaced wholesale on every save, like the glossary's occurrences: a
+            chunk has no identity worth preserving — nothing points at one — so
+            there is nothing to match up and nothing to strand.
+
+            Omitted and empty mean the same thing, and it is the honest one:
+            this line has no chunks. A client that has not been taught about
+            them sends nothing and clears none, because it also sends no line it
+            did not first read.
+          items: { $ref: '#/components/schemas/SaveShadowChunkInput' }
+
+    SaveShadowChunkInput:
+      type: object
+      required: [startMs, endMs, charStart, charEnd]
+      description: |
+        No surface string and no ordinal. The surface is sliced out of `textKo`
+        by the server, so a client cannot make the two disagree about what sits
+        at those offsets; the ordinal comes from array order, the same rule the
+        lines themselves follow.
+      properties:
+        startMs: { type: integer }
+        endMs: { type: integer }
+        charStart: { type: integer }
+        charEnd: { type: integer }
 
     SaveShadowLinesRequest:
       type: object
@@ -6948,8 +7113,27 @@ components:
       required: [fileName, mimeType, byteSize]
       properties:
         fileName: { type: string, minLength: 1 }
-        mimeType: { type: string }
+        mimeType:
+          type: string
+          description: |
+            Held to the accept-list for this item's own `mediaKind`, not to a
+            flat one: an author who started an audio item and drops an `.mp4`
+            into it has made a mistake, and a flat list would take the file and
+            leave the row and the object disagreeing.
+
+            `MEDIA` on a `VIDEO` item: `video/mp4`. On an `AUDIO` item:
+            `audio/mpeg`, `audio/mp4`. `THUMBNAIL`, either kind: `image/png`,
+            `image/jpeg`, `image/webp` — no SVG, which is a document that can
+            carry script and would be served from an origin this product owns.
         byteSize: { type: integer, format: int64, minimum: 1 }
+        purpose:
+          allOf: [{ $ref: '#/components/schemas/ShadowUploadPurpose' }]
+          description: |
+            `MEDIA` when absent. Also lands in the minted object key, which is
+            what lets the confirm below check that an object was minted for the
+            role it is about to be attached to — without it, an image uploaded
+            through a `MEDIA` target could be confirmed as a `THUMBNAIL`, and
+            both halves would look correct in isolation.
         sha256:
           type: string
           description: |
@@ -6978,7 +7162,7 @@ components:
 
     ConfirmShadowUploadRequest:
       type: object
-      required: [objectKey, durationMs]
+      required: [objectKey]
       properties:
         objectKey: { type: string, minLength: 1 }
         durationMs:
@@ -6988,6 +7172,23 @@ components:
             Measured by the browser from the file it just uploaded. Trusted
             only as far as the publish gate, which refuses a video whose last
             line ends after this — so a wrong duration cannot ship.
+
+            Required for `MEDIA` and ignored for `THUMBNAIL`. It left the
+            required list when posters arrived: an image has no duration, and
+            demanding a positive one for both would make a poster upload
+            impossible to express. A `MEDIA` confirm without it is still
+            refused, by the handler rather than by the schema.
+        purpose:
+          allOf: [{ $ref: '#/components/schemas/ShadowUploadPurpose' }]
+          description: |
+            `MEDIA` when absent. Decides which column the object is attached to
+            — and one thing more that is easy to miss: a `MEDIA` confirm
+            retires every line's approval by bumping its revision, because
+            every stretch of audio has just been replaced. A `THUMBNAIL`
+            confirm must not, and does not. Getting that backwards would send
+            every approved line back to `UNREVIEWED` each time somebody swapped
+            a picture, with no symptom until the publish gate refused a video
+            that was ready an hour ago.
 
     ShadowPublishReport:
       type: object

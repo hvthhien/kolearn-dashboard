@@ -1,4 +1,4 @@
-import type { AdminShadowVideoDetail } from '../../api/gen/model'
+import type { AdminShadowChunk, AdminShadowVideoDetail } from '../../api/gen/model'
 
 /**
  * The mock-up's own content, so the fixture and the BA's screen agree about
@@ -10,6 +10,7 @@ export const VIDEO_RESTAURANT: AdminShadowVideoDetail = {
   title: 'Đặt bàn nhà hàng',
   level: 2,
   status: 'DRAFT',
+  mediaKind: 'VIDEO',
   voice: 'Nữ',
   voiceKind: 'SYNTHETIC',
   topics: [],
@@ -60,6 +61,7 @@ export const VIDEO_EMPTY: AdminShadowVideoDetail = {
   title: 'Video mới',
   level: 2,
   status: 'DRAFT',
+  mediaKind: 'VIDEO',
   voice: '',
   voiceKind: 'SYNTHETIC',
   topics: [],
@@ -123,6 +125,9 @@ function line(
     textVi,
     speaker: ordinal % 2 === 1 ? '민수' : '지수',
     revision: 1,
+    // Unsplit by default. Chunking is something an author does to the lines
+    // that need it, not a property every line arrives with.
+    chunks: [] as AdminShadowChunk[],
     approval:
       verdict === 'UNREVIEWED'
         ? { verdict, stale: false }

@@ -168,3 +168,72 @@ describe('TCCN-354-6: hai câu không được chồng mốc thời gian', () =>
     expect(screen.getByRole('button', { name: 'Lưu nháp' })).toBeDisabled()
   })
 })
+
+describe('audio as a first-class kind, and the poster it needs', () => {
+  /**
+   * The studio has to say which kind it is opening, because the choice is
+   * unchangeable: a draft reserves a placeholder asset row and the database
+   * freezes its kind the moment the item points at it. An author who cannot
+   * tell an audio draft from a video one finds out by having an upload refused.
+   */
+  it('labels an audio item as audio, everywhere the author looks', async () => {
+    const video = mockShadowVideo('sv-2')!
+    video.mediaKind = 'AUDIO'
+
+    renderRoute('/videos/sv-2')
+    await screen.findByRole('heading', { name: 'Âm thanh' })
+
+    expect(screen.getByLabelText('Chọn tệp âm thanh')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Chọn tệp video')).not.toBeInTheDocument()
+
+    video.mediaKind = 'VIDEO'
+  })
+
+  /**
+   * A poster is the entire visual surface of an audio item — the publish gate
+   * refuses to release one without it. Saying so in the studio is what stops an
+   * author discovering it at the gate, after the work is done.
+   */
+  it('warns while an audio item has no poster', async () => {
+    const video = mockShadowVideo('sv-2')!
+    video.mediaKind = 'AUDIO'
+
+    renderRoute('/videos/sv-2')
+    await screen.findByRole('heading', { name: 'Ảnh xem trước' })
+    expect(screen.getByText(/phải có ảnh xem trước/)).toBeInTheDocument()
+
+    video.mediaKind = 'VIDEO'
+  })
+
+  it('stops warning once the poster is there, and shows it', async () => {
+    const video = mockShadowVideo('sv-2')!
+    video.mediaKind = 'AUDIO'
+    video.thumbnail = {
+      assetId: 'a-thumb',
+      playbackUrl: 'https://media.test/shadowing/thumb/abc.png',
+      objectKey: 'shadowing/thumb/abc.png',
+      byteSize: 240_000,
+      mimeType: 'image/webp',
+      // Zero, and always will be: an image has no duration, which is why its
+      // presence is decided on byte size alone.
+      durationMs: 0,
+    }
+
+    renderRoute('/videos/sv-2')
+    await screen.findByRole('heading', { name: 'Ảnh xem trước' })
+    expect(screen.queryByText(/phải có ảnh xem trước/)).not.toBeInTheDocument()
+    expect(screen.getByAltText('Ảnh xem trước hiện tại')).toHaveAttribute(
+      'src',
+      'https://media.test/shadowing/thumb/abc.png',
+    )
+
+    video.mediaKind = 'VIDEO'
+    delete video.thumbnail
+  })
+
+  it('does not demand a poster on a video, where it is only a poster frame', async () => {
+    renderRoute('/videos/sv-2')
+    await screen.findByRole('heading', { name: 'Ảnh xem trước' })
+    expect(screen.queryByText(/phải có ảnh xem trước/)).not.toBeInTheDocument()
+  })
+})

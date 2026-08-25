@@ -23,31 +23,16 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { SaveShadowChunkInput } from './saveShadowChunkInput';
 
-export interface SaveShadowLineInput {
-  /**
-     * Omitted for a new line. Present to keep an existing line's identity
-     * — and with it its approval, when nothing about it changed.
-     */
-  id?: string;
-  /** @minimum 0 */
+/**
+ * No surface string and no ordinal. The surface is sliced out of `textKo`
+ * by the server, so a client cannot make the two disagree about what sits
+ * at those offsets; the ordinal comes from array order, the same rule the
+ * lines themselves follow.
+ */
+export interface SaveShadowChunkInput {
   startMs: number;
-  /** @minimum 1 */
   endMs: number;
-  /** @minLength 1 */
-  textKo: string;
-  textVi?: string;
-  speaker?: string;
-  /**
-     * Replaced wholesale on every save, like the glossary's occurrences: a
-     * chunk has no identity worth preserving — nothing points at one — so
-     * there is nothing to match up and nothing to strand.
-     *
-     * Omitted and empty mean the same thing, and it is the honest one:
-     * this line has no chunks. A client that has not been taught about
-     * them sends nothing and clears none, because it also sends no line it
-     * did not first read.
-     */
-  chunks?: SaveShadowChunkInput[];
+  charStart: number;
+  charEnd: number;
 }

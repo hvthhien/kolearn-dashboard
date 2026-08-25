@@ -23,31 +23,21 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { SaveShadowChunkInput } from './saveShadowChunkInput';
 
-export interface SaveShadowLineInput {
-  /**
-     * Omitted for a new line. Present to keep an existing line's identity
-     * — and with it its approval, when nothing about it changed.
-     */
-  id?: string;
-  /** @minimum 0 */
-  startMs: number;
+/**
+ * A cụm từ as the studio sees it. It carries `surfaceKo` where the
+ * learner's `ShadowChunk` does not — the characters the chunk claims,
+ * redundant against the line on purpose, exactly as
+ * `AdminShadowOccurrence` carries it. It is what shows an author a drifted
+ * offset in a diff, and what the database compares against before it will
+ * accept the row.
+ */
+export interface AdminShadowChunk {
   /** @minimum 1 */
+  ordinal: number;
+  startMs: number;
   endMs: number;
-  /** @minLength 1 */
-  textKo: string;
-  textVi?: string;
-  speaker?: string;
-  /**
-     * Replaced wholesale on every save, like the glossary's occurrences: a
-     * chunk has no identity worth preserving — nothing points at one — so
-     * there is nothing to match up and nothing to strand.
-     *
-     * Omitted and empty mean the same thing, and it is the honest one:
-     * this line has no chunks. A client that has not been taught about
-     * them sends nothing and clears none, because it also sends no line it
-     * did not first read.
-     */
-  chunks?: SaveShadowChunkInput[];
+  charStart: number;
+  charEnd: number;
+  surfaceKo: string;
 }
