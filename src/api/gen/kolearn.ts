@@ -166,6 +166,7 @@ import type {
   WordbookSourceSentence,
   WritingBatchSubmitResult,
   WritingDraft,
+  WritingGradeRunResult,
   WritingQuota,
   WritingSubmission,
   WritingTaskState
@@ -5526,6 +5527,95 @@ export const useSubmitAllWriting = <TError = UnauthorizedResponse | NotFoundResp
         TContext
       > => {
       return useMutation(getSubmitAllWritingMutationOptions(options), queryClient);
+    }
+
+export const getGradeWritingNowUrl = (attemptId: string,) => {
+
+
+
+
+  return `/api/v1/attempts/${attemptId}/writing/grade`
+}
+
+/**
+ * Marking begins the moment the learner submits, on a host with no
+ * long-running process to run cmd/worker in. Without this the two
+ * drivers that exist — the worker loop and the scheduled drain — have
+ * nowhere to run, and an essay is stored, charged for, and never marked.
+ *
+ * TCCN-203-3 is unaffected: the learner is not made to wait. This marks
+ * only the caller's own submissions, only ones still QUEUED, and only as
+ * many as fit inside a deadline set below the host's maximum function
+ * duration — so it cannot outlive the request that made it. Anything it
+ * does not reach stays QUEUED for the worker or the drain, and the
+ * learner may close the tab at any point and lose nothing.
+ *
+ * Sent with `keepalive` right after `submitAllWriting`, and re-sent by
+ * the result screens while `remaining` is above zero.
+ *
+ * Repeatable and safe to call concurrently: the claim is a single
+ * conditional UPDATE, so two calls take different essays rather than the
+ * same one twice.
+ * @summary Start marking this attempt's queued essays (YC-203, TCCN-203-3)
+ */
+export const gradeWritingNow = async (attemptId: string, options?: Parameters<typeof apiFetch>[1]): Promise<WritingGradeRunResult> => {
+
+  return apiFetch<WritingGradeRunResult>(getGradeWritingNowUrl(attemptId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getGradeWritingNowMutationOptions = <TError = UnauthorizedResponse | NotFoundResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof gradeWritingNow>>, TError,{attemptId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof gradeWritingNow>>, TError,{attemptId: string}, TContext> => {
+
+const mutationKey = ['gradeWritingNow'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof gradeWritingNow>>, {attemptId: string}> = (props) => {
+          const {attemptId} = props ?? {};
+
+          return  gradeWritingNow(attemptId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GradeWritingNowMutationResult = NonNullable<Awaited<ReturnType<typeof gradeWritingNow>>>
+
+    export type GradeWritingNowMutationError = UnauthorizedResponse | NotFoundResponse
+
+    /**
+ * @summary Start marking this attempt's queued essays (YC-203, TCCN-203-3)
+ */
+export const useGradeWritingNow = <TError = UnauthorizedResponse | NotFoundResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof gradeWritingNow>>, TError,{attemptId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof gradeWritingNow>>,
+        TError,
+        {attemptId: string},
+        TContext
+      > => {
+      return useMutation(getGradeWritingNowMutationOptions(options), queryClient);
     }
 
 export const getGetWritingSubmissionUrl = (submissionId: string,) => {

@@ -1863,6 +1863,41 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
 
+  /attempts/{attemptId}/writing/grade:
+    post:
+      tags: [writing]
+      operationId: gradeWritingNow
+      summary: Start marking this attempt's queued essays (YC-203, TCCN-203-3)
+      description: |
+        Marking begins the moment the learner submits, on a host with no
+        long-running process to run cmd/worker in. Without this the two
+        drivers that exist — the worker loop and the scheduled drain — have
+        nowhere to run, and an essay is stored, charged for, and never marked.
+
+        TCCN-203-3 is unaffected: the learner is not made to wait. This marks
+        only the caller's own submissions, only ones still QUEUED, and only as
+        many as fit inside a deadline set below the host's maximum function
+        duration — so it cannot outlive the request that made it. Anything it
+        does not reach stays QUEUED for the worker or the drain, and the
+        learner may close the tab at any point and lose nothing.
+
+        Sent with `keepalive` right after `submitAllWriting`, and re-sent by
+        the result screens while `remaining` is above zero.
+
+        Repeatable and safe to call concurrently: the claim is a single
+        conditional UPDATE, so two calls take different essays rather than the
+        same one twice.
+      parameters:
+        - $ref: '#/components/parameters/AttemptId'
+      responses:
+        '200':
+          description: What this pass marked, and what is left.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WritingGradeRunResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /writing/submissions/{submissionId}:
     get:
       tags: [writing]
@@ -4268,6 +4303,22 @@ components:
         choices:
           type: array
           items: { $ref: '#/components/schemas/ReviewChoice' }
+        writing:
+          allOf: [{ $ref: '#/components/schemas/ReviewWritingMark' }]
+          description: |
+            Present only on a writing task, and its presence is what a client
+            must branch on before reading `outcome`, `choices`,
+            `selectedChoiceOrdinal` or `correctChoiceOrdinal`. None of those
+            mean anything for an essay: there are no choices to select and
+            nothing to compare an answer against. They carry zero values rather
+            than being omitted only because the contract types them required.
+
+            In particular `outcome` reads `SKIPPED` on a writing task whose
+            essay the learner wrote in full, because it is derived from a
+            chosen ordinal that a writing task can never have. For the same
+            reason a writing task is counted in `counts.all` but never in
+            `counts.wrong` or `counts.skipped`, and never appears under the
+            `wrong` or `skipped` filters.
         explanationCorrect:
           $ref: '#/components/schemas/LocalisedText'
           description: |
@@ -4313,6 +4364,34 @@ components:
         images:
           type: array
           items: { $ref: '#/components/schemas/ExamImage' }
+
+    ReviewWritingMark:
+      type: object
+      description: |
+        What a review card can honestly say about a machine-marked essay: its
+        score, and where to read the marking.
+
+        Deliberately not the mark itself — no essay text, no corrections, no
+        criteria breakdown. SC-WRITE-RESULT renders those, and a machine mark
+        disclosed in two places is a machine mark that can be disclosed two
+        different ways (điều cấm #1).
+      required: [submissionId, status, awardedScore, maxScore]
+      properties:
+        submissionId:
+          type: string
+          format: uuid
+          description: The submission to open on SC-WRITE-RESULT.
+        status: { $ref: '#/components/schemas/WritingStatus' }
+        awardedScore:
+          type: [integer, 'null']
+          description: |
+            Null until the mark lands, so a card says "Đang chấm…" rather than
+            showing a zero that is really an absence.
+        maxScore:
+          type: integer
+          description: |
+            This task's own maximum — 10 for câu 51, 50 for câu 54 — not the
+            writing section's 100.
 
     ReviewChoice:
       type: object
@@ -5060,6 +5139,33 @@ components:
           type: integer
           description: Tasks with nothing written in them. No credit was touched.
 
+    WritingGradeRunResult:
+      type: object
+      description: |
+        One bounded marking pass, and what is left after it.
+
+        `remaining` is what lets the caller decide to ask again: a pass is
+        capped by a deadline and a small batch, so finishing a four-task
+        writing section normally takes more than one call.
+      required: [graded, failed, remaining, available]
+      properties:
+        graded: { type: integer }
+        failed:
+          type: integer
+          description: |
+            Runs that errored. Each released its credit, so the learner paid
+            nothing and the essay is still there to retry (R-09).
+        remaining:
+          type: integer
+          description: Essays in this attempt still QUEUED or GRADING.
+        available:
+          type: boolean
+          description: |
+            False when this deployment has no grading provider configured.
+            Reported rather than raised: it is an operator's fact, not the
+            learner's error, and a caller that re-sends until `remaining`
+            reaches zero has to be able to stop.
+
     WritingTaskState:
       type: object
       required: [questionId, format, maxScore, blanks, quota]
@@ -5787,6 +5893,17 @@ components:
             exists because imported papers have it; the editor does not offer it
             as a way to avoid writing three.
         explanationWrongGenericVi: { type: [string, 'null'] }
+        markingGuideKo:
+          type: [string, 'null']
+          description: |
+            The examiner's marking reference for an ESSAY task — what a
+            full-mark answer has to contain.
+
+            Not a sixth explanation layer. It is given to the grader and never
+            to a learner: no learner-facing response carries it, and the
+            contract's leak test names the field so one added later fails the
+            build. Only an ESSAY may carry it; câu 51/52 keep the equivalent
+            per blank.
         difficultyManual:
           type: [integer, 'null']
           minimum: 1
@@ -5826,6 +5943,17 @@ components:
         explanationCorrectVi: { type: [string, 'null'] }
         explanationWrongGenericKo: { type: [string, 'null'] }
         explanationWrongGenericVi: { type: [string, 'null'] }
+        markingGuideKo:
+          type: [string, 'null']
+          description: |
+            The examiner's marking reference for an ESSAY task — what a
+            full-mark answer has to contain.
+
+            Not a sixth explanation layer. It is given to the grader and never
+            to a learner: no learner-facing response carries it, and the
+            contract's leak test names the field so one added later fails the
+            build. Only an ESSAY may carry it; câu 51/52 keep the equivalent
+            per blank.
         difficultyManual: { type: [integer, 'null'], minimum: 1, maximum: 6 }
         choices:
           type: array

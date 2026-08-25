@@ -29,6 +29,7 @@ import type { ReviewChoice } from './reviewChoice';
 import type { ReviewEvidence } from './reviewEvidence';
 import type { ReviewPassage } from './reviewPassage';
 import type { ReviewQuestionOutcome } from './reviewQuestionOutcome';
+import type { ReviewWritingMark } from './reviewWritingMark';
 import type { SectionKind } from './sectionKind';
 
 /**
@@ -53,6 +54,22 @@ export interface ReviewQuestion {
   correctChoiceOrdinal: number;
   flagged?: boolean;
   choices: ReviewChoice[];
+  /**
+     * Present only on a writing task, and its presence is what a client
+     * must branch on before reading `outcome`, `choices`,
+     * `selectedChoiceOrdinal` or `correctChoiceOrdinal`. None of those
+     * mean anything for an essay: there are no choices to select and
+     * nothing to compare an answer against. They carry zero values rather
+     * than being omitted only because the contract types them required.
+     *
+     * In particular `outcome` reads `SKIPPED` on a writing task whose
+     * essay the learner wrote in full, because it is derived from a
+     * chosen ordinal that a writing task can never have. For the same
+     * reason a writing task is counted in `counts.all` but never in
+     * `counts.wrong` or `counts.skipped`, and never appears under the
+     * `wrong` or `skipped` filters.
+     */
+  writing?: ReviewWritingMark;
   /**
      * Layer 2 — why the right answer is right. Shown for every question,
      * including ones answered correctly: answering right by elimination

@@ -66,6 +66,18 @@ export interface AdminQuestion {
   /** @nullable */
   explanationWrongGenericVi?: string | null;
   /**
+     * The examiner's marking reference for an ESSAY task — what a
+     * full-mark answer has to contain.
+     *
+     * Not a sixth explanation layer. It is given to the grader and never
+     * to a learner: no learner-facing response carries it, and the
+     * contract's leak test names the field so one added later fails the
+     * build. Only an ESSAY may carry it; câu 51/52 keep the equivalent
+     * per blank.
+     * @nullable
+     */
+  markingGuideKo?: string | null;
+  /**
      * YC-303, assigned by hand while authoring. A TOPIK band, 1-6:
      * widened from 1-5 in migration 00021 because R-32 addresses
      * difficulty in bands ("độ khó ở TOPIK4", TCCN-341-7) and the
