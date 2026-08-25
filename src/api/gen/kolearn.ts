@@ -7266,6 +7266,119 @@ export const useAskAssistant = <TError = BadRequestResponse | UnauthorizedRespon
       return useMutation(getAskAssistantMutationOptions(options), queryClient);
     }
 
+export const getAskAssistantStreamUrl = () => {
+
+
+
+
+  return `/api/v1/me/assistant/questions/stream`
+}
+
+/**
+ * The same turn as `askAssistant`, delivered as Server-Sent Events. Same
+ * request body, same charging rules, same stored row — what differs is
+ * when the bytes arrive, not what they are.
+ *
+ * **The generated client for this operation is not usable.** SSE is not a
+ * JSON body, and codegen types this response as a string. The web client
+ * reads it by hand with `fetch` and a `ReadableStream`. The payload
+ * schemas below *are* generated and are what that hand-written parser
+ * should type itself against.
+ *
+ * Event grammar, in order:
+ *
+ * | event | payload | meaning |
+ * |---|---|---|
+ * | `ready` | `AssistantStreamReady` | Exactly once, first. The hold is taken and a model call is starting. |
+ * | `delta` | `AssistantStreamDelta` | Zero or more. Each carries whole sentences, never a partial one. |
+ * | `retract` | `AssistantStreamRetract` | At most one. Discard everything accumulated. Nothing follows but the terminal event. |
+ * | `done` | `AssistantAskResult` | Terminal. |
+ * | `error` | `Problem` | Terminal. Only for a failure *after* the stream opened. |
+ * | `: …` | — | Comment or heartbeat. No meaning. |
+ *
+ * `done` is authoritative: replace whatever was accumulated with
+ * `done.turn.answer.text`. Deltas are shown early on the strength of a
+ * guard that runs per sentence; `done` is what ran the guard over the
+ * whole answer, pruned the links against real ids, and settled the credit.
+ * Its payload is byte-identical to `askAssistant`'s `200`, which is what
+ * lets one client render both paths.
+ *
+ * Errors that happen before the first event — an empty question, a paper
+ * in progress, no AI provider configured — are ordinary `problem+json`
+ * with their real status, exactly as on `askAssistant`. Nothing is written
+ * until there is something to say, so the status line is still available.
+ *
+ * A `retract` means the answer was withdrawn mid-flight: `SCORE_PREDICTION`
+ * is `TCCN-566-3` catching a verdict about a real exam, `TRUNCATED` is a
+ * turn that ran out of budget or lost its provider with text already on
+ * screen. A truncated turn is `FAILED` and costs nothing.
+ *
+ * There is no resumption. `Last-Event-ID` is ignored and no `id:` is sent:
+ * a turn holds a credit while it runs, so a resumable one would be
+ * offering something that cannot work. That is also why `EventSource` is
+ * unusable here — it cannot POST and cannot carry `Authorization`.
+ * @summary Ask one question, streamed (YC-562)
+ */
+export const askAssistantStream = async (assistantAskRequest: AssistantAskRequest, options?: Parameters<typeof apiFetch>[1]): Promise<string> => {
+
+  return apiFetch<string>(getAskAssistantStreamUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(assistantAskRequest)
+  }
+);}
+
+
+
+
+
+export const getAskAssistantStreamMutationOptions = <TError = BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | Problem,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof askAssistantStream>>, TError,{data: AssistantAskRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof askAssistantStream>>, TError,{data: AssistantAskRequest}, TContext> => {
+
+const mutationKey = ['askAssistantStream'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof askAssistantStream>>, {data: AssistantAskRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  askAssistantStream(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AskAssistantStreamMutationResult = NonNullable<Awaited<ReturnType<typeof askAssistantStream>>>
+    export type AskAssistantStreamMutationBody = AssistantAskRequest
+    export type AskAssistantStreamMutationError = BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | Problem
+
+    /**
+ * @summary Ask one question, streamed (YC-562)
+ */
+export const useAskAssistantStream = <TError = BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | Problem,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof askAssistantStream>>, TError,{data: AssistantAskRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof askAssistantStream>>,
+        TError,
+        {data: AssistantAskRequest},
+        TContext
+      > => {
+      return useMutation(getAskAssistantStreamMutationOptions(options), queryClient);
+    }
+
 export const getDeleteAssistantHistoryUrl = () => {
 
 

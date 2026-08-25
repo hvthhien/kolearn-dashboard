@@ -2406,6 +2406,88 @@ paths:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
 
+  /me/assistant/questions/stream:
+    post:
+      tags: [assistant]
+      operationId: askAssistantStream
+      summary: Ask one question, streamed (YC-562)
+      description: |
+        The same turn as `askAssistant`, delivered as Server-Sent Events. Same
+        request body, same charging rules, same stored row — what differs is
+        when the bytes arrive, not what they are.
+
+        **The generated client for this operation is not usable.** SSE is not a
+        JSON body, and codegen types this response as a string. The web client
+        reads it by hand with `fetch` and a `ReadableStream`. The payload
+        schemas below *are* generated and are what that hand-written parser
+        should type itself against.
+
+        Event grammar, in order:
+
+        | event | payload | meaning |
+        |---|---|---|
+        | `ready` | `AssistantStreamReady` | Exactly once, first. The hold is taken and a model call is starting. |
+        | `delta` | `AssistantStreamDelta` | Zero or more. Each carries whole sentences, never a partial one. |
+        | `retract` | `AssistantStreamRetract` | At most one. Discard everything accumulated. Nothing follows but the terminal event. |
+        | `done` | `AssistantAskResult` | Terminal. |
+        | `error` | `Problem` | Terminal. Only for a failure *after* the stream opened. |
+        | `: …` | — | Comment or heartbeat. No meaning. |
+
+        `done` is authoritative: replace whatever was accumulated with
+        `done.turn.answer.text`. Deltas are shown early on the strength of a
+        guard that runs per sentence; `done` is what ran the guard over the
+        whole answer, pruned the links against real ids, and settled the credit.
+        Its payload is byte-identical to `askAssistant`'s `200`, which is what
+        lets one client render both paths.
+
+        Errors that happen before the first event — an empty question, a paper
+        in progress, no AI provider configured — are ordinary `problem+json`
+        with their real status, exactly as on `askAssistant`. Nothing is written
+        until there is something to say, so the status line is still available.
+
+        A `retract` means the answer was withdrawn mid-flight: `SCORE_PREDICTION`
+        is `TCCN-566-3` catching a verdict about a real exam, `TRUNCATED` is a
+        turn that ran out of budget or lost its provider with text already on
+        screen. A truncated turn is `FAILED` and costs nothing.
+
+        There is no resumption. `Last-Event-ID` is ignored and no `id:` is sent:
+        a turn holds a credit while it runs, so a resumable one would be
+        offering something that cannot work. That is also why `EventSource` is
+        unusable here — it cannot POST and cannot carry `Authorization`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AssistantAskRequest' }
+      responses:
+        '200':
+          description: The event stream.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: |
+                  A Server-Sent Events stream. See the operation description for
+                  the event grammar and payload types.
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409':
+          description: |
+            The anchor names an attempt that is still in progress, as on
+            `askAssistant`. Raised before the stream opens, so it is a real
+            status code.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '503':
+          description: |
+            This deployment has no AI provider configured, as on `askAssistant`.
+            Raised before the stream opens.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
   /me/assistant/turns:
     delete:
       tags: [assistant]
@@ -5044,6 +5126,46 @@ components:
           allOf:
             - $ref: '#/components/schemas/WritingQuota'
           description: The allowance after this turn, so the counter on screen cannot drift from the ledger.
+
+    AssistantStreamReady:
+      type: object
+      required: [model, promptVersion]
+      description: |
+        The `ready` event of `askAssistantStream`. The hold has been taken and a
+        model call is starting — it is the difference between showing a cursor
+        and showing a spinner that may never move.
+      properties:
+        model: { type: string }
+        promptVersion: { type: string }
+
+    AssistantStreamDelta:
+      type: object
+      required: [text]
+      description: |
+        One `delta` event of `askAssistantStream`. Append to what is already
+        shown. Always whole sentences: the score-prediction guard runs on
+        completed sentences before they are released, so a partial one is never
+        sent.
+      properties:
+        text: { type: string }
+
+    AssistantStreamRetract:
+      type: object
+      required: [reason]
+      description: |
+        The `retract` event of `askAssistantStream`. Everything accumulated so
+        far is withdrawn; nothing follows but the terminal event.
+      properties:
+        reason:
+          type: string
+          enum: [SCORE_PREDICTION, TRUNCATED]
+          description: |
+            `SCORE_PREDICTION` — the answer turned into a verdict about a real
+            exam and `TCCN-566-3` will not let it stand. `done` carries the
+            replacement.
+
+            `TRUNCATED` — the turn ran out of budget or lost its provider with
+            text already on screen. The turn is `FAILED` and costs nothing.
 
     AssistantDeleteResult:
       type: object
