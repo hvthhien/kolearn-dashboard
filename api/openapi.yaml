@@ -6160,20 +6160,6 @@ components:
       type: string
       enum: [DRAFT, IN_REVIEW, PUBLISHED, RETIRED]
 
-    ShadowMediaKind:
-      type: string
-      description: |
-        What the item is built on. A podcast episode is a shadowing source in
-        every way that matters — a voice, a script, timings — and needs no
-        moving picture, so `AUDIO` is a first-class kind rather than a video
-        with the picture missing.
-
-        Fixed when the draft is created and unchangeable afterwards: the
-        placeholder asset row a draft reserves is referenced immediately, and
-        the database refuses to change a referenced asset's kind. See
-        `CreateShadowVideoRequest.mediaKind`.
-      enum: [VIDEO, AUDIO]
-
     ShadowUploadPurpose:
       type: string
       description: |
@@ -6212,7 +6198,7 @@ components:
 
     ShadowVideoListItem:
       type: object
-      required: [id, title, durationMs, lineCount, wordCount, practisedCount, mediaKind]
+      required: [id, title, durationMs, lineCount, wordCount, practisedCount]
       description: |
         Carries no level, deliberately. The list is ordered by level on the
         server and the screen never shows one; a field on the wire is one
@@ -6222,7 +6208,6 @@ components:
         id: { type: string, format: uuid }
         title: { type: string }
         durationMs: { type: integer }
-        mediaKind: { $ref: '#/components/schemas/ShadowMediaKind' }
         thumbnailUrl:
           type: string
           description: |
@@ -6747,12 +6732,11 @@ components:
 
     ShadowVideoDetail:
       type: object
-      required: [id, title, durationMs, playbackUrl, mediaKind, lines, glossary, progress]
+      required: [id, title, durationMs, playbackUrl, lines, glossary, progress]
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
         durationMs: { type: integer }
-        mediaKind: { $ref: '#/components/schemas/ShadowMediaKind' }
         thumbnailUrl:
           type: string
           description: |
@@ -6930,13 +6914,12 @@ components:
 
     AdminShadowVideoRow:
       type: object
-      required: [id, title, level, status, mediaKind, lineCount, wordCount, review]
+      required: [id, title, level, status, lineCount, wordCount, review]
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
         level: { type: integer, minimum: 1, maximum: 6 }
         status: { $ref: '#/components/schemas/ShadowVideoStatus' }
-        mediaKind: { $ref: '#/components/schemas/ShadowMediaKind' }
         publishedAt:
           type: string
           format: date-time
@@ -6962,13 +6945,12 @@ components:
 
     AdminShadowVideoDetail:
       type: object
-      required: [id, title, level, status, mediaKind, voice, voiceKind, topics, lines, glossary, review]
+      required: [id, title, level, status, voice, voiceKind, topics, lines, glossary, review]
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
         level: { type: integer, minimum: 1, maximum: 6 }
         status: { $ref: '#/components/schemas/ShadowVideoStatus' }
-        mediaKind: { $ref: '#/components/schemas/ShadowMediaKind' }
         voice: { type: string }
         voiceKind: { type: string, enum: [HUMAN, SYNTHETIC] }
         publishedAt: { type: string, format: date-time }
@@ -7001,20 +6983,6 @@ components:
       properties:
         title: { type: string, minLength: 1 }
         level: { type: integer, minimum: 1, maximum: 6 }
-        mediaKind:
-          allOf: [{ $ref: '#/components/schemas/ShadowMediaKind' }]
-          description: |
-            `VIDEO` when absent, so callers written before audio existed keep
-            working unchanged.
-
-            This is the ONE moment the kind can be chosen. The placeholder
-            asset row a draft reserves is referenced immediately, and from that
-            moment the database refuses to change its kind — so a
-            confirm-upload cannot turn a `VIDEO` draft into an `AUDIO` one when
-            an `.mp3` lands. It costs nothing to choose here: the author picks
-            in the same dialog they type the title into, before any bytes
-            exist.
-
     SaveShadowVideoRequest:
       type: object
       required: [title, level]
@@ -7116,15 +7084,13 @@ components:
         mimeType:
           type: string
           description: |
-            Held to the accept-list for this item's own `mediaKind`, not to a
-            flat one: an author who started an audio item and drops an `.mp4`
-            into it has made a mistake, and a flat list would take the file and
-            leave the row and the object disagreeing.
+            `MEDIA`: `audio/mpeg` or `audio/mp4`. Video was retired in migration
+            00034 and the schema refuses a VIDEO asset outright, so there is one
+            accept-list rather than one per kind.
 
-            `MEDIA` on a `VIDEO` item: `video/mp4`. On an `AUDIO` item:
-            `audio/mpeg`, `audio/mp4`. `THUMBNAIL`, either kind: `image/png`,
-            `image/jpeg`, `image/webp` — no SVG, which is a document that can
-            carry script and would be served from an origin this product owns.
+            `THUMBNAIL`: `image/png`, `image/jpeg`, `image/webp` — no SVG, which
+            is a document that can carry script and would be served from an
+            origin this product owns.
         byteSize: { type: integer, format: int64, minimum: 1 }
         purpose:
           allOf: [{ $ref: '#/components/schemas/ShadowUploadPurpose' }]

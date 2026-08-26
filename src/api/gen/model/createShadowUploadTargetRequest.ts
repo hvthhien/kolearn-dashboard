@@ -29,15 +29,13 @@ export interface CreateShadowUploadTargetRequest {
   /** @minLength 1 */
   fileName: string;
   /**
-     * Held to the accept-list for this item's own `mediaKind`, not to a
-     * flat one: an author who started an audio item and drops an `.mp4`
-     * into it has made a mistake, and a flat list would take the file and
-     * leave the row and the object disagreeing.
+     * `MEDIA`: `audio/mpeg` or `audio/mp4`. Video was retired in migration
+     * 00034 and the schema refuses a VIDEO asset outright, so there is one
+     * accept-list rather than one per kind.
      *
-     * `MEDIA` on a `VIDEO` item: `video/mp4`. On an `AUDIO` item:
-     * `audio/mpeg`, `audio/mp4`. `THUMBNAIL`, either kind: `image/png`,
-     * `image/jpeg`, `image/webp` — no SVG, which is a document that can
-     * carry script and would be served from an origin this product owns.
+     * `THUMBNAIL`: `image/png`, `image/jpeg`, `image/webp` — no SVG, which
+     * is a document that can carry script and would be served from an
+     * origin this product owns.
      */
   mimeType: string;
   /** @minimum 1 */

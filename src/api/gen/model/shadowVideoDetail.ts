@@ -25,14 +25,12 @@
  */
 import type { ShadowGlossaryEntry } from './shadowGlossaryEntry';
 import type { ShadowLine } from './shadowLine';
-import type { ShadowMediaKind } from './shadowMediaKind';
 import type { ShadowProgress } from './shadowProgress';
 
 export interface ShadowVideoDetail {
   id: string;
   title: string;
   durationMs: number;
-  mediaKind: ShadowMediaKind;
   /**
      * What the learner looks at, fed to the media element's `poster`. On
      * an `AUDIO` item this is the entire visual surface of the screen,

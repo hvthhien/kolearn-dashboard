@@ -145,7 +145,7 @@ describe('TCCN-354-4: sửa câu sau khi duyệt thì kết quả duyệt hết 
 describe('TCCN-354-5: nháp lưu được dù chưa xong', () => {
   it('saves a video with no file, no lines and no dictionary', async () => {
     renderRoute('/videos/sv-2')
-    await screen.findByText('Video mới')
+    await screen.findByText('Ngữ liệu mới')
 
     // Requiring completeness at the first save only teaches an author to type
     // filler, and the filler stays.
@@ -169,45 +169,32 @@ describe('TCCN-354-6: hai câu không được chồng mốc thời gian', () =>
   })
 })
 
-describe('audio as a first-class kind, and the poster it needs', () => {
+describe('audio only, and the poster it needs', () => {
   /**
-   * The studio has to say which kind it is opening, because the choice is
-   * unchangeable: a draft reserves a placeholder asset row and the database
-   * freezes its kind the moment the item points at it. An author who cannot
-   * tell an audio draft from a video one finds out by having an upload refused.
+   * Video was retired in 00034, so there is no kind to choose or display — the
+   * studio says what it is and offers the one file type the schema can hold.
    */
-  it('labels an audio item as audio, everywhere the author looks', async () => {
-    const video = mockShadowVideo('sv-2')!
-    video.mediaKind = 'AUDIO'
-
+  it('offers audio and nothing else', async () => {
     renderRoute('/videos/sv-2')
     await screen.findByRole('heading', { name: 'Âm thanh' })
 
     expect(screen.getByLabelText('Chọn tệp âm thanh')).toBeInTheDocument()
     expect(screen.queryByLabelText('Chọn tệp video')).not.toBeInTheDocument()
-
-    video.mediaKind = 'VIDEO'
   })
 
   /**
-   * A poster is the entire visual surface of an audio item — the publish gate
-   * refuses to release one without it. Saying so in the studio is what stops an
-   * author discovering it at the gate, after the work is done.
+   * The picture is the whole visual surface of the learner's screen now, and
+   * the publish gate refuses an item without one. Saying so in the studio is
+   * what stops an author discovering it at the gate, after the work is done.
    */
-  it('warns while an audio item has no poster', async () => {
-    const video = mockShadowVideo('sv-2')!
-    video.mediaKind = 'AUDIO'
-
+  it('warns while an item has no poster', async () => {
     renderRoute('/videos/sv-2')
     await screen.findByRole('heading', { name: 'Ảnh xem trước' })
     expect(screen.getByText(/phải có ảnh xem trước/)).toBeInTheDocument()
-
-    video.mediaKind = 'VIDEO'
   })
 
   it('stops warning once the poster is there, and shows it', async () => {
     const video = mockShadowVideo('sv-2')!
-    video.mediaKind = 'AUDIO'
     video.thumbnail = {
       assetId: 'a-thumb',
       playbackUrl: 'https://media.test/shadowing/thumb/abc.png',
@@ -227,13 +214,6 @@ describe('audio as a first-class kind, and the poster it needs', () => {
       'https://media.test/shadowing/thumb/abc.png',
     )
 
-    video.mediaKind = 'VIDEO'
     delete video.thumbnail
-  })
-
-  it('does not demand a poster on a video, where it is only a poster frame', async () => {
-    renderRoute('/videos/sv-2')
-    await screen.findByRole('heading', { name: 'Ảnh xem trước' })
-    expect(screen.queryByText(/phải có ảnh xem trước/)).not.toBeInTheDocument()
   })
 })

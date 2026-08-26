@@ -250,7 +250,6 @@ export * from './shadowCardListItem';
 export * from './shadowChunk';
 export * from './shadowGlossaryEntry';
 export * from './shadowLine';
-export * from './shadowMediaKind';
 export * from './shadowPartOfSpeech';
 export * from './shadowProgress';
 export * from './shadowPublishReport';

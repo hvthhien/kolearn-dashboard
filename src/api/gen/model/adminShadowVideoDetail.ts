@@ -27,7 +27,6 @@ import type { AdminShadowAsset } from './adminShadowAsset';
 import type { AdminShadowGlossaryEntry } from './adminShadowGlossaryEntry';
 import type { AdminShadowLine } from './adminShadowLine';
 import type { AdminShadowVideoDetailVoiceKind } from './adminShadowVideoDetailVoiceKind';
-import type { ShadowMediaKind } from './shadowMediaKind';
 import type { ShadowReviewSummary } from './shadowReviewSummary';
 import type { ShadowVideoStatus } from './shadowVideoStatus';
 import type { Topic } from './topic';
@@ -41,7 +40,6 @@ export interface AdminShadowVideoDetail {
      */
   level: number;
   status: ShadowVideoStatus;
-  mediaKind: ShadowMediaKind;
   voice: string;
   voiceKind: AdminShadowVideoDetailVoiceKind;
   publishedAt?: string;

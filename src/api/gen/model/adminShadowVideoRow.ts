@@ -23,7 +23,6 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { ShadowMediaKind } from './shadowMediaKind';
 import type { ShadowReviewSummary } from './shadowReviewSummary';
 import type { ShadowVideoStatus } from './shadowVideoStatus';
 
@@ -36,7 +35,6 @@ export interface AdminShadowVideoRow {
      */
   level: number;
   status: ShadowVideoStatus;
-  mediaKind: ShadowMediaKind;
   /**
      * Absent on a video that has never gone out — which is the one thing
      * that decides whether it can be deleted or only retired, and it is

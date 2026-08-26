@@ -10,16 +10,15 @@ export const VIDEO_RESTAURANT: AdminShadowVideoDetail = {
   title: 'Đặt bàn nhà hàng',
   level: 2,
   status: 'DRAFT',
-  mediaKind: 'VIDEO',
   voice: 'Nữ',
   voiceKind: 'SYNTHETIC',
   topics: [],
   asset: {
     assetId: 'a-1',
-    playbackUrl: 'https://media.test/shadowing/sv-1/a.mp4',
-    objectKey: 'shadowing/sv-1/a.mp4',
+    playbackUrl: 'https://media.test/shadowing/sv-1/a.mp3',
+    objectKey: 'shadowing/sv-1/a.mp3',
     byteSize: 3_601_997,
-    mimeType: 'video/mp4',
+    mimeType: 'audio/mpeg',
     durationMs: 21_000,
   },
   lines: [
@@ -58,10 +57,9 @@ export const VIDEO_RESTAURANT: AdminShadowVideoDetail = {
 /** Nothing uploaded, nothing written — the upload panel's starting state. */
 export const VIDEO_EMPTY: AdminShadowVideoDetail = {
   id: 'sv-2',
-  title: 'Video mới',
+  title: 'Ngữ liệu mới',
   level: 2,
   status: 'DRAFT',
-  mediaKind: 'VIDEO',
   voice: '',
   voiceKind: 'SYNTHETIC',
   topics: [],

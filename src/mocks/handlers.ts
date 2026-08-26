@@ -5,7 +5,6 @@ import type {
   AdminDictationSetDetail,
   AdminExamDetail,
   AdminShadowVideoDetail,
-  ShadowMediaKind,
   ShadowPublishReport,
   AdminQuestion,
   AdminQuestionRow,
@@ -294,7 +293,6 @@ export const handlers = [
         title: v.title,
         level: v.level,
         status: v.status,
-        mediaKind: v.mediaKind,
         // The field the remove button reads. Omitting it here would make every
         // row look deletable, including the ones learners have practised with.
         publishedAt: v.publishedAt,
@@ -307,19 +305,12 @@ export const handlers = [
   }),
 
   http.post(`${BASE}/admin/shadowing/videos`, async ({ request }) => {
-    const body = (await request.json()) as {
-      title: string
-      level: number
-      mediaKind?: ShadowMediaKind
-    }
+    const body = (await request.json()) as { title: string; level: number }
     const created: AdminShadowVideoDetail = {
       id: `sv-${state.videos.length + 1}-${body.title.length}`,
       title: body.title,
       level: body.level,
       status: 'DRAFT',
-      // Absent means VIDEO, matching the server: callers written before audio
-      // existed keep working unchanged.
-      mediaKind: body.mediaKind ?? 'VIDEO',
       voice: '',
       voiceKind: 'SYNTHETIC',
       topics: [],

@@ -65,10 +65,10 @@ beforeEach(() => {
 })
 
 function file(): File {
-  return new File([new Uint8Array(1024)], 'a.mp4', { type: 'video/mp4' })
+  return new File([new Uint8Array(1024)], 'a.mp3', { type: 'audio/mpeg' })
 }
 
-const PROBE = { bytes: 1024, mimeType: 'video/mp4', durationMs: 21_000 }
+const PROBE = { bytes: 1024, mimeType: 'audio/mpeg', durationMs: 21_000 }
 
 describe('the upload sequence', () => {
   it('asks, puts, then confirms — in that order', async () => {
@@ -140,13 +140,13 @@ describe('TCCN-354-8: tệp sai định dạng hoặc quá lớn bị chặn s�
     // The message names the kind THIS item is, not a rule in general: an author
     // who picked the wrong kind at creation has a different problem from one who
     // picked the wrong file, and only the first is worth deleting a draft over.
-    await expect(probeVideoFile(wrong)).rejects.toThrow(/Ngữ liệu này là video.*\.mp4/)
+    await expect(probeVideoFile(wrong)).rejects.toThrow(/chỉ nhận tệp \.mp3/)
   })
 
-  it('refuses an mp4 dropped into an audio item, naming which kind it is', async () => {
+  it('refuses an mp4 outright, because video was retired', async () => {
     const mp4 = new File([new Uint8Array(16)], 'a.mp4', { type: 'video/mp4' })
 
-    await expect(probeVideoFile(mp4, 'AUDIO')).rejects.toThrow(/Ngữ liệu này là âm thanh/)
+    await expect(probeVideoFile(mp4)).rejects.toThrow(/chỉ nhận tệp \.mp3/)
     expect(seen).toHaveLength(0)
   })
 
@@ -165,7 +165,7 @@ describe('TCCN-354-8: tệp sai định dạng hoặc quá lớn bị chặn s�
   it('names the real size when the file is too big', async () => {
     // A sparse File: `size` is what the check reads, and allocating 200 MB to
     // prove it would be a slow way to test arithmetic.
-    const huge = new File([new Uint8Array(8)], 'a.mp4', { type: 'video/mp4' })
+    const huge = new File([new Uint8Array(8)], 'a.mp3', { type: 'audio/mpeg' })
     Object.defineProperty(huge, 'size', { value: MAX_BYTES + 1 })
 
     await expect(probeVideoFile(huge)).rejects.toThrow(/vượt giới hạn/)

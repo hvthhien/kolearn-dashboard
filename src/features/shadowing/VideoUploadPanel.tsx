@@ -1,5 +1,5 @@
 import { useRef, useState, type RefObject } from 'react'
-import type { AdminShadowAsset, ShadowMediaKind } from '../../api/gen/model'
+import type { AdminShadowAsset } from '../../api/gen/model'
 import { userMessage } from '../../lib/problem'
 import { Button, Dialog, ErrorNote, WarnNote } from '../../components/ui'
 import { proposeSegments, type Segment } from './segment'
@@ -29,7 +29,6 @@ function mb(bytes: number): string {
 
 export function VideoUploadPanel({
   videoId,
-  mediaKind,
   asset,
   thumbnail,
   lineCount,
@@ -38,8 +37,6 @@ export function VideoUploadPanel({
   onSegments,
 }: {
   videoId: string
-  /** Fixed when the draft was created; the server refuses anything else. */
-  mediaKind: ShadowMediaKind
   asset?: AdminShadowAsset
   thumbnail?: AdminShadowAsset
   lineCount: number
@@ -65,7 +62,7 @@ export function VideoUploadPanel({
     setError(null)
     setPhase('probing')
     try {
-      const measured = await probeVideoFile(chosen, mediaKind)
+      const measured = await probeVideoFile(chosen)
       probe.current = measured
       file.current = chosen
       setTotal(measured.bytes)
@@ -138,9 +135,9 @@ export function VideoUploadPanel({
   return (
     <div className="mt-2">
       {asset && (
-        // The same one-element decision the learner's player makes: a <video>
-        // plays an .mp3 and draws `poster` while it does, so the studio previews
-        // exactly what the learner will get rather than an approximation of it.
+        // The same element the learner's player uses: <audio> has no `poster`,
+        // so this is what previews exactly what they will get rather than an
+        // approximation of it.
         <video
           ref={videoRef}
           src={asset.playbackUrl}
@@ -148,7 +145,7 @@ export function VideoUploadPanel({
           controls
           playsInline
           preload="metadata"
-          aria-label={mediaKind === 'AUDIO' ? 'Âm thanh đang soạn' : 'Video đang soạn'}
+          aria-label="Âm thanh đang soạn"
           className="w-full rounded-xl border border-line bg-ink"
         />
       )}
@@ -156,8 +153,8 @@ export function VideoUploadPanel({
       <div className="mt-2 flex flex-wrap items-center gap-3">
         <input
           type="file"
-          accept={mediaKind === 'AUDIO' ? 'audio/mpeg,audio/mp4,.mp3,.m4a' : 'video/mp4,.mp4'}
-          aria-label={mediaKind === 'AUDIO' ? 'Chọn tệp âm thanh' : 'Chọn tệp video'}
+          accept="audio/mpeg,audio/mp4,.mp3,.m4a"
+          aria-label="Chọn tệp âm thanh"
           onChange={(e) => onPick(e.target.files?.[0])}
           className="tap rounded-xl border border-line bg-white px-4 py-2 text-sm"
         />
@@ -242,7 +239,7 @@ export function VideoUploadPanel({
       {confirmReplace && (
         <Dialog
           open
-          title={mediaKind === 'AUDIO' ? 'Thay tệp âm thanh' : 'Thay video'}
+          title="Thay tệp âm thanh"
           onClose={() => setConfirmReplace(null)}
           footer={
             <>
@@ -254,7 +251,7 @@ export function VideoUploadPanel({
                   void run(chosen)
                 }}
               >
-                {mediaKind === 'AUDIO' ? 'Thay tệp âm thanh' : 'Thay video'}
+                Thay tệp âm thanh
               </Button>
               <Button type="button" variant="ghost" onClick={() => setConfirmReplace(null)}>
                 Huỷ
@@ -263,9 +260,8 @@ export function VideoUploadPanel({
           }
         >
           <WarnNote>
-            Thay {mediaKind === 'AUDIO' ? 'tệp âm thanh' : 'video'} sẽ{' '}
-            <strong>xoá toàn bộ kết quả duyệt</strong> của {lineCount} câu — người bản ngữ sẽ phải
-            nghe lại từ đầu. Mốc thời gian và bản dịch được giữ nguyên.
+            Thay tệp âm thanh sẽ <strong>xoá toàn bộ kết quả duyệt</strong> của {lineCount} câu —
+            người bản ngữ sẽ phải nghe lại từ đầu. Mốc thời gian và bản dịch được giữ nguyên.
           </WarnNote>
         </Dialog>
       )}
@@ -287,12 +283,10 @@ export function VideoUploadPanel({
  */
 export function ThumbnailUploadPanel({
   videoId,
-  mediaKind,
   thumbnail,
   onUploaded,
 }: {
   videoId: string
-  mediaKind: ShadowMediaKind
   thumbnail?: AdminShadowAsset
   onUploaded: () => void
 }) {
@@ -350,10 +344,10 @@ export function ThumbnailUploadPanel({
         <p className="mt-2 text-sm text-muted">{PHASE_LABEL[phase]}</p>
       )}
 
-      {!thumbnail && mediaKind === 'AUDIO' && (
+      {!thumbnail && (
         <WarnNote>
-          Ngữ liệu âm thanh <strong>phải có ảnh xem trước</strong> mới xuất bản được — người học
-          không có gì để nhìn trong lúc nghe.
+          Ngữ liệu <strong>phải có ảnh xem trước</strong> mới xuất bản được — người học không có gì
+          để nhìn trong lúc nghe.
         </WarnNote>
       )}
 

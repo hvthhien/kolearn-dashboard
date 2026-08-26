@@ -1,9 +1,5 @@
 import { confirmShadowUpload, createShadowUploadTarget } from '../../api/gen/kolearn'
-import type {
-  AdminShadowVideoDetail,
-  ShadowMediaKind,
-  ShadowUploadPurpose,
-} from '../../api/gen/model'
+import type { AdminShadowVideoDetail, ShadowUploadPurpose } from '../../api/gen/model'
 import { putBytesWithProgress } from '../../lib/http'
 
 /**
@@ -21,17 +17,11 @@ import { putBytesWithProgress } from '../../lib/http'
  */
 
 /**
- * What each kind of item accepts, keyed by the kind the draft was created as.
- *
- * Keyed rather than flattened, because the server holds an upload to the item's
- * OWN kind and reads it from the row: an author who started an audio item and
- * drops an .mp4 into it gets refused there whatever this list says, so the two
- * had better agree.
+ * What the media may be. Video was retired in migration 00034: the schema
+ * refuses a VIDEO asset outright, so an .mp4 is turned away here rather than
+ * uploaded and then refused for a reason the author cannot see.
  */
-export const ACCEPTED_MEDIA: Record<ShadowMediaKind, string[]> = {
-  VIDEO: ['video/mp4'],
-  AUDIO: ['audio/mpeg', 'audio/mp4'],
-}
+export const ACCEPTED_MEDIA = ['audio/mpeg', 'audio/mp4']
 export const ACCEPTED_THUMBNAIL = ['image/png', 'image/jpeg', 'image/webp']
 
 /** A three-minute lesson is ~30 MB. This is here to stop a mis-dropped file. */
@@ -85,13 +75,11 @@ function mb(bytes: number): string {
  * A file whose metadata never loads is a file this browser cannot decode —
  * exactly the thing to find out before the upload rather than after.
  */
-export function probeVideoFile(file: File, kind: ShadowMediaKind = 'VIDEO'): Promise<VideoProbe> {
-  const accepted = ACCEPTED_MEDIA[kind]
-  if (!accepted.includes(file.type)) {
-    const wanted = kind === 'AUDIO' ? 'tệp .mp3 hoặc .m4a' : 'tệp .mp4 (H.264 + AAC)'
+export function probeVideoFile(file: File): Promise<VideoProbe> {
+  if (!ACCEPTED_MEDIA.includes(file.type)) {
     return Promise.reject(
       new VideoRejected(
-        `Ngữ liệu này là ${kind === 'AUDIO' ? 'âm thanh' : 'video'}, chỉ nhận ${wanted}. ` +
+        `Ngữ liệu nhại theo chỉ nhận tệp .mp3 hoặc .m4a. ` +
           `Tệp bạn chọn là ${file.type || 'không rõ định dạng'}.`,
       ),
     )
@@ -103,9 +91,9 @@ export function probeVideoFile(file: File, kind: ShadowMediaKind = 'VIDEO'): Pro
   }
 
   return new Promise((resolve, reject) => {
-    // A <video> element, even for an .mp3 — it decodes both, and it is the
-    // same element the learner's player uses, so a file this cannot read is a
-    // file that screen could not have played either.
+    // A <video> element for an .mp3 — it decodes audio, and it is the same
+    // element the learner's player uses, so a file this cannot read is a file
+    // that screen could not have played either.
     const el = document.createElement('video')
     const url = URL.createObjectURL(file)
     let settled = false

@@ -62,7 +62,7 @@ export function VideoStudioPage() {
   if (isPending) {
     return (
       <PageShell>
-        <Spinner label="Đang tải video…" />
+        <Spinner label="Đang tải ngữ liệu…" />
       </PageShell>
     )
   }
@@ -200,7 +200,7 @@ function Studio({ video }: { video: AdminShadowVideoDetail }) {
     <PageShell>
       <p className="text-xs text-muted">
         <Link to="/videos" className="hover:underline">
-          ← Về xưởng video
+          ← Về xưởng ngữ liệu
         </Link>
         {' · '}
         {STATUS_LABEL[video.status]}
@@ -228,12 +228,9 @@ function Studio({ video }: { video: AdminShadowVideoDetail }) {
       )}
 
       <section aria-labelledby="video-section" className="mt-6">
-        <SectionHeading id="video-section">
-          {video.mediaKind === 'AUDIO' ? 'Âm thanh' : 'Video'}
-        </SectionHeading>
+        <SectionHeading id="video-section">Âm thanh</SectionHeading>
         <VideoUploadPanel
           videoId={video.id}
-          mediaKind={video.mediaKind}
           asset={video.asset}
           thumbnail={video.thumbnail}
           lineCount={video.lines.length}
@@ -259,7 +256,6 @@ function Studio({ video }: { video: AdminShadowVideoDetail }) {
         <SectionHeading id="thumb-section">Ảnh xem trước</SectionHeading>
         <ThumbnailUploadPanel
           videoId={video.id}
-          mediaKind={video.mediaKind}
           thumbnail={video.thumbnail}
           onUploaded={() => void refresh()}
         />

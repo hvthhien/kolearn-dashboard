@@ -45,7 +45,7 @@ export function AppBar() {
             Đề thi
           </Link>
           <Link to="/videos" className={NAV_ITEM}>
-            Xưởng video
+            Xưởng ngữ liệu
           </Link>
           <Link to="/dictation" className={NAV_ITEM}>
             Chép chính tả
