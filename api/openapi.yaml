@@ -2083,33 +2083,6 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
-  /me/shadowing/cards:
-    get:
-      tags: [shadowing]
-      operationId: listShadowCards
-      summary: Bộ thẻ của tôi, phần nhại theo được
-      description: |
-        The second tab of SC-SHADOW-LIST. Only the learner's own cards that
-        came from a shadowing line, because R-15 makes a card shadowable when
-        it came from "câu nghe ... có ngữ liệu tiếng" — a sentence you can
-        hear. A card made from a reading question has no audio and no example
-        sentence, so it is absent rather than disabled (TCCN-351-6).
-
-        Expect `[]` for a while: nothing creates these until a learner saves a
-        word from a video's dictionary. That is an honest empty state with
-        designed copy behind it, not a placeholder.
-      parameters:
-        - name: limit
-          in: query
-          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
-      responses:
-        '200':
-          description: Newest first. `[]` when empty (R-13).
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ShadowCardList' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-
   # ── chép chính tả (SC-DICTATION) ──────────────────────────────────────────
   #
   # R-36. Nghe một câu, gõ lại đúng những gì nghe được.
@@ -5058,9 +5031,10 @@ components:
 
         Unlike `MyCardSource` this is a *destination*. SC-SHADOWING opens at one
         line, so these four fields are exactly what a link to "câu 12 của video
-        này" needs and nothing more: no `startMs`, no `textKo`.
-        `ShadowCardListItem` carries those because SC-SHADOW-LIST's card tab is
-        a list of sentences; this is a single row under a word.
+        này" needs and nothing more: no `startMs`, no `textKo`. This is the one
+        place a card's shadowing provenance travels — SC-SHADOW-LIST used to
+        carry a second, fuller copy under its own card tab, and that tab was the
+        cards screen written twice.
       required: [videoId, videoTitle, lineId, lineOrdinal]
       properties:
         videoId: { type: string, format: uuid }
@@ -7298,28 +7272,6 @@ components:
           type: array
           items: { $ref: '#/components/schemas/ShadowGlossaryEntry' }
         progress: { $ref: '#/components/schemas/ShadowProgress' }
-
-    ShadowCardListItem:
-      type: object
-      required: [cardId, front, videoId, videoTitle, lineId, lineTextKo, startMs, endMs]
-      properties:
-        cardId: { type: string, format: uuid }
-        front: { type: string }
-        back: { type: string }
-        videoId: { type: string, format: uuid }
-        videoTitle: { type: string }
-        lineId: { type: string, format: uuid }
-        lineTextKo: { type: string }
-        startMs: { type: integer }
-        endMs: { type: integer }
-
-    ShadowCardList:
-      type: object
-      required: [items]
-      properties:
-        items:
-          type: array
-          items: { $ref: '#/components/schemas/ShadowCardListItem' }
 
     AdminShadowAsset:
       type: object

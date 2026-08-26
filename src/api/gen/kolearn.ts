@@ -110,7 +110,6 @@ import type {
   ListExamsParams,
   ListMyCards200,
   ListMyCardsParams,
-  ListShadowCardsParams,
   ListShadowVideosParams,
   ListStudyCards200,
   ListStudyCardsParams,
@@ -151,7 +150,6 @@ import type {
   SetLevelRequest,
   SetQuestionTopicsBody,
   SetShadowLineApprovalRequest,
-  ShadowCardList,
   ShadowCategoryList,
   ShadowProgress,
   ShadowPublishReport,
@@ -6327,123 +6325,6 @@ export const useMarkShadowLinePractised = <TError = UnauthorizedResponse | NotFo
       > => {
       return useMutation(getMarkShadowLinePractisedMutationOptions(options), queryClient);
     }
-
-export const getListShadowCardsUrl = (params?: ListShadowCardsParams,) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : String(value))
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0 ? `/api/v1/me/shadowing/cards?${stringifiedParams}` : `/api/v1/me/shadowing/cards`
-}
-
-/**
- * The second tab of SC-SHADOW-LIST. Only the learner's own cards that
- * came from a shadowing line, because R-15 makes a card shadowable when
- * it came from "câu nghe ... có ngữ liệu tiếng" — a sentence you can
- * hear. A card made from a reading question has no audio and no example
- * sentence, so it is absent rather than disabled (TCCN-351-6).
- *
- * Expect `[]` for a while: nothing creates these until a learner saves a
- * word from a video's dictionary. That is an honest empty state with
- * designed copy behind it, not a placeholder.
- * @summary Bộ thẻ của tôi, phần nhại theo được
- */
-export const listShadowCards = async (params?: ListShadowCardsParams, options?: Parameters<typeof apiFetch>[1]): Promise<ShadowCardList> => {
-
-  return apiFetch<ShadowCardList>(getListShadowCardsUrl(params),
-  {
-    ...options,
-    method: 'GET'
-
-
-  }
-);}
-
-
-
-
-
-export const getListShadowCardsQueryKey = (params?: ListShadowCardsParams,) => {
-    return [
-    `/api/v1/me/shadowing/cards`, ...(params ? [params] : [])
-    ] as const;
-    }
-
-
-export const getListShadowCardsQueryOptions = <TData = Awaited<ReturnType<typeof listShadowCards>>, TError = UnauthorizedResponse>(params?: ListShadowCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowCards>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
-) => {
-
-const {query: queryOptions, request: requestOptions} = options ?? {};
-
-  const queryKey =  queryOptions?.queryKey ?? getListShadowCardsQueryKey(params);
-
-
-
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listShadowCards>>> = ({ signal }) => listShadowCards(params, { signal, ...requestOptions });
-
-
-
-
-
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listShadowCards>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
-}
-
-export type ListShadowCardsQueryResult = NonNullable<Awaited<ReturnType<typeof listShadowCards>>>
-export type ListShadowCardsQueryError = UnauthorizedResponse
-
-
-export function useListShadowCards<TData = Awaited<ReturnType<typeof listShadowCards>>, TError = UnauthorizedResponse>(
- params: undefined |  ListShadowCardsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowCards>>, TError, TData>> & Pick<
-        DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listShadowCards>>,
-          TError,
-          Awaited<ReturnType<typeof listShadowCards>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof apiFetch>}
- , queryClient?: QueryClient
-  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListShadowCards<TData = Awaited<ReturnType<typeof listShadowCards>>, TError = UnauthorizedResponse>(
- params?: ListShadowCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowCards>>, TError, TData>> & Pick<
-        UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof listShadowCards>>,
-          TError,
-          Awaited<ReturnType<typeof listShadowCards>>
-        > , 'initialData'
-      >, request?: SecondParameter<typeof apiFetch>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListShadowCards<TData = Awaited<ReturnType<typeof listShadowCards>>, TError = UnauthorizedResponse>(
- params?: ListShadowCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowCards>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
- , queryClient?: QueryClient
-  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-/**
- * @summary Bộ thẻ của tôi, phần nhại theo được
- */
-
-export function useListShadowCards<TData = Awaited<ReturnType<typeof listShadowCards>>, TError = UnauthorizedResponse>(
- params?: ListShadowCardsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowCards>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
- , queryClient?: QueryClient
- ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-
-  const queryOptions = getListShadowCardsQueryOptions(params,options)
-
-  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
-
-  return withQueryKey(query, queryOptions.queryKey);
-}
-
-
-
-
-
-
 
 export const getListDictationCategoriesUrl = () => {
 

@@ -30,9 +30,10 @@
  *
  * Unlike `MyCardSource` this is a *destination*. SC-SHADOWING opens at one
  * line, so these four fields are exactly what a link to "câu 12 của video
- * này" needs and nothing more: no `startMs`, no `textKo`.
- * `ShadowCardListItem` carries those because SC-SHADOW-LIST's card tab is
- * a list of sentences; this is a single row under a word.
+ * này" needs and nothing more: no `startMs`, no `textKo`. This is the one
+ * place a card's shadowing provenance travels — SC-SHADOW-LIST used to
+ * carry a second, fuller copy under its own card tab, and that tab was the
+ * cards screen written twice.
  */
 export interface MyCardShadowSource {
   videoId: string;
