@@ -30,7 +30,6 @@ function mb(bytes: number): string {
 export function VideoUploadPanel({
   videoId,
   asset,
-  thumbnail,
   lineCount,
   videoRef,
   onUploaded,
@@ -38,9 +37,10 @@ export function VideoUploadPanel({
 }: {
   videoId: string
   asset?: AdminShadowAsset
-  thumbnail?: AdminShadowAsset
   lineCount: number
-  videoRef: RefObject<HTMLVideoElement | null>
+  // HTMLMediaElement: the preview is an <audio> since the poster became a real
+  // <img>, and the line editor only ever reads currentTime and play().
+  videoRef: RefObject<HTMLMediaElement | null>
   onUploaded: () => void
   onSegments: (segments: Segment[]) => void
 }) {
@@ -135,18 +135,23 @@ export function VideoUploadPanel({
   return (
     <div className="mt-2">
       {asset && (
-        // The same element the learner's player uses: <audio> has no `poster`,
-        // so this is what previews exactly what they will get rather than an
-        // approximation of it.
-        <video
+        // A transport and nothing else.
+        //
+        // It was a <video> with `poster` set, which went black the moment an
+        // author pressed play — `poster` is only drawn UNTIL playback starts.
+        // The obvious fix was an <img> beside it, the way the learner's player
+        // does it, and that is wrong HERE: the poster has its own section
+        // directly below with its own file picker, so the picture would appear
+        // twice on one screen with two near-identical alt texts. The learner's
+        // player has no such section, which is why it needs the image and this
+        // does not.
+        <audio
           ref={videoRef}
           src={asset.playbackUrl}
-          poster={thumbnail?.playbackUrl}
           controls
-          playsInline
           preload="metadata"
           aria-label="Âm thanh đang soạn"
-          className="w-full rounded-xl border border-line bg-ink"
+          className="w-full max-w-md"
         />
       )}
 

@@ -40,7 +40,7 @@ export function ApprovalPanel({
   videoId: string
   lines: AdminShadowLine[]
   dirty: boolean
-  videoRef: RefObject<HTMLVideoElement | null>
+  videoRef: RefObject<HTMLMediaElement | null>
   onChanged: () => void
 }) {
   const [rejecting, setRejecting] = useState<string | null>(null)

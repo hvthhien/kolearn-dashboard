@@ -138,7 +138,7 @@ function Studio({ video }: { video: AdminShadowVideoDetail }) {
   const [saveError, setSaveError] = useState<unknown>(null)
   const [publishing, setPublishing] = useState(false)
   const [removing, setRemoving] = useState(false)
-  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const videoRef = useRef<HTMLAudioElement | null>(null)
   const navigate = useNavigate()
 
   const canPublish = user?.permissions.includes('shadowing:publish') ?? false
@@ -232,7 +232,6 @@ function Studio({ video }: { video: AdminShadowVideoDetail }) {
         <VideoUploadPanel
           videoId={video.id}
           asset={video.asset}
-          thumbnail={video.thumbnail}
           lineCount={video.lines.length}
           videoRef={videoRef}
           onUploaded={() => void refresh()}

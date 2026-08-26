@@ -193,6 +193,35 @@ describe('audio only, and the poster it needs', () => {
     expect(screen.getByText(/phải có ảnh xem trước/)).toBeInTheDocument()
   })
 
+  /**
+   * `poster` on a media element is only drawn UNTIL playback starts, so a
+   * preview built on it went black the moment an author pressed play — on the
+   * screen whose whole job is showing them what a learner will get.
+   */
+  it('previews with a transport rather than a poster that goes black', async () => {
+    const video = mockShadowVideo('sv-1')!
+    video.thumbnail = {
+      assetId: 'a-thumb',
+      playbackUrl: 'https://media.test/shadowing/thumb/sv1.png',
+      objectKey: 'shadowing/thumb/sv1.png',
+      byteSize: 240_000,
+      mimeType: 'image/webp',
+      durationMs: 0,
+    }
+
+    renderRoute('/videos/sv-1')
+    const el = await screen.findByLabelText('Âm thanh đang soạn')
+    expect(el.tagName).toBe('AUDIO')
+    expect(el).not.toHaveAttribute('poster')
+
+    // Exactly one copy of the picture on the page. The poster has its own
+    // section with its own picker, so an <img> beside the transport too would
+    // show it twice under two near-identical alt texts.
+    expect(screen.getAllByAltText(/Ảnh xem trước/)).toHaveLength(1)
+
+    delete video.thumbnail
+  })
+
   it('stops warning once the poster is there, and shows it', async () => {
     const video = mockShadowVideo('sv-2')!
     video.thumbnail = {

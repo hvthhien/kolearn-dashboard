@@ -27,7 +27,7 @@ export function LineEditor({
 }: {
   lines: EditableLine[]
   activeIndex: number
-  videoRef: RefObject<HTMLVideoElement | null>
+  videoRef: RefObject<HTMLMediaElement | null>
   onActivate: (index: number) => void
   onChangeLine: (index: number, patch: Partial<EditableLine>) => void
   onChangeLines: (lines: EditableLine[]) => void
