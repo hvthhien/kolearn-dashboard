@@ -24,25 +24,18 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type ListShadowVideosParams = {
-/**
- * Clamped rather than refused, as everywhere else here.
- * @minimum 1
- * @maximum 200
- */
-limit?: number;
-/**
- * Arrives from a placement recommendation. Unlike level this really
- * does filter — the learner asked for this topic.
- */
-topicId?: string;
-/**
- * Chủ đề, from a tapped chip. Filters, like `topicId` and unlike
- * level: the learner asked for this shelf. Absent is "Tất cả", which
- * includes uncategorised items.
- *
- * AND-ed with `topicId` when both are present, because each names
- * something the caller asked for and neither is a suggestion.
- */
-categoryId?: string;
-};
+export interface ShadowCategory {
+  id: string;
+  /**
+     * The stable key. A name is Vietnamese copy and gets retyped; a
+     * slug is what a seed script, an import manifest and any future
+     * shareable link hold on to, so a rename does not break them.
+     */
+  slug: string;
+  name: string;
+  /**
+     * Published, line-bearing items under this chip — the same population
+     * the list itself shows, by the same predicate.
+     */
+  videoCount: number;
+}

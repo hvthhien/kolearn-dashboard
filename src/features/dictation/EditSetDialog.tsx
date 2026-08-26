@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { saveAdminDictationSet } from '../../api/gen/kolearn'
+import { saveAdminDictationSet, useListAdminDictationCategories } from '../../api/gen/kolearn'
 import type { AdminDictationSetRow, SaveDictationSetRequest } from '../../api/gen/model'
 import { userMessage } from '../../lib/problem'
 import { Button, Dialog, ErrorNote, Select, TextField } from '../../components/ui'
+import { CategorySelect, TagField, formatTags, parseTags } from '../lessons/taxonomy'
 
 /**
  * Sửa thông tin bộ — the metadata, and only the metadata.
@@ -13,6 +14,11 @@ import { Button, Dialog, ErrorNote, Select, TextField } from '../../components/u
  * a screen that can rewrite Korean a native speaker has already signed off. So
  * four fields, and the four are exactly the ones the importer cannot fix after
  * the fact, because it was the manifest that was wrong.
+ *
+ * Six fields now rather than four, and the two new ones belong to the same
+ * class: chủ đề and nhãn are filing, not content. An author who mis-filed a set
+ * cannot fix it with the importer either, because the manifest is not where
+ * filing lives.
  *
  * A dialog rather than a page because it is opened from two places — the list,
  * where fixing a typo without leaving the list is the whole point, and the
@@ -28,8 +34,11 @@ export function EditSetDialog({
   onClose,
   onSaved,
 }: {
-  /** Row or detail — both carry the four fields this form owns. */
-  set: Pick<AdminDictationSetRow, 'id' | 'title' | 'level' | 'voice' | 'voiceKind'>
+  /** Row or detail — both carry every field this form owns. */
+  set: Pick<
+    AdminDictationSetRow,
+    'id' | 'title' | 'level' | 'voice' | 'voiceKind' | 'categoryId' | 'tags'
+  >
   onClose: () => void
   onSaved: () => void
 }) {
@@ -38,9 +47,20 @@ export function EditSetDialog({
     level: set.level,
     voice: set.voice,
     voiceKind: set.voiceKind,
+    categoryId: set.categoryId ?? '',
   })
+  /* Nhãn is held as the raw comma-separated TEXT rather than inside `draft`,
+     which is already the request shape. Keeping the parsed array in state would
+     mean re-joining it on every keystroke and deleting the comma an author just
+     typed. */
+  const [tagsText, setTagsText] = useState(() => formatTags(set.tags))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
+
+  /* A failed request costs the picker its options and nothing else: the dialog
+     still saves, and CategorySelect keeps naming whatever this set is already
+     filed under. */
+  const categories = useListAdminDictationCategories()
 
   const set1 = <K extends keyof SaveDictationSetRequest>(
     key: K,
@@ -56,7 +76,7 @@ export function EditSetDialog({
     setBusy(true)
     setError(null)
     try {
-      await saveAdminDictationSet(set.id, draft)
+      await saveAdminDictationSet(set.id, { ...draft, tags: parseTags(tagsText) })
       onSaved()
       onClose()
     } catch (err) {
@@ -117,11 +137,19 @@ export function EditSetDialog({
           <option value="SYNTHETIC">Do máy tạo</option>
           <option value="HUMAN">Người thật</option>
         </Select>
+        <CategorySelect
+          id="set-category"
+          categories={categories.data?.items ?? []}
+          loading={categories.data === undefined && categories.error === null}
+          value={draft.categoryId ?? ''}
+          onChange={(id) => set1('categoryId', id)}
+        />
+        <TagField id="set-tags" value={tagsText} onChange={setTagsText} />
       </form>
 
       <p className="mt-3 text-sm text-muted">
-        Câu, bản dịch và từ điển đến từ lệnh nhập, không sửa được ở đây. Sửa tên hay cấp độ không
-        làm mất kết quả nghe duyệt của câu nào.
+        Câu, bản dịch và từ điển đến từ lệnh nhập, không sửa được ở đây. Sửa tên, cấp độ hay chủ
+        đề không làm mất kết quả nghe duyệt của câu nào.
       </p>
 
       {error !== null && <ErrorNote>{userMessage(error)}</ErrorNote>}

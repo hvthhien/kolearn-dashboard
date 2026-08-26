@@ -20,6 +20,9 @@ export const DICTATION_SETS: Record<string, AdminDictationSetDetail> = {
     voice: 'Nữ · do máy tạo',
     voiceKind: 'SYNTHETIC',
     status: 'DRAFT',
+    categoryId: 'dc-1',
+    categoryName: 'Công việc',
+    tags: ['Trung cấp'],
     review: { total: 3, approved: 0, rejected: 0, unreviewed: 3 },
     items: [
       {
@@ -102,6 +105,9 @@ export const DICTATION_SETS: Record<string, AdminDictationSetDetail> = {
     // be retired, and it stays that way after retiring — which is exactly the
     // case a check against `status` alone would get wrong.
     publishedAt: '2026-08-01T09:00:00Z',
+    // Uncategorised — the state a set published before categories existed is
+    // in, and what the gate warns about rather than blocking.
+    tags: [],
     review: { total: 1, approved: 1, rejected: 0, unreviewed: 0 },
     items: [
       {

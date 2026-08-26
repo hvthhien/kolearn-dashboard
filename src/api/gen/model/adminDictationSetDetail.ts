@@ -41,6 +41,11 @@ export interface AdminDictationSetDetail {
   voiceKind: AdminDictationSetDetailVoiceKind;
   status: AdminDictationSetDetailStatus;
   publishedAt?: string;
+  /** Chủ đề. Absent means uncategorised — a warning at the publish gate, never a blocker. */
+  categoryId?: string;
+  categoryName?: string;
+  /** Never null. The same labels the learner sees, in the same order. */
+  tags: string[];
   items: AdminDictationItem[];
   glossary: AdminDictationGlossaryEntry[];
   review: AdminDictationReviewSummary;

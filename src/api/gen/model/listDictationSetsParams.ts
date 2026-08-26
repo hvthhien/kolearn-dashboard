@@ -31,4 +31,10 @@ export type ListDictationSetsParams = {
  * @maximum 200
  */
 limit?: number;
+/**
+ * Chủ đề, from a tapped chip. Filters, unlike level: the learner
+ * asked for this shelf. Absent is "Tất cả", which includes
+ * uncategorised sets.
+ */
+categoryId?: string;
 };

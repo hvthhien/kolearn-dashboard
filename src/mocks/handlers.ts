@@ -64,6 +64,33 @@ const dictationState = {
   sets: clone(DICTATION_SETS) as Record<string, AdminDictationSetDetail>,
 }
 
+/**
+ * The two category vocabularies, separate here exactly as they are in the
+ * database (migration 00035). Seeded with a couple of the names the migration
+ * inserts, so the picker is not empty on a screen nobody has set up.
+ */
+interface MockCategory {
+  id: string
+  slug: string
+  name: string
+  ordinal: number
+}
+
+const SHADOW_CATEGORIES: MockCategory[] = [
+  { id: 'sc-1', slug: 'hoi-thoai-hang-ngay', name: 'Hội thoại hàng ngày', ordinal: 10 },
+  { id: 'sc-2', slug: 'tin-tuc', name: 'Tin tức', ordinal: 20 },
+]
+
+const DICTATION_CATEGORIES: MockCategory[] = [
+  { id: 'dc-1', slug: 'cong-viec', name: 'Công việc', ordinal: 10 },
+  { id: 'dc-2', slug: 'tin-tuc', name: 'Tin tức', ordinal: 20 },
+]
+
+const categoryState = {
+  shadow: clone(SHADOW_CATEGORIES) as MockCategory[],
+  dictation: clone(DICTATION_CATEGORIES) as MockCategory[],
+}
+
 export function resetMockBank(): void {
   state = {
     exams: clone(EXAMS),
@@ -72,6 +99,8 @@ export function resetMockBank(): void {
     videos: clone(SHADOW_VIDEOS),
   }
   dictationState.sets = clone(DICTATION_SETS)
+  categoryState.shadow = clone(SHADOW_CATEGORIES)
+  categoryState.dictation = clone(DICTATION_CATEGORIES)
 }
 
 /** The studio's copy of a video, for a test that wants to read what a save did. */
@@ -281,7 +310,179 @@ function dictationGate(set: AdminDictationSetDetail): AdminDictationPublishRepor
   return { published: false, blockers, warnings }
 }
 
+/**
+ * The server's tag rule, in the shape the screens depend on: trim, collapse
+ * whitespace, drop blanks, de-duplicate case-insensitively, cap at twelve.
+ *
+ * Repeated here rather than stubbed, because the whole reason the studio can
+ * offer a plain comma-separated text field is that this normalisation happens
+ * on the way in — a mock that stored what it was handed would let a test pass
+ * on an interface the real server would have tidied underneath.
+ */
+function normaliseTags(names: string[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const raw of names) {
+    const name = raw.trim().replace(/\s+/g, ' ')
+    if (name === '' || seen.has(name.toLowerCase())) continue
+    seen.add(name.toLowerCase())
+    out.push(name)
+    if (out.length === 12) break
+  }
+  return out.sort((a, b) => a.localeCompare(b, 'vi'))
+}
+
+/** The server's Slugify, for the create endpoint's derived slug. Vietnamese
+ *  diacritics come off by table because đ is not a d with a mark on it. */
+function slugify(name: string): string {
+  const from = 'àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ'
+  const to = 'aaaaaaaaaaaaaaaaaeeeeeeeeeeeiiiiiooooooooooooooooouuuuuuuuuuuyyyyyd'
+  return name
+    .toLowerCase()
+    .split('')
+    .map((ch) => {
+      const i = from.indexOf(ch)
+      if (i >= 0) return to[i]
+      return /[a-z0-9]/.test(ch) ? ch : '-'
+    })
+    .join('')
+    .split('-')
+    .filter(Boolean)
+    .join('-')
+}
+
+/**
+ * One feature's category CRUD, since the two differ only in their URL prefix
+ * and in what they count.
+ *
+ * `decorate` is the whole difference: shadowing counts videos, dictation counts
+ * sets, and each names its counts after its own noun. A shared field would have
+ * to be called something neither screen says.
+ *
+ * `read` is a thunk rather than an array so `resetMockBank` can replace the
+ * array wholesale between tests without these closures holding the old one.
+ */
+function categoryRoutes(
+  feature: 'shadowing' | 'dictation',
+  read: () => MockCategory[],
+  decorate: (c: MockCategory) => Record<string, unknown>,
+) {
+  const path = `${BASE}/admin/${feature}/categories`
+  const ordered = () => [...read()].sort((a, b) => a.ordinal - b.ordinal || a.name.localeCompare(b.name, 'vi'))
+
+  const taken = (slug: string, exceptId?: string) =>
+    read().some((c) => c.slug === slug && c.id !== exceptId)
+
+  const conflict = () =>
+    HttpResponse.json(
+      {
+        title: 'Xung đột',
+        status: 409,
+        code: `${feature}_category_slug_taken`,
+        detail: 'Đường dẫn này đã có chủ đề khác dùng',
+      },
+      { status: 409 },
+    )
+
+  const unprocessable = (code: string, detail: string) =>
+    HttpResponse.json({ title: 'Dữ liệu không hợp lệ', status: 422, code, detail }, { status: 422 })
+
+  return [
+    http.get(path, () => HttpResponse.json({ items: ordered().map(decorate) })),
+
+    http.post(path, async ({ request }) => {
+      const body = (await request.json()) as { name: string; slug?: string; ordinal?: number }
+      const name = body.name.trim()
+      if (name === '') {
+        return unprocessable(`${feature}_category_name_required`, 'Chủ đề phải có tên')
+      }
+      // Derived when absent, which is why a one-field form never mentions a
+      // slug. A name with no ASCII left in it yields nothing, and the server
+      // asks for one rather than writing a row its own CHECK would refuse.
+      const slug = (body.slug ?? '').trim() || slugify(name)
+      if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug)) {
+        return unprocessable(`${feature}_bad_category_slug`, 'Đường dẫn chủ đề không hợp lệ')
+      }
+      if (taken(slug)) return conflict()
+
+      const created: MockCategory = {
+        id: `${feature[0]}c-${slug}`,
+        slug,
+        name,
+        ordinal: body.ordinal ?? 0,
+      }
+      read().push(created)
+      return HttpResponse.json(decorate(created), { status: 201 })
+    }),
+
+    http.put(`${path}/:categoryId`, async ({ params, request }) => {
+      const category = read().find((c) => c.id === params.categoryId)
+      if (!category) return new HttpResponse(null, { status: 404 })
+
+      const body = (await request.json()) as { name: string; slug?: string; ordinal?: number }
+      const name = body.name.trim()
+      if (name === '') {
+        return unprocessable(`${feature}_category_name_required`, 'Chủ đề phải có tên')
+      }
+      const slug = (body.slug ?? '').trim() || slugify(name)
+      if (taken(slug, category.id)) return conflict()
+
+      category.name = name
+      category.slug = slug
+      category.ordinal = body.ordinal ?? category.ordinal
+      return HttpResponse.json(decorate(category))
+    }),
+
+    http.delete(`${path}/:categoryId`, ({ params }) => {
+      const list = read()
+      const at = list.findIndex((c) => c.id === params.categoryId)
+      if (at < 0) return new HttpResponse(null, { status: 404 })
+      list.splice(at, 1)
+
+      // ON DELETE SET NULL, and never a refusal: the lessons survive and become
+      // uncategorised. Refusing would mean an author cannot retire a shelf
+      // without re-filing every lesson on it first.
+      if (feature === 'shadowing') {
+        for (const v of state.videos) {
+          if (v.categoryId === params.categoryId) {
+            v.categoryId = undefined
+            v.categoryName = undefined
+          }
+        }
+      } else {
+        for (const st of Object.values(dictationState.sets)) {
+          if (st.categoryId === params.categoryId) {
+            st.categoryId = undefined
+            st.categoryName = undefined
+          }
+        }
+      }
+      return new HttpResponse(null, { status: 204 })
+    }),
+  ]
+}
+
 export const handlers = [
+  /* ── Chủ đề (00035) ──────────────────────────────────────────────────── */
+  //
+  // Two vocabularies, never one, because the server keeps them apart: R-36's
+  // two features have different corpora, and a shared shelf would give one
+  // screen a chip whose count came from the other's material.
+
+  ...categoryRoutes('shadowing', () => categoryState.shadow, (c) => ({
+    ...c,
+    videoCount: state.videos.filter((v) => v.categoryId === c.id && v.status === 'PUBLISHED').length,
+    totalVideoCount: state.videos.filter((v) => v.categoryId === c.id).length,
+  })),
+
+  ...categoryRoutes('dictation', () => categoryState.dictation, (c) => ({
+    ...c,
+    setCount: Object.values(dictationState.sets).filter(
+      (st) => st.categoryId === c.id && st.status === 'PUBLISHED',
+    ).length,
+    totalSetCount: Object.values(dictationState.sets).filter((st) => st.categoryId === c.id).length,
+  })),
+
   /* ── Xưởng video (SC-VIDEO-STUDIO) ───────────────────────────────────── */
 
   http.get(`${BASE}/admin/shadowing/videos`, ({ request }) => {
@@ -300,6 +501,9 @@ export const handlers = [
         lineCount: v.lines.length,
         wordCount: v.glossary.length,
         review: v.review,
+        categoryId: v.categoryId,
+        categoryName: v.categoryName,
+        tags: v.tags,
       }))
     return HttpResponse.json({ items })
   }),
@@ -314,6 +518,7 @@ export const handlers = [
       voice: '',
       voiceKind: 'SYNTHETIC',
       topics: [],
+      tags: [],
       lines: [],
       glossary: [],
       review: { total: 0, approved: 0, rejected: 0, unreviewed: 0 },
@@ -335,11 +540,35 @@ export const handlers = [
       level: number
       voice?: string
       voiceKind?: 'HUMAN' | 'SYNTHETIC'
+      categoryId?: string
+      tags?: string[]
     }
     video.title = body.title
     video.level = body.level
     video.voice = body.voice ?? ''
     video.voiceKind = body.voiceKind ?? 'SYNTHETIC'
+    if (body.categoryId !== undefined && body.categoryId !== '') {
+      const category = categoryState.shadow.find((c) => c.id === body.categoryId)
+      if (!category) {
+        return HttpResponse.json(
+          {
+            title: 'Không tìm thấy',
+            status: 404,
+            code: 'shadowing_category_not_found',
+            detail: 'Không tìm thấy chủ đề này',
+          },
+          { status: 404 },
+        )
+      }
+      video.categoryId = category.id
+      video.categoryName = category.name
+    } else {
+      // An empty categoryId clears it. There is no "leave it alone": the
+      // request is the whole metadata record.
+      video.categoryId = undefined
+      video.categoryName = undefined
+    }
+    video.tags = normaliseTags(body.tags ?? [])
     return HttpResponse.json(video)
   }),
 
@@ -606,6 +835,9 @@ export const handlers = [
         status: set.status,
         publishedAt: set.publishedAt,
         review: summariseDictation(set),
+        categoryId: set.categoryId,
+        categoryName: set.categoryName,
+        tags: set.tags,
       }))
     return HttpResponse.json({ items })
   }),
@@ -661,6 +893,8 @@ export const handlers = [
       level: number
       voice?: string
       voiceKind?: 'HUMAN' | 'SYNTHETIC'
+      categoryId?: string
+      tags?: string[]
     }
     if (body.title.trim() === '') {
       return HttpResponse.json(
@@ -677,6 +911,26 @@ export const handlers = [
     set.level = body.level
     set.voice = body.voice ?? ''
     set.voiceKind = body.voiceKind ?? 'SYNTHETIC'
+    if (body.categoryId !== undefined && body.categoryId !== '') {
+      const category = categoryState.dictation.find((c) => c.id === body.categoryId)
+      if (!category) {
+        return HttpResponse.json(
+          {
+            title: 'Không tìm thấy',
+            status: 404,
+            code: 'dictation_category_not_found',
+            detail: 'Không tìm thấy chủ đề này',
+          },
+          { status: 404 },
+        )
+      }
+      set.categoryId = category.id
+      set.categoryName = category.name
+    } else {
+      set.categoryId = undefined
+      set.categoryName = undefined
+    }
+    set.tags = normaliseTags(body.tags ?? [])
     // Not a verdict in sight, which is the whole contract of this endpoint: a
     // rename is the same audio saying the same sentences.
     return HttpResponse.json({ ...set, review: summariseDictation(set) })

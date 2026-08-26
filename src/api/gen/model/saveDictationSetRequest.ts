@@ -39,4 +39,15 @@ export interface SaveDictationSetRequest {
   level: number;
   voice?: string;
   voiceKind?: SaveDictationSetRequestVoiceKind;
+  /**
+     * Empty clears the category. This request is the whole metadata
+     * record, so a field absent from the body states that the set has no
+     * category.
+     */
+  categoryId?: string;
+  /**
+     * Names, not ids. The server trims, de-duplicates case-insensitively,
+     * caps at twelve and resolves each to a row.
+     */
+  tags?: string[];
 }

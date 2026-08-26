@@ -131,11 +131,14 @@ describe('sửa và xoá bộ chép chính tả', () => {
     // count on this row, and a bare getByText would pass while asserting the
     // wrong column.
     const cells = within(rowFor('Hội thoại văn phòng')).getAllByRole('cell')
-    expect(cells[1]).toHaveTextContent('5')
+    // Chủ đề sits between the name and the level, and a rename does not touch
+    // it: filing is a different edit from naming.
+    expect(cells[1]).toHaveTextContent('Công việc')
+    expect(cells[2]).toHaveTextContent('5')
     // The counter this screen exists for is unchanged: renaming a set is the
     // same audio saying the same sentences, so no verdict goes stale.
-    expect(cells[3]).toHaveTextContent('3')
     expect(cells[4]).toHaveTextContent('3')
+    expect(cells[5]).toHaveTextContent('3')
   })
 
   it('tên rỗng thì không lưu được', async () => {

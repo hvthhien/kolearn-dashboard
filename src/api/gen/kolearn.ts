@@ -44,6 +44,8 @@ import type {
 
 import type {
   AdminDictationApprovalRequest,
+  AdminDictationCategory,
+  AdminDictationCategoryList,
   AdminDictationItem,
   AdminDictationPublishReport,
   AdminDictationSetDetail,
@@ -51,6 +53,8 @@ import type {
   AdminExamDetail,
   AdminPassage,
   AdminQuestion,
+  AdminShadowCategory,
+  AdminShadowCategoryList,
   AdminShadowLine,
   AdminShadowVideoDetail,
   AdminShadowVideoList,
@@ -80,6 +84,7 @@ import type {
   CurrentUser,
   DictationAttemptRequest,
   DictationAttemptResult,
+  DictationCategoryList,
   DictationSetDetail,
   DictationSetList,
   DictationSkipResult,
@@ -133,8 +138,10 @@ import type {
   ResetPasswordBody,
   ReviewAttempt200,
   ReviewAttemptParams,
+  SaveDictationCategoryRequest,
   SaveDictationSetRequest,
   SaveQuestionRequest,
+  SaveShadowCategoryRequest,
   SaveShadowGlossaryRequest,
   SaveShadowLinesRequest,
   SaveShadowVideoRequest,
@@ -145,6 +152,7 @@ import type {
   SetQuestionTopicsBody,
   SetShadowLineApprovalRequest,
   ShadowCardList,
+  ShadowCategoryList,
   ShadowProgress,
   ShadowPublishReport,
   ShadowUploadTarget,
@@ -5896,6 +5904,118 @@ export function useGetWritingQuota<TData = Awaited<ReturnType<typeof getWritingQ
 
 
 
+export const getListShadowCategoriesUrl = () => {
+
+
+
+
+  return `/api/v1/shadowing/categories`
+}
+
+/**
+ * The chip row above the list, with a count on each chip and the total
+ * "Tất cả" wears.
+ *
+ * Its own request rather than a field on the list response, and the
+ * counts are why: a chip has to say how many rows sit under it whichever
+ * chip is currently pressed. Counts taken from an already-filtered list
+ * would read zero everywhere but the active chip.
+ *
+ * Chủ đề is not chủ điểm — `GET /topics` is the grammar taxonomy
+ * SC-WEAKNESS counts against, and the two vocabularies are deliberately
+ * separate (migration 00035).
+ * @summary Chủ đề ngữ liệu nhại theo
+ */
+export const listShadowCategories = async ( options?: Parameters<typeof apiFetch>[1]): Promise<ShadowCategoryList> => {
+
+  return apiFetch<ShadowCategoryList>(getListShadowCategoriesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListShadowCategoriesQueryKey = () => {
+    return [
+    `/api/v1/shadowing/categories`
+    ] as const;
+    }
+
+
+export const getListShadowCategoriesQueryOptions = <TData = Awaited<ReturnType<typeof listShadowCategories>>, TError = UnauthorizedResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowCategories>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListShadowCategoriesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listShadowCategories>>> = ({ signal }) => listShadowCategories({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listShadowCategories>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListShadowCategoriesQueryResult = NonNullable<Awaited<ReturnType<typeof listShadowCategories>>>
+export type ListShadowCategoriesQueryError = UnauthorizedResponse
+
+
+export function useListShadowCategories<TData = Awaited<ReturnType<typeof listShadowCategories>>, TError = UnauthorizedResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowCategories>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listShadowCategories>>,
+          TError,
+          Awaited<ReturnType<typeof listShadowCategories>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListShadowCategories<TData = Awaited<ReturnType<typeof listShadowCategories>>, TError = UnauthorizedResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowCategories>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listShadowCategories>>,
+          TError,
+          Awaited<ReturnType<typeof listShadowCategories>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListShadowCategories<TData = Awaited<ReturnType<typeof listShadowCategories>>, TError = UnauthorizedResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowCategories>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Chủ đề ngữ liệu nhại theo
+ */
+
+export function useListShadowCategories<TData = Awaited<ReturnType<typeof listShadowCategories>>, TError = UnauthorizedResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowCategories>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListShadowCategoriesQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getListShadowVideosUrl = (params?: ListShadowVideosParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -6313,6 +6433,114 @@ export function useListShadowCards<TData = Awaited<ReturnType<typeof listShadowC
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getListShadowCardsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListDictationCategoriesUrl = () => {
+
+
+
+
+  return `/api/v1/dictation/categories`
+}
+
+/**
+ * The chip row above the list, with a count on each chip and the total
+ * "Tất cả" wears. Its own request for the reason the shadowing twin gives.
+ *
+ * A separate vocabulary from `/shadowing/categories`, deliberately: R-36
+ * opens by saying these are different skills over different corpora, and
+ * a shared "Tin tức" would give a learner of chép chính tả a chip whose
+ * count came from material only nhại theo has.
+ * @summary Chủ đề bộ chép chính tả
+ */
+export const listDictationCategories = async ( options?: Parameters<typeof apiFetch>[1]): Promise<DictationCategoryList> => {
+
+  return apiFetch<DictationCategoryList>(getListDictationCategoriesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListDictationCategoriesQueryKey = () => {
+    return [
+    `/api/v1/dictation/categories`
+    ] as const;
+    }
+
+
+export const getListDictationCategoriesQueryOptions = <TData = Awaited<ReturnType<typeof listDictationCategories>>, TError = UnauthorizedResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDictationCategories>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListDictationCategoriesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listDictationCategories>>> = ({ signal }) => listDictationCategories({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listDictationCategories>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListDictationCategoriesQueryResult = NonNullable<Awaited<ReturnType<typeof listDictationCategories>>>
+export type ListDictationCategoriesQueryError = UnauthorizedResponse
+
+
+export function useListDictationCategories<TData = Awaited<ReturnType<typeof listDictationCategories>>, TError = UnauthorizedResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDictationCategories>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listDictationCategories>>,
+          TError,
+          Awaited<ReturnType<typeof listDictationCategories>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListDictationCategories<TData = Awaited<ReturnType<typeof listDictationCategories>>, TError = UnauthorizedResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDictationCategories>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listDictationCategories>>,
+          TError,
+          Awaited<ReturnType<typeof listDictationCategories>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListDictationCategories<TData = Awaited<ReturnType<typeof listDictationCategories>>, TError = UnauthorizedResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDictationCategories>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Chủ đề bộ chép chính tả
+ */
+
+export function useListDictationCategories<TData = Awaited<ReturnType<typeof listDictationCategories>>, TError = UnauthorizedResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDictationCategories>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListDictationCategoriesQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -7456,6 +7684,336 @@ export const useDeleteAssistantHistory = <TError = UnauthorizedResponse | Forbid
         TContext
       > => {
       return useMutation(getDeleteAssistantHistoryMutationOptions(options), queryClient);
+    }
+
+export const getListAdminDictationCategoriesUrl = () => {
+
+
+
+
+  return `/api/v1/admin/dictation/categories`
+}
+
+/**
+ * `rbac: dictation:read:any` — the same floor as reading a set, because
+ * every editor who opens the metadata dialog needs this list to choose
+ * from.
+ * @summary Chủ đề bộ chép chính tả, cho studio
+ */
+export const listAdminDictationCategories = async ( options?: Parameters<typeof apiFetch>[1]): Promise<AdminDictationCategoryList> => {
+
+  return apiFetch<AdminDictationCategoryList>(getListAdminDictationCategoriesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAdminDictationCategoriesQueryKey = () => {
+    return [
+    `/api/v1/admin/dictation/categories`
+    ] as const;
+    }
+
+
+export const getListAdminDictationCategoriesQueryOptions = <TData = Awaited<ReturnType<typeof listAdminDictationCategories>>, TError = UnauthorizedResponse | ForbiddenResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminDictationCategories>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminDictationCategoriesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminDictationCategories>>> = ({ signal }) => listAdminDictationCategories({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminDictationCategories>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListAdminDictationCategoriesQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminDictationCategories>>>
+export type ListAdminDictationCategoriesQueryError = UnauthorizedResponse | ForbiddenResponse
+
+
+export function useListAdminDictationCategories<TData = Awaited<ReturnType<typeof listAdminDictationCategories>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminDictationCategories>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAdminDictationCategories>>,
+          TError,
+          Awaited<ReturnType<typeof listAdminDictationCategories>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListAdminDictationCategories<TData = Awaited<ReturnType<typeof listAdminDictationCategories>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminDictationCategories>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAdminDictationCategories>>,
+          TError,
+          Awaited<ReturnType<typeof listAdminDictationCategories>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListAdminDictationCategories<TData = Awaited<ReturnType<typeof listAdminDictationCategories>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminDictationCategories>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Chủ đề bộ chép chính tả, cho studio
+ */
+
+export function useListAdminDictationCategories<TData = Awaited<ReturnType<typeof listAdminDictationCategories>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminDictationCategories>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListAdminDictationCategoriesQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateAdminDictationCategoryUrl = () => {
+
+
+
+
+  return `/api/v1/admin/dictation/categories`
+}
+
+/**
+ * `rbac: dictation:write`, not `dictation:publish`: renaming or adding a
+ * shelf is authoring metadata and reaches no learner who was not already
+ * reaching those sets.
+ * @summary Thêm chủ đề
+ */
+export const createAdminDictationCategory = async (saveDictationCategoryRequest: SaveDictationCategoryRequest, options?: Parameters<typeof apiFetch>[1]): Promise<AdminDictationCategory> => {
+
+  return apiFetch<AdminDictationCategory>(getCreateAdminDictationCategoryUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(saveDictationCategoryRequest)
+  }
+);}
+
+
+
+
+
+export const getCreateAdminDictationCategoryMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | ConflictResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminDictationCategory>>, TError,{data: SaveDictationCategoryRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAdminDictationCategory>>, TError,{data: SaveDictationCategoryRequest}, TContext> => {
+
+const mutationKey = ['createAdminDictationCategory'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAdminDictationCategory>>, {data: SaveDictationCategoryRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createAdminDictationCategory(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateAdminDictationCategoryMutationResult = NonNullable<Awaited<ReturnType<typeof createAdminDictationCategory>>>
+    export type CreateAdminDictationCategoryMutationBody = SaveDictationCategoryRequest
+    export type CreateAdminDictationCategoryMutationError = UnauthorizedResponse | ForbiddenResponse | ConflictResponse | UnprocessableResponse
+
+    /**
+ * @summary Thêm chủ đề
+ */
+export const useCreateAdminDictationCategory = <TError = UnauthorizedResponse | ForbiddenResponse | ConflictResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminDictationCategory>>, TError,{data: SaveDictationCategoryRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createAdminDictationCategory>>,
+        TError,
+        {data: SaveDictationCategoryRequest},
+        TContext
+      > => {
+      return useMutation(getCreateAdminDictationCategoryMutationOptions(options), queryClient);
+    }
+
+export const getSaveAdminDictationCategoryUrl = (categoryId: string,) => {
+
+
+
+
+  return `/api/v1/admin/dictation/categories/${categoryId}`
+}
+
+/**
+ * `rbac: dictation:write`. The slug is editable — a slug typed wrong on
+ * the day a category was made is otherwise permanent, and the cost is
+ * whatever held the old one.
+ * @summary Sửa chủ đề
+ */
+export const saveAdminDictationCategory = async (categoryId: string,
+    saveDictationCategoryRequest: SaveDictationCategoryRequest, options?: Parameters<typeof apiFetch>[1]): Promise<AdminDictationCategory> => {
+
+  return apiFetch<AdminDictationCategory>(getSaveAdminDictationCategoryUrl(categoryId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(saveDictationCategoryRequest)
+  }
+);}
+
+
+
+
+
+export const getSaveAdminDictationCategoryMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveAdminDictationCategory>>, TError,{categoryId: string;data: SaveDictationCategoryRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveAdminDictationCategory>>, TError,{categoryId: string;data: SaveDictationCategoryRequest}, TContext> => {
+
+const mutationKey = ['saveAdminDictationCategory'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveAdminDictationCategory>>, {categoryId: string;data: SaveDictationCategoryRequest}> = (props) => {
+          const {categoryId,data} = props ?? {};
+
+          return  saveAdminDictationCategory(categoryId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveAdminDictationCategoryMutationResult = NonNullable<Awaited<ReturnType<typeof saveAdminDictationCategory>>>
+    export type SaveAdminDictationCategoryMutationBody = SaveDictationCategoryRequest
+    export type SaveAdminDictationCategoryMutationError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse | UnprocessableResponse
+
+    /**
+ * @summary Sửa chủ đề
+ */
+export const useSaveAdminDictationCategory = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveAdminDictationCategory>>, TError,{categoryId: string;data: SaveDictationCategoryRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof saveAdminDictationCategory>>,
+        TError,
+        {categoryId: string;data: SaveDictationCategoryRequest},
+        TContext
+      > => {
+      return useMutation(getSaveAdminDictationCategoryMutationOptions(options), queryClient);
+    }
+
+export const getDeleteAdminDictationCategoryUrl = (categoryId: string,) => {
+
+
+
+
+  return `/api/v1/admin/dictation/categories/${categoryId}`
+}
+
+/**
+ * `rbac: dictation:write`. Never refuses because sets use it: the column
+ * is `ON DELETE SET NULL`, so those sets survive and become
+ * uncategorised. Refusing would mean an author cannot retire a shelf
+ * without re-filing every set on it first, which is how a vocabulary ends
+ * up with a category nobody wants and nobody can remove. The count on
+ * each row is what makes the consequence visible before the click.
+ * @summary Xoá chủ đề
+ */
+export const deleteAdminDictationCategory = async (categoryId: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getDeleteAdminDictationCategoryUrl(categoryId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteAdminDictationCategoryMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminDictationCategory>>, TError,{categoryId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteAdminDictationCategory>>, TError,{categoryId: string}, TContext> => {
+
+const mutationKey = ['deleteAdminDictationCategory'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAdminDictationCategory>>, {categoryId: string}> = (props) => {
+          const {categoryId} = props ?? {};
+
+          return  deleteAdminDictationCategory(categoryId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteAdminDictationCategoryMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAdminDictationCategory>>>
+
+    export type DeleteAdminDictationCategoryMutationError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse
+
+    /**
+ * @summary Xoá chủ đề
+ */
+export const useDeleteAdminDictationCategory = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminDictationCategory>>, TError,{categoryId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteAdminDictationCategory>>,
+        TError,
+        {categoryId: string},
+        TContext
+      > => {
+      return useMutation(getDeleteAdminDictationCategoryMutationOptions(options), queryClient);
     }
 
 export const getListAdminDictationSetsUrl = (params?: ListAdminDictationSetsParams,) => {
@@ -9133,6 +9691,331 @@ export const useRunImport = <TError = BadRequestResponse | UnauthorizedResponse 
         TContext
       > => {
       return useMutation(getRunImportMutationOptions(options), queryClient);
+    }
+
+export const getListAdminShadowCategoriesUrl = () => {
+
+
+
+
+  return `/api/v1/admin/shadowing/categories`
+}
+
+/**
+ * `rbac: shadowing:read:any` — the same floor as reading a video, because
+ * every editor who opens the metadata form needs this list to choose
+ * from.
+ * @summary Chủ đề ngữ liệu nhại theo, cho studio
+ */
+export const listAdminShadowCategories = async ( options?: Parameters<typeof apiFetch>[1]): Promise<AdminShadowCategoryList> => {
+
+  return apiFetch<AdminShadowCategoryList>(getListAdminShadowCategoriesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAdminShadowCategoriesQueryKey = () => {
+    return [
+    `/api/v1/admin/shadowing/categories`
+    ] as const;
+    }
+
+
+export const getListAdminShadowCategoriesQueryOptions = <TData = Awaited<ReturnType<typeof listAdminShadowCategories>>, TError = UnauthorizedResponse | ForbiddenResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminShadowCategories>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminShadowCategoriesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminShadowCategories>>> = ({ signal }) => listAdminShadowCategories({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminShadowCategories>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListAdminShadowCategoriesQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminShadowCategories>>>
+export type ListAdminShadowCategoriesQueryError = UnauthorizedResponse | ForbiddenResponse
+
+
+export function useListAdminShadowCategories<TData = Awaited<ReturnType<typeof listAdminShadowCategories>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminShadowCategories>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAdminShadowCategories>>,
+          TError,
+          Awaited<ReturnType<typeof listAdminShadowCategories>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListAdminShadowCategories<TData = Awaited<ReturnType<typeof listAdminShadowCategories>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminShadowCategories>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAdminShadowCategories>>,
+          TError,
+          Awaited<ReturnType<typeof listAdminShadowCategories>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListAdminShadowCategories<TData = Awaited<ReturnType<typeof listAdminShadowCategories>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminShadowCategories>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Chủ đề ngữ liệu nhại theo, cho studio
+ */
+
+export function useListAdminShadowCategories<TData = Awaited<ReturnType<typeof listAdminShadowCategories>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminShadowCategories>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListAdminShadowCategoriesQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateAdminShadowCategoryUrl = () => {
+
+
+
+
+  return `/api/v1/admin/shadowing/categories`
+}
+
+/**
+ * `rbac: shadowing:write`, not `shadowing:publish`: adding or renaming a
+ * shelf is authoring metadata and reaches no learner who was not already
+ * reaching those items.
+ * @summary Thêm chủ đề
+ */
+export const createAdminShadowCategory = async (saveShadowCategoryRequest: SaveShadowCategoryRequest, options?: Parameters<typeof apiFetch>[1]): Promise<AdminShadowCategory> => {
+
+  return apiFetch<AdminShadowCategory>(getCreateAdminShadowCategoryUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(saveShadowCategoryRequest)
+  }
+);}
+
+
+
+
+
+export const getCreateAdminShadowCategoryMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | ConflictResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminShadowCategory>>, TError,{data: SaveShadowCategoryRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAdminShadowCategory>>, TError,{data: SaveShadowCategoryRequest}, TContext> => {
+
+const mutationKey = ['createAdminShadowCategory'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAdminShadowCategory>>, {data: SaveShadowCategoryRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createAdminShadowCategory(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateAdminShadowCategoryMutationResult = NonNullable<Awaited<ReturnType<typeof createAdminShadowCategory>>>
+    export type CreateAdminShadowCategoryMutationBody = SaveShadowCategoryRequest
+    export type CreateAdminShadowCategoryMutationError = UnauthorizedResponse | ForbiddenResponse | ConflictResponse | UnprocessableResponse
+
+    /**
+ * @summary Thêm chủ đề
+ */
+export const useCreateAdminShadowCategory = <TError = UnauthorizedResponse | ForbiddenResponse | ConflictResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminShadowCategory>>, TError,{data: SaveShadowCategoryRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createAdminShadowCategory>>,
+        TError,
+        {data: SaveShadowCategoryRequest},
+        TContext
+      > => {
+      return useMutation(getCreateAdminShadowCategoryMutationOptions(options), queryClient);
+    }
+
+export const getSaveAdminShadowCategoryUrl = (categoryId: string,) => {
+
+
+
+
+  return `/api/v1/admin/shadowing/categories/${categoryId}`
+}
+
+/**
+ * `rbac: shadowing:write`. The slug is editable; see the dictation twin.
+ * @summary Sửa chủ đề
+ */
+export const saveAdminShadowCategory = async (categoryId: string,
+    saveShadowCategoryRequest: SaveShadowCategoryRequest, options?: Parameters<typeof apiFetch>[1]): Promise<AdminShadowCategory> => {
+
+  return apiFetch<AdminShadowCategory>(getSaveAdminShadowCategoryUrl(categoryId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(saveShadowCategoryRequest)
+  }
+);}
+
+
+
+
+
+export const getSaveAdminShadowCategoryMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveAdminShadowCategory>>, TError,{categoryId: string;data: SaveShadowCategoryRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof saveAdminShadowCategory>>, TError,{categoryId: string;data: SaveShadowCategoryRequest}, TContext> => {
+
+const mutationKey = ['saveAdminShadowCategory'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof saveAdminShadowCategory>>, {categoryId: string;data: SaveShadowCategoryRequest}> = (props) => {
+          const {categoryId,data} = props ?? {};
+
+          return  saveAdminShadowCategory(categoryId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SaveAdminShadowCategoryMutationResult = NonNullable<Awaited<ReturnType<typeof saveAdminShadowCategory>>>
+    export type SaveAdminShadowCategoryMutationBody = SaveShadowCategoryRequest
+    export type SaveAdminShadowCategoryMutationError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse | UnprocessableResponse
+
+    /**
+ * @summary Sửa chủ đề
+ */
+export const useSaveAdminShadowCategory = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof saveAdminShadowCategory>>, TError,{categoryId: string;data: SaveShadowCategoryRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof saveAdminShadowCategory>>,
+        TError,
+        {categoryId: string;data: SaveShadowCategoryRequest},
+        TContext
+      > => {
+      return useMutation(getSaveAdminShadowCategoryMutationOptions(options), queryClient);
+    }
+
+export const getDeleteAdminShadowCategoryUrl = (categoryId: string,) => {
+
+
+
+
+  return `/api/v1/admin/shadowing/categories/${categoryId}`
+}
+
+/**
+ * `rbac: shadowing:write`. Never refuses because items use it: the column
+ * is `ON DELETE SET NULL`, so those items survive and become
+ * uncategorised. See the dictation twin for why refusing would be worse.
+ * @summary Xoá chủ đề
+ */
+export const deleteAdminShadowCategory = async (categoryId: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getDeleteAdminShadowCategoryUrl(categoryId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteAdminShadowCategoryMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminShadowCategory>>, TError,{categoryId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteAdminShadowCategory>>, TError,{categoryId: string}, TContext> => {
+
+const mutationKey = ['deleteAdminShadowCategory'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAdminShadowCategory>>, {categoryId: string}> = (props) => {
+          const {categoryId} = props ?? {};
+
+          return  deleteAdminShadowCategory(categoryId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteAdminShadowCategoryMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAdminShadowCategory>>>
+
+    export type DeleteAdminShadowCategoryMutationError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse
+
+    /**
+ * @summary Xoá chủ đề
+ */
+export const useDeleteAdminShadowCategory = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAdminShadowCategory>>, TError,{categoryId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteAdminShadowCategory>>,
+        TError,
+        {categoryId: string},
+        TContext
+      > => {
+      return useMutation(getDeleteAdminShadowCategoryMutationOptions(options), queryClient);
     }
 
 export const getListAdminShadowVideosUrl = (params?: ListAdminShadowVideosParams,) => {

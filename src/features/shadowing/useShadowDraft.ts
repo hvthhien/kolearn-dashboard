@@ -7,6 +7,7 @@ import type {
   SaveShadowVideoRequest,
 } from '../../api/gen/model'
 import type { EditableLine } from './lineRules'
+import { formatTags, parseTags } from '../lessons/taxonomy'
 
 /**
  * The studio's working copy.
@@ -22,6 +23,14 @@ export interface ShadowDraft {
   voice: string
   voiceKind: 'HUMAN' | 'SYNTHETIC'
   topicIds: string[]
+  /** Chủ đề. Empty is uncategorised, which is what the request means by it too
+   *  — see SaveShadowVideoRequest. NOT the same axis as topicIds: that one is
+   *  the grammar taxonomy SC-WEAKNESS counts against. */
+  categoryId: string
+  /** Nhãn, as the raw comma-separated TEXT rather than the parsed array. That
+   *  is what lets an author type a comma and keep going; parsing on every
+   *  keystroke would delete the separator they just pressed. */
+  tagsText: string
   lines: EditableLine[]
   glossary: AdminShadowGlossaryEntry[]
 }
@@ -33,6 +42,8 @@ function toDraft(video: AdminShadowVideoDetail): ShadowDraft {
     voice: video.voice,
     voiceKind: video.voiceKind,
     topicIds: video.topics.map((t) => t.id),
+    categoryId: video.categoryId ?? '',
+    tagsText: formatTags(video.tags),
     lines: video.lines.map((l) => ({
       id: l.id,
       startMs: l.startMs,
@@ -94,6 +105,10 @@ export function useShadowDraft(video: AdminShadowVideoDetail) {
       voice: draft.voice.trim(),
       voiceKind: draft.voiceKind,
       topicIds: draft.topicIds,
+      categoryId: draft.categoryId,
+      // Parsed at send time, not per keystroke. The server trims,
+      // de-duplicates and caps again — this is the shape, not the rule.
+      tags: parseTags(draft.tagsText),
     }),
     [draft],
   )

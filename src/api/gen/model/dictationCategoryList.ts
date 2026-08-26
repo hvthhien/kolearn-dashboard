@@ -23,26 +23,20 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { DictationCategory } from './dictationCategory';
 
-export type ListShadowVideosParams = {
-/**
- * Clamped rather than refused, as everywhere else here.
- * @minimum 1
- * @maximum 200
- */
-limit?: number;
-/**
- * Arrives from a placement recommendation. Unlike level this really
- * does filter — the learner asked for this topic.
- */
-topicId?: string;
-/**
- * Chủ đề, from a tapped chip. Filters, like `topicId` and unlike
- * level: the learner asked for this shelf. Absent is "Tất cả", which
- * includes uncategorised items.
- *
- * AND-ed with `topicId` when both are present, because each names
- * something the caller asked for and neither is a suggestion.
- */
-categoryId?: string;
-};
+export interface DictationCategoryList {
+  /**
+     * Every category, empty ones included. A chip reading "Tin tức 0"
+     * tells a learner the shelf exists and is empty, which is true and is
+     * a designed empty state (R-13); hiding it would make the row's
+     * contents change under a learner who did nothing.
+     */
+  items: DictationCategory[];
+  /**
+     * What "Tất cả" wears. NOT the sum of `items`: an uncategorised set
+     * is in the list and under no chip, and a total that missed it would
+     * be a number a learner can disprove by pressing it.
+     */
+  totalCount: number;
+}

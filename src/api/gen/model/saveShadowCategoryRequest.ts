@@ -24,25 +24,14 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type ListShadowVideosParams = {
-/**
- * Clamped rather than refused, as everywhere else here.
- * @minimum 1
- * @maximum 200
- */
-limit?: number;
-/**
- * Arrives from a placement recommendation. Unlike level this really
- * does filter — the learner asked for this topic.
- */
-topicId?: string;
-/**
- * Chủ đề, from a tapped chip. Filters, like `topicId` and unlike
- * level: the learner asked for this shelf. Absent is "Tất cả", which
- * includes uncategorised items.
- *
- * AND-ed with `topicId` when both are present, because each names
- * something the caller asked for and neither is a suggestion.
- */
-categoryId?: string;
-};
+export interface SaveShadowCategoryRequest {
+  /** @minLength 1 */
+  name: string;
+  /**
+     * May be omitted on create, and is then derived from the name. On a
+     * rename it is what keeps an existing URL working, so send back what
+     * you read.
+     */
+  slug?: string;
+  ordinal?: number;
+}

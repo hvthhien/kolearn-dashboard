@@ -10,11 +10,13 @@ import {
   saveAdminShadowLines,
   saveAdminShadowVideo,
   useGetAdminShadowVideo,
+  useListAdminShadowCategories,
 } from '../api/gen/kolearn'
 import type { AdminShadowVideoDetail } from '../api/gen/model'
 import { userMessage } from '../lib/problem'
 import { useAuth } from '../lib/auth'
 import { useShadowDraft } from '../features/shadowing/useShadowDraft'
+import { CategorySelect, TagField } from '../features/lessons/taxonomy'
 import { LineEditor } from '../features/shadowing/LineEditor'
 import { decodeSpeechRuns, proposeChunks } from '../features/shadowing/chunks'
 import type { Segment } from '../features/shadowing/segment'
@@ -90,6 +92,16 @@ function Studio({ video }: { video: AdminShadowVideoDetail }) {
   const { user } = useAuth()
   const { draft, set, setLine, setEntry, setDraft, videoRequest, linesRequest, glossaryRequest } =
     useShadowDraft(video)
+
+  /**
+   * The category vocabulary, for the picker in the metadata block.
+   *
+   * A failed request costs the picker its options and nothing else: the form
+   * still saves, and `CategorySelect` keeps naming whatever this video is
+   * already filed under. Refusing to open a studio because a dropdown could not
+   * be filled would take away far more than it protects.
+   */
+  const categories = useListAdminShadowCategories()
 
   const [activeLine, setActiveLine] = useState(0)
 
@@ -266,7 +278,11 @@ function Studio({ video }: { video: AdminShadowVideoDetail }) {
           <div className="mt-2 grid gap-3 sm:grid-cols-2">
             <TextField
               id="title"
-              label="Chủ đề"
+              /* "Tên ngữ liệu", not "Chủ đề" — this is the row's name, and
+                 chủ đề is now the shelf it is filed under, two fields below.
+                 The dictation studio has called its own title field "Tên bộ"
+                 all along. */
+              label="Tên ngữ liệu"
               value={draft.title}
               onChange={(e) => set('title', e.target.value)}
             />
@@ -297,6 +313,14 @@ function Studio({ video }: { video: AdminShadowVideoDetail }) {
               <option value="SYNTHETIC">Do máy tạo</option>
               <option value="HUMAN">Người thật</option>
             </Select>
+            <CategorySelect
+              id="category"
+              categories={categories.data?.items ?? []}
+              loading={categories.data === undefined && categories.error === null}
+              value={draft.categoryId}
+              onChange={(id) => set('categoryId', id)}
+            />
+            <TagField id="tags" value={draft.tagsText} onChange={(t) => set('tagsText', t)} />
           </div>
         </section>
 

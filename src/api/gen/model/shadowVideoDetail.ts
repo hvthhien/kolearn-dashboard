@@ -32,6 +32,27 @@ export interface ShadowVideoDetail {
   title: string;
   durationMs: number;
   /**
+     * Chủ đề. Absent means uncategorised, which is a real state and not
+     * missing data: a category is never a publish blocker, so a lesson
+     * can go out without one and then appears under "Tất cả" only.
+     */
+  categoryId?: string;
+  /**
+     * The label, beside the id because the row renders it. The id is
+     * what a tapped chip and a row's own label agree on when two
+     * categories are one rename apart.
+     */
+  categoryName?: string;
+  /**
+     * Nhãn — read on the row, filtered on nowhere in this release.
+     * Never null; `[]` on a lesson nobody has tagged (R-13).
+     *
+     * Names rather than ids, unlike the category, because nothing
+     * navigates by a tag: an id would be a field every client carries
+     * and none uses.
+     */
+  tags: string[];
+  /**
      * What the learner looks at, fed to the media element's `poster`. On
      * an `AUDIO` item this is the entire visual surface of the screen,
      * which is why the publish gate refuses a published audio item

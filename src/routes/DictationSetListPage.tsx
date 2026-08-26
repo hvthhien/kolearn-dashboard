@@ -5,7 +5,12 @@ import {
   deleteAdminDictationSet,
   getListAdminDictationSetsQueryKey,
   retireAdminDictationSet,
+  createAdminDictationCategory,
+  deleteAdminDictationCategory,
+  listAdminDictationCategories,
+  saveAdminDictationCategory,
   useListAdminDictationSets,
+  useListAdminDictationCategories,
 } from '../api/gen/kolearn'
 import type { AdminDictationSetRow, AdminDictationSetRowStatus } from '../api/gen/model'
 import { userMessage } from '../lib/problem'
@@ -13,6 +18,7 @@ import { useAuth } from '../lib/auth'
 import { EditSetDialog } from '../features/dictation/EditSetDialog'
 import { RemoveDialog } from '../features/manage/RemoveDialog'
 import { removalFor, removalLabel } from '../features/manage/removal'
+import { CategoryManagerDialog, type ManagedCategory } from '../features/lessons/CategoryManagerDialog'
 import {
   Badge,
   Button,
@@ -60,6 +66,7 @@ export function DictationSetListPage() {
   const [status, setStatus] = useState<StatusFilter>('ALL')
   const [editing, setEditing] = useState<AdminDictationSetRow | null>(null)
   const [removing, setRemoving] = useState<AdminDictationSetRow | null>(null)
+  const [managingCategories, setManagingCategories] = useState(false)
   const queryClient = useQueryClient()
   const { user } = useAuth()
 
@@ -70,6 +77,11 @@ export function DictationSetListPage() {
     status === 'ALL' ? undefined : { status },
   )
 
+  /* Read here rather than only inside the dialog, so the button can say how
+     many shelves there are and be honestly disabled while the list is in
+     flight. */
+  const categories = useListAdminDictationCategories()
+
   /* No params, so this is the prefix every status filter hangs off — a set
      removed under "Tất cả" must not still be sitting in the cached "Nháp". */
   const refresh = () =>
@@ -79,6 +91,18 @@ export function DictationSetListPage() {
     <PageShell>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <PageTitle>Chép chính tả</PageTitle>
+        {/* Beside the title rather than behind a settings route: an author
+            notices a missing shelf while looking at this list. Gated on
+            dictation:write, the same permission the server puts on it. */}
+        {canWrite && (
+          <Button
+            variant="ghost"
+            onClick={() => setManagingCategories(true)}
+            disabled={categories.data === undefined}
+          >
+            Chủ đề{categories.data && ` (${categories.data.items.length})`}
+          </Button>
+        )}
       </div>
 
       <p className="mt-1 text-sm text-muted">
@@ -129,6 +153,7 @@ export function DictationSetListPage() {
             head={
               <tr>
                 <Th>Tên bộ</Th>
+                <Th>Chủ đề</Th>
                 <Th>Cấp độ</Th>
                 <Th>Giọng đọc</Th>
                 <Th className="text-right">Câu</Th>
@@ -148,6 +173,14 @@ export function DictationSetListPage() {
                   >
                     {set.title}
                   </Link>
+                  {set.tags.length > 0 && (
+                    <p className="mt-1 text-xs text-muted">{set.tags.join(' · ')}</p>
+                  )}
+                </Td>
+                <Td>
+                  {/* Said in the list, because this is where somebody notices
+                      that nine of eleven rows are unfiled. */}
+                  {set.categoryName ?? <span className="text-muted">— chưa chọn —</span>}
                 </Td>
                 <Td>{set.level}</Td>
                 <Td>
@@ -215,6 +248,26 @@ export function DictationSetListPage() {
         />
       )}
 
+      {managingCategories && categories.data && (
+        <CategoryManagerDialog
+          noun="bộ"
+          categories={categories.data.items.map(toManaged)}
+          api={{
+            list: async () => (await listAdminDictationCategories()).items.map(toManaged),
+            create: (input) => createAdminDictationCategory(input),
+            save: (id, input) => saveAdminDictationCategory(id, input),
+            remove: (id) => deleteAdminDictationCategory(id),
+          }}
+          onClose={() => setManagingCategories(false)}
+          onChanged={() => {
+            void categories.refetch()
+            /* A rename shows on every row that carries it, so the list behind
+               the dialog has to be re-read too. */
+            void refresh()
+          }}
+        />
+      )}
+
       {removing && (
         <RemoveDialog
           noun="bộ"
@@ -229,4 +282,25 @@ export function DictationSetListPage() {
       )}
     </PageShell>
   )
+}
+
+/** The generated row → what the shared manager renders. A mapper rather than a
+ *  shared type: the two features name their counts after their own nouns, and
+ *  one shared field would have to be called something neither screen says. */
+function toManaged(c: {
+  id: string
+  slug: string
+  name: string
+  ordinal: number
+  setCount: number
+  totalSetCount: number
+}): ManagedCategory {
+  return {
+    id: c.id,
+    slug: c.slug,
+    name: c.name,
+    ordinal: c.ordinal,
+    published: c.setCount,
+    total: c.totalSetCount,
+  }
 }

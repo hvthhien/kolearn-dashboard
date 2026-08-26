@@ -1958,6 +1958,31 @@ paths:
   # (TCCN-352-8). "Practised" below means a line was played to its end, not
   # that anything about it was measured.
 
+  /shadowing/categories:
+    get:
+      tags: [shadowing]
+      operationId: listShadowCategories
+      summary: Chủ đề ngữ liệu nhại theo
+      description: |
+        The chip row above the list, with a count on each chip and the total
+        "Tất cả" wears.
+
+        Its own request rather than a field on the list response, and the
+        counts are why: a chip has to say how many rows sit under it whichever
+        chip is currently pressed. Counts taken from an already-filtered list
+        would read zero everywhere but the active chip.
+
+        Chủ đề is not chủ điểm — `GET /topics` is the grammar taxonomy
+        SC-WEAKNESS counts against, and the two vocabularies are deliberately
+        separate (migration 00035).
+      responses:
+        '200':
+          description: Authored order. `[]` when nobody has made a category (R-13).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShadowCategoryList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
   /shadowing/videos:
     get:
       tags: [shadowing]
@@ -1985,6 +2010,16 @@ paths:
           description: |
             Arrives from a placement recommendation. Unlike level this really
             does filter — the learner asked for this topic.
+          schema: { type: string, format: uuid }
+        - name: categoryId
+          in: query
+          description: |
+            Chủ đề, from a tapped chip. Filters, like `topicId` and unlike
+            level: the learner asked for this shelf. Absent is "Tất cả", which
+            includes uncategorised items.
+
+            AND-ed with `topicId` when both are present, because each names
+            something the caller asked for and neither is a suggestion.
           schema: { type: string, format: uuid }
       responses:
         '200':
@@ -2085,6 +2120,27 @@ paths:
   # is decided — a component that never renders textKo is one refactor away
   # from rendering it; a response that never carries it cannot be.
 
+  /dictation/categories:
+    get:
+      tags: [dictation]
+      operationId: listDictationCategories
+      summary: Chủ đề bộ chép chính tả
+      description: |
+        The chip row above the list, with a count on each chip and the total
+        "Tất cả" wears. Its own request for the reason the shadowing twin gives.
+
+        A separate vocabulary from `/shadowing/categories`, deliberately: R-36
+        opens by saying these are different skills over different corpora, and
+        a shared "Tin tức" would give a learner of chép chính tả a chip whose
+        count came from material only nhại theo has.
+      responses:
+        '200':
+          description: Authored order. `[]` when nobody has made a category (R-13).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DictationCategoryList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
   /dictation/sets:
     get:
       tags: [dictation]
@@ -2104,6 +2160,13 @@ paths:
           in: query
           description: Clamped rather than refused, as everywhere else here.
           schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - name: categoryId
+          in: query
+          description: |
+            Chủ đề, from a tapped chip. Filters, unlike level: the learner
+            asked for this shelf. Absent is "Tất cả", which includes
+            uncategorised sets.
+          schema: { type: string, format: uuid }
       responses:
         '200':
           description: '`[]` when empty (R-13).'
@@ -2510,6 +2573,94 @@ paths:
               schema: { $ref: '#/components/schemas/AssistantDeleteResult' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/dictation/categories:
+    get:
+      tags: [admin]
+      operationId: listAdminDictationCategories
+      summary: Chủ đề bộ chép chính tả, cho studio
+      description: |
+        `rbac: dictation:read:any` — the same floor as reading a set, because
+        every editor who opens the metadata dialog needs this list to choose
+        from.
+      responses:
+        '200':
+          description: Authored order, with counts.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminDictationCategoryList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+    post:
+      tags: [admin]
+      operationId: createAdminDictationCategory
+      summary: Thêm chủ đề
+      description: |
+        `rbac: dictation:write`, not `dictation:publish`: renaming or adding a
+        shelf is authoring metadata and reaches no learner who was not already
+        reaching those sets.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SaveDictationCategoryRequest' }
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminDictationCategory' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /admin/dictation/categories/{categoryId}:
+    parameters:
+      - $ref: '#/components/parameters/CategoryId'
+
+    put:
+      tags: [admin]
+      operationId: saveAdminDictationCategory
+      summary: Sửa chủ đề
+      description: |
+        `rbac: dictation:write`. The slug is editable — a slug typed wrong on
+        the day a category was made is otherwise permanent, and the cost is
+        whatever held the old one.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SaveDictationCategoryRequest' }
+      responses:
+        '200':
+          description: Saved.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminDictationCategory' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+    delete:
+      tags: [admin]
+      operationId: deleteAdminDictationCategory
+      summary: Xoá chủ đề
+      description: |
+        `rbac: dictation:write`. Never refuses because sets use it: the column
+        is `ON DELETE SET NULL`, so those sets survive and become
+        uncategorised. Refusing would mean an author cannot retire a shelf
+        without re-filing every set on it first, which is how a vocabulary ends
+        up with a category nobody wants and nobody can remove. The count on
+        each row is what makes the consequence visible before the click.
+      responses:
+        '204': { description: Gone. Sets that used it are now uncategorised. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /admin/dictation/sets:
     get:
@@ -3034,6 +3185,88 @@ paths:
   # video is around 30 MB. Uploads go straight to Cloudflare R2 through a
   # presigned PUT; see upload-target below.
 
+  /admin/shadowing/categories:
+    get:
+      tags: [admin]
+      operationId: listAdminShadowCategories
+      summary: Chủ đề ngữ liệu nhại theo, cho studio
+      description: |
+        `rbac: shadowing:read:any` — the same floor as reading a video, because
+        every editor who opens the metadata form needs this list to choose
+        from.
+      responses:
+        '200':
+          description: Authored order, with counts.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminShadowCategoryList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+    post:
+      tags: [admin]
+      operationId: createAdminShadowCategory
+      summary: Thêm chủ đề
+      description: |
+        `rbac: shadowing:write`, not `shadowing:publish`: adding or renaming a
+        shelf is authoring metadata and reaches no learner who was not already
+        reaching those items.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SaveShadowCategoryRequest' }
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminShadowCategory' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /admin/shadowing/categories/{categoryId}:
+    parameters:
+      - $ref: '#/components/parameters/CategoryId'
+
+    put:
+      tags: [admin]
+      operationId: saveAdminShadowCategory
+      summary: Sửa chủ đề
+      description: '`rbac: shadowing:write`. The slug is editable; see the dictation twin.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SaveShadowCategoryRequest' }
+      responses:
+        '200':
+          description: Saved.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminShadowCategory' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+    delete:
+      tags: [admin]
+      operationId: deleteAdminShadowCategory
+      summary: Xoá chủ đề
+      description: |
+        `rbac: shadowing:write`. Never refuses because items use it: the column
+        is `ON DELETE SET NULL`, so those items survive and become
+        uncategorised. See the dictation twin for why refusing would be worse.
+      responses:
+        '204': { description: Gone. Items that used it are now uncategorised. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /admin/shadowing/videos:
     get:
       tags: [studio]
@@ -3441,6 +3674,11 @@ components:
       schema: { type: string, format: uuid }
     VideoId:
       name: videoId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    CategoryId:
+      name: categoryId
       in: path
       required: true
       schema: { type: string, format: uuid }
@@ -6198,7 +6436,7 @@ components:
 
     ShadowVideoListItem:
       type: object
-      required: [id, title, durationMs, lineCount, wordCount, practisedCount]
+      required: [id, title, durationMs, lineCount, wordCount, practisedCount, tags]
       description: |
         Carries no level, deliberately. The list is ordered by level on the
         server and the screen never shows one; a field on the wire is one
@@ -6223,12 +6461,35 @@ components:
             With lineCount this is the whole progress pill. `chưa luyện` is
             zero and `18 / 18 câu` is equality — both composed on the client,
             where the rest of this product's Vietnamese lives.
+        categoryId:
+          type: string
+          format: uuid
+          description: |
+            Chủ đề. Absent means uncategorised, which is a real state and not
+            missing data: a category is never a publish blocker, so a lesson
+            can go out without one and then appears under "Tất cả" only.
+        categoryName:
+          type: string
+          description: |
+            The label, beside the id because the row renders it. The id is
+            what a tapped chip and a row's own label agree on when two
+            categories are one rename apart.
+        tags:
+          type: array
+          description: |
+            Nhãn — read on the row, filtered on nowhere in this release.
+            Never null; `[]` on a lesson nobody has tagged (R-13).
+
+            Names rather than ids, unlike the category, because nothing
+            navigates by a tag: an id would be a field every client carries
+            and none uses.
+          items: { type: string }
 
     # ── chép chính tả (R-36) ───────────────────────────────────────────────
 
     DictationSetListItem:
       type: object
-      required: [id, title, durationMs, itemCount, wordCount, correctCount]
+      required: [id, title, durationMs, itemCount, wordCount, correctCount, tags]
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
@@ -6244,6 +6505,33 @@ components:
           description: |
             TCCN-427-1's numerator: sentences whose BEST result was đúng or
             gần đúng. A gần đúng counts — the learner heard every character.
+        categoryId:
+          type: string
+          format: uuid
+          description: |
+            Chủ đề. Absent means uncategorised, which is a real state and not
+            missing data: a category is never a publish blocker, so a lesson
+            can go out without one and then appears under "Tất cả" only.
+
+            Safe here despite this schema's one rule: a tag and a category
+            are labels an author wrote about the SET, not the Korean of any
+            sentence, and neither narrows what the learner is about to type.
+        categoryName:
+          type: string
+          description: |
+            The label, beside the id because the row renders it. The id is
+            what a tapped chip and a row's own label agree on when two
+            categories are one rename apart.
+        tags:
+          type: array
+          description: |
+            Nhãn — read on the row, filtered on nowhere in this release.
+            Never null; `[]` on a lesson nobody has tagged (R-13).
+
+            Names rather than ids, unlike the category, because nothing
+            navigates by a tag: an id would be a field every client carries
+            and none uses.
+          items: { type: string }
 
     DictationSetList:
       type: object
@@ -6252,6 +6540,88 @@ components:
         items:
           type: array
           items: { $ref: '#/components/schemas/DictationSetListItem' }
+
+    DictationCategory:
+      type: object
+      required: [id, slug, name, setCount]
+      properties:
+        id: { type: string, format: uuid }
+        slug:
+          type: string
+          description: |
+            The stable key. A name is Vietnamese copy and gets retyped; a
+            slug is what a seed script, an import manifest and any future
+            shareable link hold on to, so a rename does not break them.
+        name: { type: string }
+        setCount:
+          type: integer
+          description: |
+            Published, sentence-bearing sets under this chip — the same
+            population the list itself shows, by the same predicate.
+
+    DictationCategoryList:
+      type: object
+      required: [items, totalCount]
+      properties:
+        items:
+          type: array
+          description: |
+            Every category, empty ones included. A chip reading "Tin tức 0"
+            tells a learner the shelf exists and is empty, which is true and is
+            a designed empty state (R-13); hiding it would make the row's
+            contents change under a learner who did nothing.
+          items: { $ref: '#/components/schemas/DictationCategory' }
+        totalCount:
+          type: integer
+          description: |
+            What "Tất cả" wears. NOT the sum of `items`: an uncategorised set
+            is in the list and under no chip, and a total that missed it would
+            be a number a learner can disprove by pressing it.
+
+    AdminDictationCategory:
+      type: object
+      required: [id, slug, name, ordinal, setCount, totalSetCount]
+      properties:
+        id: { type: string, format: uuid }
+        slug: { type: string }
+        name: { type: string }
+        ordinal:
+          type: integer
+          description: |
+            Authored chip order. Alphabetical would put "Công việc" first and
+            "Hội thoại hàng ngày" fourth; the row is short enough that somebody
+            should decide it.
+        setCount:
+          type: integer
+          description: What a learner can find under this chip.
+        totalSetCount:
+          type: integer
+          description: |
+            Drafts included — what says whether deleting the category would
+            strand work in progress. Deleting never refuses: the sets survive
+            and become uncategorised.
+
+    AdminDictationCategoryList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AdminDictationCategory' }
+
+    SaveDictationCategoryRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1 }
+        slug:
+          type: string
+          description: |
+            May be omitted on create, and is then derived from the name — an
+            author typing "Tin tức" into a one-field form should not have to
+            know what a slug is. On a rename it is what keeps an existing URL
+            working, so send back what you read.
+        ordinal: { type: integer }
 
     DictationItem:
       type: object
@@ -6308,10 +6678,33 @@ components:
 
     DictationSetDetail:
       type: object
-      required: [id, title, items, progress]
+      required: [id, title, items, progress, tags]
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
+        categoryId:
+          type: string
+          format: uuid
+          description: |
+            Chủ đề. Absent means uncategorised, which is a real state and not
+            missing data: a category is never a publish blocker, so a lesson
+            can go out without one and then appears under "Tất cả" only.
+        categoryName:
+          type: string
+          description: |
+            The label, beside the id because the row renders it. The id is
+            what a tapped chip and a row's own label agree on when two
+            categories are one rename apart.
+        tags:
+          type: array
+          description: |
+            Nhãn — read on the row, filtered on nowhere in this release.
+            Never null; `[]` on a lesson nobody has tagged (R-13).
+
+            Names rather than ids, unlike the category, because nothing
+            navigates by a tag: an id would be a field every client carries
+            and none uses.
+          items: { type: string }
         items:
           type: array
           items: { $ref: '#/components/schemas/DictationItem' }
@@ -6546,7 +6939,7 @@ components:
 
     AdminDictationSetRow:
       type: object
-      required: [id, title, level, voice, voiceKind, status, review]
+      required: [id, title, level, voice, voiceKind, status, review, tags]
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
@@ -6556,6 +6949,15 @@ components:
         status: { type: string, enum: [DRAFT, IN_REVIEW, PUBLISHED, RETIRED] }
         publishedAt: { type: string, format: date-time }
         review: { $ref: '#/components/schemas/AdminDictationReviewSummary' }
+        categoryId:
+          type: string
+          format: uuid
+          description: Chủ đề. Absent means uncategorised — a warning at the publish gate, never a blocker.
+        categoryName: { type: string }
+        tags:
+          type: array
+          description: Never null. The same labels the learner sees, in the same order.
+          items: { type: string }
 
     AdminDictationSetList:
       type: object
@@ -6567,7 +6969,7 @@ components:
 
     AdminDictationSetDetail:
       type: object
-      required: [id, title, level, voice, voiceKind, status, items, glossary, review]
+      required: [id, title, level, voice, voiceKind, status, items, glossary, review, tags]
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
@@ -6576,6 +6978,15 @@ components:
         voiceKind: { type: string, enum: [HUMAN, SYNTHETIC] }
         status: { type: string, enum: [DRAFT, IN_REVIEW, PUBLISHED, RETIRED] }
         publishedAt: { type: string, format: date-time }
+        categoryId:
+          type: string
+          format: uuid
+          description: Chủ đề. Absent means uncategorised — a warning at the publish gate, never a blocker.
+        categoryName: { type: string }
+        tags:
+          type: array
+          description: Never null. The same labels the learner sees, in the same order.
+          items: { type: string }
         items:
           type: array
           items: { $ref: '#/components/schemas/AdminDictationItem' }
@@ -6595,6 +7006,18 @@ components:
         level: { type: integer, minimum: 1, maximum: 6 }
         voice: { type: string }
         voiceKind: { type: string, enum: [HUMAN, SYNTHETIC] }
+        categoryId:
+          type: string
+          description: |
+            Empty clears the category. This request is the whole metadata
+            record, so a field absent from the body states that the set has no
+            category.
+        tags:
+          type: array
+          description: |
+            Names, not ids. The server trims, de-duplicates case-insensitively,
+            caps at twelve and resolves each to a row.
+          items: { type: string }
 
     AdminDictationApprovalRequest:
       type: object
@@ -6623,6 +7046,82 @@ components:
         items:
           type: array
           items: { $ref: '#/components/schemas/ShadowVideoListItem' }
+
+    ShadowCategory:
+      type: object
+      required: [id, slug, name, videoCount]
+      properties:
+        id: { type: string, format: uuid }
+        slug:
+          type: string
+          description: |
+            The stable key. A name is Vietnamese copy and gets retyped; a
+            slug is what a seed script, an import manifest and any future
+            shareable link hold on to, so a rename does not break them.
+        name: { type: string }
+        videoCount:
+          type: integer
+          description: |
+            Published, line-bearing items under this chip — the same population
+            the list itself shows, by the same predicate.
+
+    ShadowCategoryList:
+      type: object
+      required: [items, totalCount]
+      properties:
+        items:
+          type: array
+          description: |
+            Every category, empty ones included. A chip reading "Tin tức 0"
+            tells a learner the shelf exists and is empty, which is true and is
+            a designed empty state (R-13).
+          items: { $ref: '#/components/schemas/ShadowCategory' }
+        totalCount:
+          type: integer
+          description: |
+            What "Tất cả" wears. NOT the sum of `items`: an uncategorised item
+            is in the list and under no chip.
+
+    AdminShadowCategory:
+      type: object
+      required: [id, slug, name, ordinal, videoCount, totalVideoCount]
+      properties:
+        id: { type: string, format: uuid }
+        slug: { type: string }
+        name: { type: string }
+        ordinal:
+          type: integer
+          description: Authored chip order.
+        videoCount:
+          type: integer
+          description: What a learner can find under this chip.
+        totalVideoCount:
+          type: integer
+          description: |
+            Drafts included — what says whether deleting the category would
+            strand work in progress. Deleting never refuses: the items survive
+            and become uncategorised.
+
+    AdminShadowCategoryList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AdminShadowCategory' }
+
+    SaveShadowCategoryRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1 }
+        slug:
+          type: string
+          description: |
+            May be omitted on create, and is then derived from the name. On a
+            rename it is what keeps an existing URL working, so send back what
+            you read.
+        ordinal: { type: integer }
 
     ShadowTerm:
       type: object
@@ -6732,11 +7231,34 @@ components:
 
     ShadowVideoDetail:
       type: object
-      required: [id, title, durationMs, playbackUrl, lines, glossary, progress]
+      required: [id, title, durationMs, playbackUrl, lines, glossary, progress, tags]
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
         durationMs: { type: integer }
+        categoryId:
+          type: string
+          format: uuid
+          description: |
+            Chủ đề. Absent means uncategorised, which is a real state and not
+            missing data: a category is never a publish blocker, so a lesson
+            can go out without one and then appears under "Tất cả" only.
+        categoryName:
+          type: string
+          description: |
+            The label, beside the id because the row renders it. The id is
+            what a tapped chip and a row's own label agree on when two
+            categories are one rename apart.
+        tags:
+          type: array
+          description: |
+            Nhãn — read on the row, filtered on nowhere in this release.
+            Never null; `[]` on a lesson nobody has tagged (R-13).
+
+            Names rather than ids, unlike the category, because nothing
+            navigates by a tag: an id would be a field every client carries
+            and none uses.
+          items: { type: string }
         thumbnailUrl:
           type: string
           description: |
@@ -6914,7 +7436,7 @@ components:
 
     AdminShadowVideoRow:
       type: object
-      required: [id, title, level, status, lineCount, wordCount, review]
+      required: [id, title, level, status, lineCount, wordCount, review, tags]
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
@@ -6934,6 +7456,15 @@ components:
         lineCount: { type: integer }
         wordCount: { type: integer }
         review: { $ref: '#/components/schemas/ShadowReviewSummary' }
+        categoryId:
+          type: string
+          format: uuid
+          description: Chủ đề. Absent means uncategorised — a warning at the publish gate, never a blocker.
+        categoryName: { type: string }
+        tags:
+          type: array
+          description: Never null. The same labels the learner sees, in the same order.
+          items: { type: string }
 
     AdminShadowVideoList:
       type: object
@@ -6945,7 +7476,7 @@ components:
 
     AdminShadowVideoDetail:
       type: object
-      required: [id, title, level, status, voice, voiceKind, topics, lines, glossary, review]
+      required: [id, title, level, status, voice, voiceKind, topics, lines, glossary, review, tags]
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
@@ -6968,7 +7499,21 @@ components:
             why its presence is decided on byte size alone.
         topics:
           type: array
+          description: |
+            Chủ điểm ngữ pháp — the taxonomy SC-WEAKNESS counts wrong answers
+            against, and NOT the same thing as `categoryId` below. The two sit
+            beside each other here and nowhere else; migration 00035 explains
+            why keeping them apart is load-bearing.
           items: { $ref: '#/components/schemas/Topic' }
+        categoryId:
+          type: string
+          format: uuid
+          description: Chủ đề. Absent means uncategorised — a warning at the publish gate, never a blocker.
+        categoryName: { type: string }
+        tags:
+          type: array
+          description: Never null. The same labels the learner sees, in the same order.
+          items: { type: string }
         lines:
           type: array
           items: { $ref: '#/components/schemas/AdminShadowLine' }
@@ -6994,6 +7539,20 @@ components:
         topicIds:
           type: array
           items: { type: string, format: uuid }
+        categoryId:
+          type: string
+          description: |
+            Empty clears the category, and there is no separate "leave it
+            alone": this request is the whole metadata record, so a field
+            absent from the body states that the lesson has no category. The
+            same rule `topicIds` already follows.
+        tags:
+          type: array
+          description: |
+            Names, not ids. The server trims, de-duplicates case-insensitively,
+            caps at twelve and resolves each to a row — so the studio can offer
+            a plain text field and an author never meets an id.
+          items: { type: string }
 
     SaveShadowLineInput:
       type: object

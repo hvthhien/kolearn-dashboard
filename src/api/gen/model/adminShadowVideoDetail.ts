@@ -55,7 +55,18 @@ export interface AdminShadowVideoDetail {
      * why its presence is decided on byte size alone.
      */
   thumbnail?: AdminShadowAsset;
+  /**
+     * Chủ điểm ngữ pháp — the taxonomy SC-WEAKNESS counts wrong answers
+     * against, and NOT the same thing as `categoryId` below. The two sit
+     * beside each other here and nowhere else; migration 00035 explains
+     * why keeping them apart is load-bearing.
+     */
   topics: Topic[];
+  /** Chủ đề. Absent means uncategorised — a warning at the publish gate, never a blocker. */
+  categoryId?: string;
+  categoryName?: string;
+  /** Never null. The same labels the learner sees, in the same order. */
+  tags: string[];
   lines: AdminShadowLine[];
   glossary: AdminShadowGlossaryEntry[];
   review: ShadowReviewSummary;

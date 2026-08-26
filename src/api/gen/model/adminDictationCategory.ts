@@ -24,25 +24,22 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type ListShadowVideosParams = {
-/**
- * Clamped rather than refused, as everywhere else here.
- * @minimum 1
- * @maximum 200
- */
-limit?: number;
-/**
- * Arrives from a placement recommendation. Unlike level this really
- * does filter — the learner asked for this topic.
- */
-topicId?: string;
-/**
- * Chủ đề, from a tapped chip. Filters, like `topicId` and unlike
- * level: the learner asked for this shelf. Absent is "Tất cả", which
- * includes uncategorised items.
- *
- * AND-ed with `topicId` when both are present, because each names
- * something the caller asked for and neither is a suggestion.
- */
-categoryId?: string;
-};
+export interface AdminDictationCategory {
+  id: string;
+  slug: string;
+  name: string;
+  /**
+     * Authored chip order. Alphabetical would put "Công việc" first and
+     * "Hội thoại hàng ngày" fourth; the row is short enough that somebody
+     * should decide it.
+     */
+  ordinal: number;
+  /** What a learner can find under this chip. */
+  setCount: number;
+  /**
+     * Drafts included — what says whether deleting the category would
+     * strand work in progress. Deleting never refuses: the sets survive
+     * and become uncategorised.
+     */
+  totalSetCount: number;
+}

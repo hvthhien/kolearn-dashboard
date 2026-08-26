@@ -13,6 +13,12 @@ export const VIDEO_RESTAURANT: AdminShadowVideoDetail = {
   voice: 'Nữ',
   voiceKind: 'SYNTHETIC',
   topics: [],
+  categoryId: 'sc-1',
+  categoryName: 'Hội thoại hàng ngày',
+  // Sorted, because the server returns tags ORDER BY name and a fixture in a
+  // different order would let a test pass on an ordering the API never
+  // produces.
+  tags: ['Nhà hàng', 'Sơ cấp'],
   asset: {
     assetId: 'a-1',
     playbackUrl: 'https://media.test/shadowing/sv-1/a.mp3',
@@ -63,6 +69,9 @@ export const VIDEO_EMPTY: AdminShadowVideoDetail = {
   voice: '',
   voiceKind: 'SYNTHETIC',
   topics: [],
+  // Uncategorised and untagged — a fresh draft, and the state the publish gate
+  // warns about rather than blocking.
+  tags: [],
   lines: [],
   glossary: [],
   review: { total: 0, approved: 0, rejected: 0, unreviewed: 0 },

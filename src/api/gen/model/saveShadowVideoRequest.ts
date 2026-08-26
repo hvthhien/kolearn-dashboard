@@ -36,4 +36,17 @@ export interface SaveShadowVideoRequest {
   voice?: string;
   voiceKind?: SaveShadowVideoRequestVoiceKind;
   topicIds?: string[];
+  /**
+     * Empty clears the category, and there is no separate "leave it
+     * alone": this request is the whole metadata record, so a field
+     * absent from the body states that the lesson has no category. The
+     * same rule `topicIds` already follows.
+     */
+  categoryId?: string;
+  /**
+     * Names, not ids. The server trims, de-duplicates case-insensitively,
+     * caps at twelve and resolves each to a row — so the studio can offer
+     * a plain text field and an author never meets an id.
+     */
+  tags?: string[];
 }
