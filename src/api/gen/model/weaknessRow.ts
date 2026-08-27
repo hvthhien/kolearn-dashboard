@@ -34,6 +34,28 @@ export interface WeaknessRow {
   encounters: number;
   wrongCount: number;
   skippedCount?: number;
+  /**
+     * The numerator this row is RANKED on, under the learner's own answer
+     * to "does a câu bỏ qua count against me" (TCCN-547-1): `wrongCount +
+     * skippedCount` when it does, `wrongCount` when it does not. Read
+     * `countSkipped` on the response to know which.
+     *
+     * Here because without it a client cannot explain the order it is
+     * rendering. A row ranked on 9 of 11 that prints `wrongCount` reads as
+     * a miscount — the three missing misses are the bỏ qua.
+     */
+  missCount?: number;
+  /**
+     * The denominator that goes with `missCount`: `encounters` when câu bỏ
+     * qua count, `encounters - skippedCount` when they do not.
+     *
+     * Not decoration on the line above. A chủ điểm met ten times with five
+     * left blank and two answered wrongly is "sai 2 trên 5 câu đã trả
+     * lời"; dividing by ten would keep the blanks in the fraction of a
+     * learner who just asked for them to be left out of it. The sentence
+     * changes with the setting too — "lần gặp" against "câu đã trả lời".
+     */
+  judgedEncounters?: number;
   /** The "5 từ câu trắc nghiệm" half of TCCN-206-1. */
   mcqWrongCount: number;
   /** The "3 từ bài viết" half — one row, two attributed sources. */
@@ -44,8 +66,12 @@ export interface WeaknessRow {
      */
   repeatWrongCount: number;
   /**
-     * How many of the most recent encounters were wrong, counting back
-     * from the latest and stopping at the first that was not.
+     * How many of the most recent encounters were a MISS, counting back
+     * from the latest and stopping at the first that was not — reading
+     * the same `countSkipped` setting `missCount` does. With câu bỏ qua
+     * counted, a run of blanks ending today is the tail TCCN-541-2 wants
+     * named; without, those encounters are not in the window at all, so a
+     * wrong answer either side of them is one unbroken run.
      *
      * The second half of TCCN-541-2's reason — "vì bạn sai 8 trên 11 lần
      * gặp mẫu này, và 2 lần gần nhất vẫn sai" — and the one part of it

@@ -150,6 +150,7 @@ import type {
   SetLevelRequest,
   SetQuestionTopicsBody,
   SetShadowLineApprovalRequest,
+  SetWeaknessPreferenceBody,
   ShadowCategoryList,
   ShadowProgress,
   ShadowPublishReport,
@@ -159,6 +160,7 @@ import type {
   StartAttemptRequest,
   StartPlacementRequest,
   StartTopicPracticeBody,
+  StartWeaknessRetakeBody,
   StreamTicketedAudioParams,
   SubmitSection200,
   TooManyRequestsResponse,
@@ -168,6 +170,8 @@ import type {
   UnprocessableResponse,
   UpdateAttemptBody,
   VerifyEmailBody,
+  WeaknessPreference,
+  WeaknessRetakeSummary,
   Wordbook,
   WordbookSourceSentence,
   WritingBatchSubmitResult,
@@ -3809,6 +3813,13 @@ export const getGetWeaknessUrl = (params?: GetWeaknessParams,) => {
  * Topics with repeat wrong answers sort first — a mistake that survived a
  * retry is the highest-value thing to study next (R-08).
  *
+ * Whether a câu bỏ qua counts against the learner is theirs to set
+ * (TCCN-547-1, `PUT /me/weakness/preferences`). It decides the numerator,
+ * the denominator, the recent-miss streak, and which chủ điểm are on this
+ * screen at all — so read `countSkipped` before writing any sentence about
+ * the numbers below it. `wrongCount`, `skippedCount` and `encounters` are
+ * the log as it stands and never move with the setting.
+ *
  * `items` is a *ranked cut*, so `categories` is returned beside it with the
  * same totals gathered per nhóm over the whole table. Summing `items` is
  * not equivalent whenever `limit` truncated: the ordering puts the wrong
@@ -3905,6 +3916,104 @@ export function useGetWeakness<TData = Awaited<ReturnType<typeof getWeakness>>, 
 
 
 
+
+export const getSetWeaknessPreferenceUrl = () => {
+
+
+
+
+  return `/api/v1/me/weakness/preferences`
+}
+
+/**
+ * Records whether questions left blank count against this learner, and
+ * returns what is now stored.
+ *
+ * One switch with two positions and nothing in between. **On**, a bỏ qua
+ * is a miss: it joins the wrong answers in `missCount`, in who reaches the
+ * weakness table at all, in `recentWrongStreak`, and in the *làm lại câu
+ * đã sai* block. **Off**, it is invisible to all four and leaves the
+ * denominator with them, so a chủ điểm is judged only on answers the
+ * learner actually gave.
+ *
+ * Both positions are somebody's honest reading, which is why this is a
+ * setting and not a fix. R-05 holds that a skipped question is not a wrong
+ * one. YC-122 takes the other side where it matters, pulling skipped
+ * questions into a redo because a learner who ran out of time did not
+ * demonstrate they knew the answer. Someone sitting full papers under time
+ * pressure wants their blanks counted; someone doing an untimed bài at
+ * midnight and leaving the reading section for tomorrow does not.
+ *
+ * Stored per learner rather than held by the client: the trợ lý reads the
+ * same ranking, and a toggle living on one screen would let the panel and
+ * the chat disagree about one chủ điểm on one day.
+ *
+ * A learner who has never called this gets
+ * `weakness_policies.default_count_skipped`, and `GET /me/weakness`
+ * reports that value rather than reporting that they have not chosen —
+ * the toggle has two positions on screen and must not render
+ * indeterminate.
+ * @summary Câu bỏ qua có tính là điểm yếu không (TCCN-547-1)
+ */
+export const setWeaknessPreference = async (setWeaknessPreferenceBody: SetWeaknessPreferenceBody, options?: Parameters<typeof apiFetch>[1]): Promise<WeaknessPreference> => {
+
+  return apiFetch<WeaknessPreference>(getSetWeaknessPreferenceUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(setWeaknessPreferenceBody)
+  }
+);}
+
+
+
+
+
+export const getSetWeaknessPreferenceMutationOptions = <TError = UnauthorizedResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setWeaknessPreference>>, TError,{data: SetWeaknessPreferenceBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setWeaknessPreference>>, TError,{data: SetWeaknessPreferenceBody}, TContext> => {
+
+const mutationKey = ['setWeaknessPreference'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setWeaknessPreference>>, {data: SetWeaknessPreferenceBody}> = (props) => {
+          const {data} = props ?? {};
+
+          return  setWeaknessPreference(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetWeaknessPreferenceMutationResult = NonNullable<Awaited<ReturnType<typeof setWeaknessPreference>>>
+    export type SetWeaknessPreferenceMutationBody = SetWeaknessPreferenceBody
+    export type SetWeaknessPreferenceMutationError = UnauthorizedResponse | UnprocessableResponse
+
+    /**
+ * @summary Câu bỏ qua có tính là điểm yếu không (TCCN-547-1)
+ */
+export const useSetWeaknessPreference = <TError = UnauthorizedResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setWeaknessPreference>>, TError,{data: SetWeaknessPreferenceBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof setWeaknessPreference>>,
+        TError,
+        {data: SetWeaknessPreferenceBody},
+        TContext
+      > => {
+      return useMutation(getSetWeaknessPreferenceMutationOptions(options), queryClient);
+    }
 
 export const getGetTopicRecommendationsUrl = (topicId: string,) => {
 
@@ -4113,6 +4222,200 @@ export const useStartTopicPractice = <TError = UnauthorizedResponse | NotFoundRe
         TContext
       > => {
       return useMutation(getStartTopicPracticeMutationOptions(options), queryClient);
+    }
+
+export const getGetWeaknessRetakeSummaryUrl = () => {
+
+
+
+
+  return `/api/v1/me/weakness/retake`
+}
+
+/**
+ * How many questions each part (Nghe, Đọc) has behind the learner's
+ * current weakness list, read from the exact query
+ * `POST /me/weakness/retake` would build a run from — so a number the
+ * learner sets before pressing Ôn lại is never bigger than what
+ * actually exists.
+ * @summary Ôn lại điểm yếu — what each part has available
+ */
+export const getWeaknessRetakeSummary = async ( options?: Parameters<typeof apiFetch>[1]): Promise<WeaknessRetakeSummary> => {
+
+  return apiFetch<WeaknessRetakeSummary>(getGetWeaknessRetakeSummaryUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetWeaknessRetakeSummaryQueryKey = () => {
+    return [
+    `/api/v1/me/weakness/retake`
+    ] as const;
+    }
+
+
+export const getGetWeaknessRetakeSummaryQueryOptions = <TData = Awaited<ReturnType<typeof getWeaknessRetakeSummary>>, TError = UnauthorizedResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWeaknessRetakeSummary>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetWeaknessRetakeSummaryQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getWeaknessRetakeSummary>>> = ({ signal }) => getWeaknessRetakeSummary({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getWeaknessRetakeSummary>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetWeaknessRetakeSummaryQueryResult = NonNullable<Awaited<ReturnType<typeof getWeaknessRetakeSummary>>>
+export type GetWeaknessRetakeSummaryQueryError = UnauthorizedResponse
+
+
+export function useGetWeaknessRetakeSummary<TData = Awaited<ReturnType<typeof getWeaknessRetakeSummary>>, TError = UnauthorizedResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWeaknessRetakeSummary>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getWeaknessRetakeSummary>>,
+          TError,
+          Awaited<ReturnType<typeof getWeaknessRetakeSummary>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetWeaknessRetakeSummary<TData = Awaited<ReturnType<typeof getWeaknessRetakeSummary>>, TError = UnauthorizedResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWeaknessRetakeSummary>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getWeaknessRetakeSummary>>,
+          TError,
+          Awaited<ReturnType<typeof getWeaknessRetakeSummary>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetWeaknessRetakeSummary<TData = Awaited<ReturnType<typeof getWeaknessRetakeSummary>>, TError = UnauthorizedResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWeaknessRetakeSummary>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Ôn lại điểm yếu — what each part has available
+ */
+
+export function useGetWeaknessRetakeSummary<TData = Awaited<ReturnType<typeof getWeaknessRetakeSummary>>, TError = UnauthorizedResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getWeaknessRetakeSummary>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetWeaknessRetakeSummaryQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getStartWeaknessRetakeUrl = () => {
+
+
+
+
+  return `/api/v1/me/weakness/retake`
+}
+
+/**
+ * Creates a PRACTICE attempt drawing wrong (and, if asked, skipped)
+ * questions from every chủ điểm currently on the learner's weakness
+ * list, across whichever of Listening/Reading were selected.
+ *
+ * Always PRACTICE and always without a band, for the same reason
+ * `startTopicPractice` never gets one: the questions come from several
+ * papers at once, so the run has no blueprint of its own and no honest
+ * total.
+ *
+ * Each selected part is capped independently at
+ * `min(maxPerSection, 50, what that part actually has)`. When fewer are
+ * asked for than exist, the run is a uniform random sample of that
+ * part's pool rather than the same questions every time.
+ *
+ * R-03 still holds: one live attempt at a time. A learner with an
+ * unfinished run gets the same 409 and the same `inProgressAttempt` as
+ * every other way of starting one.
+ * @summary Retake every chủ điểm on the weakness list at once
+ */
+export const startWeaknessRetake = async (startWeaknessRetakeBody: StartWeaknessRetakeBody, options?: Parameters<typeof apiFetch>[1]): Promise<AttemptRunner> => {
+
+  return apiFetch<AttemptRunner>(getStartWeaknessRetakeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(startWeaknessRetakeBody)
+  }
+);}
+
+
+
+
+
+export const getStartWeaknessRetakeMutationOptions = <TError = UnauthorizedResponse | AttemptInProgressProblem | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startWeaknessRetake>>, TError,{data: StartWeaknessRetakeBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof startWeaknessRetake>>, TError,{data: StartWeaknessRetakeBody}, TContext> => {
+
+const mutationKey = ['startWeaknessRetake'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof startWeaknessRetake>>, {data: StartWeaknessRetakeBody}> = (props) => {
+          const {data} = props ?? {};
+
+          return  startWeaknessRetake(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StartWeaknessRetakeMutationResult = NonNullable<Awaited<ReturnType<typeof startWeaknessRetake>>>
+    export type StartWeaknessRetakeMutationBody = StartWeaknessRetakeBody
+    export type StartWeaknessRetakeMutationError = UnauthorizedResponse | AttemptInProgressProblem | UnprocessableResponse
+
+    /**
+ * @summary Retake every chủ điểm on the weakness list at once
+ */
+export const useStartWeaknessRetake = <TError = UnauthorizedResponse | AttemptInProgressProblem | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startWeaknessRetake>>, TError,{data: StartWeaknessRetakeBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof startWeaknessRetake>>,
+        TError,
+        {data: StartWeaknessRetakeBody},
+        TContext
+      > => {
+      return useMutation(getStartWeaknessRetakeMutationOptions(options), queryClient);
     }
 
 export const getGetPlacementAvailabilityUrl = () => {

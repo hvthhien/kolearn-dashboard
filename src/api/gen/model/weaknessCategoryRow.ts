@@ -46,6 +46,16 @@ export interface WeaknessCategoryRow {
   writingWrongCount: number;
   repeatWrongCount: number;
   /**
+     * `WeaknessRow.missCount` summed over this nhóm, carrying the same
+     * double-counting as the plain sums above it.
+     */
+  missCount?: number;
+  /**
+     * `WeaknessRow.judgedEncounters` summed over this nhóm — the
+     * denominator that goes with `missCount`.
+     */
+  judgedEncounters?: number;
+  /**
      * Questions counted once each, rather than log entries — the count a
      * client cannot derive, because the rollup hands it no question ids.
      *
@@ -67,4 +77,22 @@ export interface WeaknessCategoryRow {
      * is why `writingWrongCount` stays attributed separately.
      */
   distinctEncounteredQuestions: number;
+  /**
+     * The same fold as `distinctWrongQuestions`, through the câu-bỏ-qua
+     * setting — and, with `distinctJudgedQuestions`, the pair a severity
+     * bar has to be drawn from if the bar is to agree with the rows above
+     * it.
+     *
+     * The two counts before it never move with the setting, which is what
+     * lets a card say "2 trên 5 câu đã trả lời" and still know that eight
+     * questions were met.
+     */
+  distinctMissedQuestions?: number;
+  /**
+     * The denominator for `distinctMissedQuestions`. Equal to
+     * `distinctEncounteredQuestions` when câu bỏ qua count; otherwise a
+     * question this learner has only ever skipped is in neither, because
+     * they have not met it in any sense the setting recognises.
+     */
+  distinctJudgedQuestions?: number;
 }

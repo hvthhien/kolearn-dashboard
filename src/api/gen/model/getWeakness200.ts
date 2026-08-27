@@ -44,6 +44,25 @@ export type GetWeakness200 = {
      */
   categories?: WeaknessCategoryRow[];
   /**
+     * Whether câu bỏ qua counted against this learner in
+     * everything above (TCCN-547-1): `missCount`,
+     * `judgedEncounters`, `recentWrongStreak`, the per-nhóm
+     * pair, which chủ điểm reached the table at all, the order
+     * they are in, and whether there was enough to analyse.
+     *
+     * Echoed here rather than fetched from
+     * `PUT /me/weakness/preferences`, and not only to save a
+     * request: two requests could answer from either side of a
+     * change, leaving the table and the switch above it
+     * describing different rules.
+     *
+     * It is also the label on every fraction. "Sai 9 trên 11
+     * lần gặp" and "sai 9 trên 11 câu đã trả lời" are different
+     * sentences built from the same two fields, and this says
+     * which one the client is holding.
+     */
+  countSkipped?: boolean;
+  /**
      * There is not yet enough behind this learner to name a
      * weakness, so `items` and `categories` are empty on
      * purpose (TCCN-541-5): the screen says "Chưa đủ dữ liệu để

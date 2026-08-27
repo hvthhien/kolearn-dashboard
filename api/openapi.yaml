@@ -1263,6 +1263,13 @@ paths:
         Topics with repeat wrong answers sort first — a mistake that survived a
         retry is the highest-value thing to study next (R-08).
 
+        Whether a câu bỏ qua counts against the learner is theirs to set
+        (TCCN-547-1, `PUT /me/weakness/preferences`). It decides the numerator,
+        the denominator, the recent-miss streak, and which chủ điểm are on this
+        screen at all — so read `countSkipped` before writing any sentence about
+        the numbers below it. `wrongCount`, `skippedCount` and `encounters` are
+        the log as it stands and never move with the setting.
+
         `items` is a *ranked cut*, so `categories` is returned beside it with the
         same totals gathered per nhóm over the whole table. Summing `items` is
         not equivalent whenever `limit` truncated: the ordering puts the wrong
@@ -1298,6 +1305,25 @@ paths:
                       types can check. Summing `items` is that fallback, and it
                       is correct whenever the response was not truncated.
                     items: { $ref: '#/components/schemas/WeaknessCategoryRow' }
+                  countSkipped:
+                    type: boolean
+                    description: |
+                      Whether câu bỏ qua counted against this learner in
+                      everything above (TCCN-547-1): `missCount`,
+                      `judgedEncounters`, `recentWrongStreak`, the per-nhóm
+                      pair, which chủ điểm reached the table at all, the order
+                      they are in, and whether there was enough to analyse.
+
+                      Echoed here rather than fetched from
+                      `PUT /me/weakness/preferences`, and not only to save a
+                      request: two requests could answer from either side of a
+                      change, leaving the table and the switch above it
+                      describing different rules.
+
+                      It is also the label on every fraction. "Sai 9 trên 11
+                      lần gặp" and "sai 9 trên 11 câu đã trả lời" are different
+                      sentences built from the same two fields, and this says
+                      which one the client is holding.
                   insufficientData:
                     type: boolean
                     description: |
@@ -1317,6 +1343,66 @@ paths:
                       not constants — a bank of five papers and a bank of fifty
                       do not agree about how much is enough.
         '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /me/weakness/preferences:
+    put:
+      tags: [weakness]
+      operationId: setWeaknessPreference
+      summary: Câu bỏ qua có tính là điểm yếu không (TCCN-547-1)
+      description: |
+        Records whether questions left blank count against this learner, and
+        returns what is now stored.
+
+        One switch with two positions and nothing in between. **On**, a bỏ qua
+        is a miss: it joins the wrong answers in `missCount`, in who reaches the
+        weakness table at all, in `recentWrongStreak`, and in the *làm lại câu
+        đã sai* block. **Off**, it is invisible to all four and leaves the
+        denominator with them, so a chủ điểm is judged only on answers the
+        learner actually gave.
+
+        Both positions are somebody's honest reading, which is why this is a
+        setting and not a fix. R-05 holds that a skipped question is not a wrong
+        one. YC-122 takes the other side where it matters, pulling skipped
+        questions into a redo because a learner who ran out of time did not
+        demonstrate they knew the answer. Someone sitting full papers under time
+        pressure wants their blanks counted; someone doing an untimed bài at
+        midnight and leaving the reading section for tomorrow does not.
+
+        Stored per learner rather than held by the client: the trợ lý reads the
+        same ranking, and a toggle living on one screen would let the panel and
+        the chat disagree about one chủ điểm on one day.
+
+        A learner who has never called this gets
+        `weakness_policies.default_count_skipped`, and `GET /me/weakness`
+        reports that value rather than reporting that they have not chosen —
+        the toggle has two positions on screen and must not render
+        indeterminate.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [countSkipped]
+              properties:
+                countSkipped:
+                  type: boolean
+                  description: |
+                    Required, and refused when absent rather than read as
+                    false: `{}` would otherwise switch the setting off for a
+                    learner whose client sent the wrong key, which is invisible
+                    on both sides until the table changes under them.
+      responses:
+        '200':
+          description: |
+            The stored preference. The learner is about to see a table rebuilt
+            under it, so this answers with what the server holds rather than
+            letting the client assume its own request won.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WeaknessPreference' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
 
   /me/weakness/topics/{topicId}/recommendations:
     get:
@@ -1408,6 +1494,68 @@ paths:
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/AttemptInProgressProblem' }
+
+  /me/weakness/retake:
+    get:
+      tags: [weakness]
+      operationId: getWeaknessRetakeSummary
+      summary: Ôn lại điểm yếu — what each part has available
+      description: |
+        How many questions each part (Nghe, Đọc) has behind the learner's
+        current weakness list, read from the exact query
+        `POST /me/weakness/retake` would build a run from — so a number the
+        learner sets before pressing Ôn lại is never bigger than what
+        actually exists.
+      responses:
+        '200':
+          description: Both parts, always, whether or not either is empty.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WeaknessRetakeSummary' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+    post:
+      tags: [weakness]
+      operationId: startWeaknessRetake
+      summary: Retake every chủ điểm on the weakness list at once
+      description: |
+        Creates a PRACTICE attempt drawing wrong (and, if asked, skipped)
+        questions from every chủ điểm currently on the learner's weakness
+        list, across whichever of Listening/Reading were selected.
+
+        Always PRACTICE and always without a band, for the same reason
+        `startTopicPractice` never gets one: the questions come from several
+        papers at once, so the run has no blueprint of its own and no honest
+        total.
+
+        Each selected part is capped independently at
+        `min(maxPerSection, 50, what that part actually has)`. When fewer are
+        asked for than exist, the run is a uniform random sample of that
+        part's pool rather than the same questions every time.
+
+        R-03 still holds: one live attempt at a time. A learner with an
+        unfinished run gets the same 409 and the same `inProgressAttempt` as
+        every other way of starting one.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StartWeaknessRetakeBody' }
+      responses:
+        '201':
+          description: The run, ready to sit.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AttemptRunner' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409':
+          description: |
+            Another attempt is already in progress, or nothing is left to
+            retake in the selected parts.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/AttemptInProgressProblem' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
 
   # ── placement: kiểm tra đầu vào (SC-PLACEMENT) ────────────────────────────
 
@@ -5535,6 +5683,12 @@ components:
     WeaknessRow:
       type: object
       required: [topic, encounters, wrongCount, mcqWrongCount, writingWrongCount, repeatWrongCount]
+      # missCount and judgedEncounters are deliberately NOT required, like
+      # recentWrongStreak below and for the same reason: the learner app deploys
+      # separately from this server, so a new client can reach an old instance.
+      # A client without them falls back to wrongCount over encounters, which is
+      # what every client did before TCCN-547-1 and is still correct for the
+      # learners who leave the setting on its default.
       properties:
         topic: { $ref: '#/components/schemas/Topic' }
         encounters:
@@ -5544,6 +5698,28 @@ components:
             denominator behind "sai 8 trên 11 lần gặp" (TCCN-108-6).
         wrongCount: { type: integer }
         skippedCount: { type: integer }
+        missCount:
+          type: integer
+          description: |
+            The numerator this row is RANKED on, under the learner's own answer
+            to "does a câu bỏ qua count against me" (TCCN-547-1): `wrongCount +
+            skippedCount` when it does, `wrongCount` when it does not. Read
+            `countSkipped` on the response to know which.
+
+            Here because without it a client cannot explain the order it is
+            rendering. A row ranked on 9 of 11 that prints `wrongCount` reads as
+            a miscount — the three missing misses are the bỏ qua.
+        judgedEncounters:
+          type: integer
+          description: |
+            The denominator that goes with `missCount`: `encounters` when câu bỏ
+            qua count, `encounters - skippedCount` when they do not.
+
+            Not decoration on the line above. A chủ điểm met ten times with five
+            left blank and two answered wrongly is "sai 2 trên 5 câu đã trả
+            lời"; dividing by ten would keep the blanks in the fraction of a
+            learner who just asked for them to be left out of it. The sentence
+            changes with the setting too — "lần gặp" against "câu đã trả lời".
         mcqWrongCount:
           type: integer
           description: The "5 từ câu trắc nghiệm" half of TCCN-206-1.
@@ -5558,8 +5734,12 @@ components:
         recentWrongStreak:
           type: integer
           description: |
-            How many of the most recent encounters were wrong, counting back
-            from the latest and stopping at the first that was not.
+            How many of the most recent encounters were a MISS, counting back
+            from the latest and stopping at the first that was not — reading
+            the same `countSkipped` setting `missCount` does. With câu bỏ qua
+            counted, a run of blanks ending today is the tail TCCN-541-2 wants
+            named; without, those encounters are not in the window at all, so a
+            wrong answer either side of them is one unbroken run.
 
             The second half of TCCN-541-2's reason — "vì bạn sai 8 trên 11 lần
             gặp mẫu này, và 2 lần gần nhất vẫn sai" — and the one part of it
@@ -5579,6 +5759,19 @@ components:
             in the table, badged, and returns on its own the moment it goes
             wrong again, because it is derived from the log rather than stored.
         lastSeenAt: { type: string, format: date-time }
+
+    WeaknessPreference:
+      type: object
+      required: [countSkipped]
+      properties:
+        countSkipped:
+          type: boolean
+          description: |
+            True when a câu bỏ qua counts as a miss (TCCN-547-1). See
+            `PUT /me/weakness/preferences` for what each position changes.
+      description: |
+        An object rather than a bare boolean on the wire: a JSON document that
+        is the literal `true` is a shape nothing can be added to later.
 
     PracticeBlockKind:
       type: string
@@ -5616,6 +5809,75 @@ components:
             ranking that could come out the other way on some learner's data.
           items: { $ref: '#/components/schemas/TopicPracticeBlock' }
 
+    WeaknessRetakeSection:
+      type: string
+      description: |
+        One part a retake run can draw from (feature: retake weakness
+        questions). Writing is deliberately absent — every question this can
+        select is `q.type = 'MCQ'`, the same restriction the two topic-
+        practice blocks above already carry.
+      enum: [LISTENING, READING]
+
+    WeaknessRetakeSectionSummary:
+      type: object
+      required: [section, wrongCount, skippedCount]
+      properties:
+        section: { $ref: '#/components/schemas/WeaknessRetakeSection' }
+        wrongCount:
+          type: integer
+          minimum: 0
+          description: |
+            Distinct questions this part has behind the learner's current
+            weakness list with a WRONG outcome logged against them.
+        skippedCount:
+          type: integer
+          minimum: 0
+          description: |
+            Distinct questions gained if the retake's own "include skipped"
+            switch is turned on — a câu bỏ qua with no WRONG outcome logged
+            for the same question. Add this to `wrongCount` for the real
+            ceiling once that switch is on; the two never double-count a
+            question that is both.
+
+    WeaknessRetakeSummary:
+      type: object
+      required: [sections]
+      properties:
+        sections:
+          type: array
+          description: |
+            Always both LISTENING and READING, never only the non-empty one
+            — this sizes a control before the learner presses anything,
+            unlike `TopicRecommendations.blocks`, which hides an empty block
+            entirely.
+          items: { $ref: '#/components/schemas/WeaknessRetakeSectionSummary' }
+
+    StartWeaknessRetakeBody:
+      type: object
+      required: [sections]
+      properties:
+        sections:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/WeaknessRetakeSection' }
+          description: Which parts to draw from. At least one, no duplicates.
+        includeSkipped:
+          type: boolean
+          default: false
+          description: |
+            A one-off choice for this run alone — distinct from
+            `PUT /me/weakness/preferences`'s persisted `countSkipped`, which
+            decides who reaches the weakness table at all rather than what
+            one retake includes.
+        maxPerSection:
+          type: integer
+          minimum: 1
+          maximum: 50
+          description: |
+            The learner's own cap, applied to each selected part
+            independently and clamped further to what that part actually has
+            available. Omitted means "everything available, up to 50".
+
     WeaknessCategoryRow:
       type: object
       description: |
@@ -5626,6 +5888,10 @@ components:
       required: [category, topicCount, encounters, wrongCount, skippedCount,
                  mcqWrongCount, writingWrongCount, repeatWrongCount,
                  distinctWrongQuestions, distinctEncounteredQuestions]
+      # The four TCCN-547-1 fields are optional for the reason WeaknessRow's
+      # two are: a new client can reach an old instance mid-deploy, and the
+      # fallback — the plain sums beside them — is what every client used
+      # before the setting existed.
       properties:
         category: { $ref: '#/components/schemas/TopicCategory' }
         topicCount:
@@ -5640,6 +5906,16 @@ components:
         mcqWrongCount: { type: integer }
         writingWrongCount: { type: integer }
         repeatWrongCount: { type: integer }
+        missCount:
+          type: integer
+          description: |
+            `WeaknessRow.missCount` summed over this nhóm, carrying the same
+            double-counting as the plain sums above it.
+        judgedEncounters:
+          type: integer
+          description: |
+            `WeaknessRow.judgedEncounters` summed over this nhóm — the
+            denominator that goes with `missCount`.
         distinctWrongQuestions:
           type: integer
           description: |
@@ -5662,6 +5938,24 @@ components:
             met with a chủ điểm of this category attached, right or wrong.
             Writing entries carry no question and are excluded from both, which
             is why `writingWrongCount` stays attributed separately.
+        distinctMissedQuestions:
+          type: integer
+          description: |
+            The same fold as `distinctWrongQuestions`, through the câu-bỏ-qua
+            setting — and, with `distinctJudgedQuestions`, the pair a severity
+            bar has to be drawn from if the bar is to agree with the rows above
+            it.
+
+            The two counts before it never move with the setting, which is what
+            lets a card say "2 trên 5 câu đã trả lời" and still know that eight
+            questions were met.
+        distinctJudgedQuestions:
+          type: integer
+          description: |
+            The denominator for `distinctMissedQuestions`. Equal to
+            `distinctEncounteredQuestions` when câu bỏ qua count; otherwise a
+            question this learner has only ever skipped is in neither, because
+            they have not met it in any sense the setting recognises.
 
     # ── admin: ngân hàng đề ─────────────────────────────────────────────────
 
