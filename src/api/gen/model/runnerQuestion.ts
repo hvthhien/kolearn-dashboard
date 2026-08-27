@@ -41,7 +41,13 @@ import type { WritingLengthRange } from './writingLengthRange';
  */
 export interface RunnerQuestion {
   id: string;
-  /** Official learner-facing number within the paper section. */
+  /**
+     * Official learner-facing number within the paper section, for an
+     * attempt tied to one exam. For a lượt ôn built from a practice set
+     * spanning several papers instead (topic practice, retake weakness
+     * questions), this is the question's 1-based position within that
+     * set rather than any one paper's own numbering.
+     */
   ordinal: number;
   sectionKind: SectionKind;
   type: RunnerQuestionType;
