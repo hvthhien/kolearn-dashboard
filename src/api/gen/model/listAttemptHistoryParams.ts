@@ -28,8 +28,25 @@ import type { AttemptMode } from './attemptMode';
 export type ListAttemptHistoryParams = {
 mode?: AttemptMode;
 /**
+ * Drops bỏ dở attempts from the page and from `totalCount`.
+ *
+ * Defaults to false, and the default is the load-bearing part: a
+ * learner who left a paper has to find it where they left it, because
+ * history that quietly disappears is indistinguishable from lost work.
+ * Hiding it is something the learner asks for, one switch at a time,
+ * and never the state the screen opens in.
+ */
+hideAbandoned?: boolean;
+/**
  * @minimum 1
  * @maximum 100
  */
 limit?: number;
+/**
+ * Rows to skip, over the same newest-first order the page returns.
+ * The order breaks ties on `id`, so two attempts started in the same
+ * second cannot land on two pages at once or fall between them.
+ * @minimum 0
+ */
+offset?: number;
 };

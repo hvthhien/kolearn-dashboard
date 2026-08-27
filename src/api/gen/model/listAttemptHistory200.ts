@@ -27,4 +27,10 @@ import type { AttemptHistoryRow } from './attemptHistoryRow';
 
 export type ListAttemptHistory200 = {
   items: AttemptHistoryRow[];
+  /**
+     * Every attempt matching `mode` and `hideAbandoned`, not the
+     * ones on this page. A pager that cannot see past its own
+     * page cannot say whether there is a next one.
+     */
+  totalCount: number;
 };

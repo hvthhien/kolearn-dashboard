@@ -895,7 +895,25 @@ paths:
         the one component that always renders its disclaimer with it.
       parameters:
         - { name: mode, in: query, schema: { $ref: '#/components/schemas/AttemptMode' } }
+        - name: hideAbandoned
+          in: query
+          description: |
+            Drops bỏ dở attempts from the page and from `totalCount`.
+
+            Defaults to false, and the default is the load-bearing part: a
+            learner who left a paper has to find it where they left it, because
+            history that quietly disappears is indistinguishable from lost work.
+            Hiding it is something the learner asks for, one switch at a time,
+            and never the state the screen opens in.
+          schema: { type: boolean, default: false }
         - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
+        - name: offset
+          in: query
+          description: |
+            Rows to skip, over the same newest-first order the page returns.
+            The order breaks ties on `id`, so two attempts started in the same
+            second cannot land on two pages at once or fall between them.
+          schema: { type: integer, minimum: 0, default: 0 }
       responses:
         '200':
           description: The learner's attempts.
@@ -903,11 +921,17 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [items]
+                required: [items, totalCount]
                 properties:
                   items:
                     type: array
                     items: { $ref: '#/components/schemas/AttemptHistoryRow' }
+                  totalCount:
+                    type: integer
+                    description: |
+                      Every attempt matching `mode` and `hideAbandoned`, not the
+                      ones on this page. A pager that cannot see past its own
+                      page cannot say whether there is a next one.
         '401': { $ref: '#/components/responses/Unauthorized' }
 
   /attempts/{attemptId}/review:
