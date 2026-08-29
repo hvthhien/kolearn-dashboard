@@ -5,6 +5,7 @@ import type { AdminQuestionRow, LayerStatus } from '../api/gen/model'
 import { useAuth } from '../lib/auth'
 import { userMessage } from '../lib/problem'
 import { BlueprintPanel } from '../features/exam/BlueprintPanel'
+import { ExamTitleEditor } from '../features/exam/ExamTitleEditor'
 import { PublishDialog } from '../features/exam/PublishDialog'
 import { SECTION_LABEL } from '../features/exam/sectionLabels'
 import {
@@ -13,7 +14,6 @@ import {
   EmptyState,
   ErrorNote,
   PageShell,
-  PageTitle,
   SectionHeading,
   SkeletonList,
   Spinner,
@@ -71,13 +71,18 @@ export function ExamDetailPage() {
   const paper = exam.data
   const rows = questions.data?.items ?? []
   const canPublish = !!user?.permissions.includes('exam:publish')
+  /* `exam:write` is content_editor's and content_admin's, and neither
+     support's nor admin's. Hiding the button is the courtesy half only — the
+     PATCH is gated by the same permission server-side, which is the half that
+     actually holds. */
+  const canRename = !!user?.permissions.includes('exam:write')
 
   return (
     <PageShell>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="font-mono text-xs text-muted">{paper.code}</p>
-          <PageTitle>{paper.title}</PageTitle>
+          <ExamTitleEditor exam={paper} canEdit={canRename} />
           {paper.sourceName && (
             /* Recorded at import so a whole source stays withdrawable as a
                unit — "free to download" is not "licensed for a paid product". */

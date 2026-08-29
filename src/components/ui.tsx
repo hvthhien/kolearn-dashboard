@@ -3,6 +3,7 @@ import type {
   ButtonHTMLAttributes,
   InputHTMLAttributes,
   ReactNode,
+  Ref,
   SelectHTMLAttributes,
   TextareaHTMLAttributes,
 } from 'react'
@@ -42,7 +43,15 @@ export function SectionHeading({ children, id }: { children: ReactNode; id?: str
   )
 }
 
-/** Every interactive control routes through here so `.tap` is never forgotten. */
+/**
+ * Every interactive control routes through here so `.tap` is never forgotten.
+ *
+ * `ref` is declared rather than inherited: React 19 passes it to a function
+ * component as an ordinary prop, but `ButtonHTMLAttributes` does not name it,
+ * so without this line the only way to get a handle on a button — to send focus
+ * back to it after a form closes — is to stop using this component, which is
+ * how the `.tap` above goes missing.
+ */
 export function Button({
   variant = 'primary',
   size = 'md',
@@ -51,6 +60,7 @@ export function Button({
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger'
   size?: 'md' | 'sm'
+  ref?: Ref<HTMLButtonElement>
 }) {
   const base =
     'tap inline-flex items-center justify-center gap-2 rounded-xl font-semibold ' +

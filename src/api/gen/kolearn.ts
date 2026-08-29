@@ -169,6 +169,7 @@ import type {
   UnauthorizedResponse,
   UnprocessableResponse,
   UpdateAttemptBody,
+  UpdateExamRequest,
   VerifyEmailBody,
   WeaknessPreference,
   WeaknessRetakeSummary,
@@ -9057,6 +9058,93 @@ export function useGetAdminExam<TData = Awaited<ReturnType<typeof getAdminExam>>
 
 
 
+
+export const getUpdateAdminExamUrl = (examId: string,) => {
+
+
+
+
+  return `/api/v1/admin/exams/${examId}`
+}
+
+/**
+ * rbac: `exam:write` — held by content_editor and content_admin, and by
+ * neither support nor admin.
+ *
+ * The title and nothing else. Everything else on the payload is a
+ * different kind of statement: `code` is the paper's identity, `level`
+ * and `blueprintVersion` are structure settled at import, and `status`
+ * is a release decision that already has a gate in front of it. Folding
+ * any of them into "sửa tên đề" would let one form perform an act nobody
+ * opened it to perform.
+ *
+ * Allowed whatever the status. A title is what a paper is called, not
+ * what it asks: correcting one changes no question, no answer key and no
+ * score, so a typo on a PUBLISHED paper — the case where a learner can
+ * actually see it — is exactly the one that must be fixable here rather
+ * than in psql.
+ * @summary Rename a paper
+ */
+export const updateAdminExam = async (examId: string,
+    updateExamRequest: UpdateExamRequest, options?: Parameters<typeof apiFetch>[1]): Promise<AdminExamDetail> => {
+
+  return apiFetch<AdminExamDetail>(getUpdateAdminExamUrl(examId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateExamRequest)
+  }
+);}
+
+
+
+
+
+export const getUpdateAdminExamMutationOptions = <TError = BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminExam>>, TError,{examId: string;data: UpdateExamRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAdminExam>>, TError,{examId: string;data: UpdateExamRequest}, TContext> => {
+
+const mutationKey = ['updateAdminExam'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAdminExam>>, {examId: string;data: UpdateExamRequest}> = (props) => {
+          const {examId,data} = props ?? {};
+
+          return  updateAdminExam(examId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAdminExamMutationResult = NonNullable<Awaited<ReturnType<typeof updateAdminExam>>>
+    export type UpdateAdminExamMutationBody = UpdateExamRequest
+    export type UpdateAdminExamMutationError = BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | UnprocessableResponse
+
+    /**
+ * @summary Rename a paper
+ */
+export const useUpdateAdminExam = <TError = BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAdminExam>>, TError,{examId: string;data: UpdateExamRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateAdminExam>>,
+        TError,
+        {examId: string;data: UpdateExamRequest},
+        TContext
+      > => {
+      return useMutation(getUpdateAdminExamMutationOptions(options), queryClient);
+    }
 
 export const getListAdminQuestionsUrl = (examId: string,) => {
 

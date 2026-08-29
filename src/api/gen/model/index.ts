@@ -285,6 +285,7 @@ export * from './topicRecommendations';
 export * from './unauthorizedResponse';
 export * from './unprocessableResponse';
 export * from './updateAttemptBody';
+export * from './updateExamRequest';
 export * from './verifyEmailBody';
 export * from './weaknessCategoryRow';
 export * from './weaknessPreference';

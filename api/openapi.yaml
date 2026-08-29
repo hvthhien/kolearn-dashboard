@@ -3066,6 +3066,42 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [admin]
+      operationId: updateAdminExam
+      summary: Rename a paper
+      description: |
+        rbac: `exam:write` — held by content_editor and content_admin, and by
+        neither support nor admin.
+
+        The title and nothing else. Everything else on the payload is a
+        different kind of statement: `code` is the paper's identity, `level`
+        and `blueprintVersion` are structure settled at import, and `status`
+        is a release decision that already has a gate in front of it. Folding
+        any of them into "sửa tên đề" would let one form perform an act nobody
+        opened it to perform.
+
+        Allowed whatever the status. A title is what a paper is called, not
+        what it asks: correcting one changes no question, no answer key and no
+        score, so a typo on a PUBLISHED paper — the case where a learner can
+        actually see it — is exactly the one that must be fixable here rather
+        than in psql.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateExamRequest' }
+      responses:
+        '200':
+          description: The paper, as it now stands.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminExamDetail' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
 
   /admin/exams/{examId}/questions:
     parameters:
@@ -6388,6 +6424,24 @@ components:
             sourceUrl: { type: string }
             licenseNote: { type: string }
             publishedAt: { type: [string, 'null'], format: date-time }
+
+    UpdateExamRequest:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: |
+            What the paper is called, wherever it is listed. Trimmed, and
+            refused when trimming leaves nothing behind: `exams.title` carries
+            no CHECK, so a blank accepted here would reach the learner's list
+            as a row with nothing in the column people read to choose one.
+
+            The cap is a display limit rather than a storage one — the column is
+            `text`. A title is read in a table cell beside a status chip, and
+            one that does not fit there has stopped being a title.
 
     PublishReport:
       type: object

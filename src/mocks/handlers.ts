@@ -12,6 +12,7 @@ import type {
   ImportReport,
   PublishReport,
   SaveQuestionRequest,
+  UpdateExamRequest,
 } from '../api/gen/model'
 import { BLUEPRINTS } from './fixtures/blueprints'
 import { TOPICS } from './fixtures/topics'
@@ -1014,6 +1015,30 @@ export const handlers = [
     return HttpResponse.json(exam)
   }),
 
+  // The rename, mirroring the server's refusals rather than only its success:
+  // a mock that always says yes cannot demonstrate that the screen renders a
+  // 422, which is the half of this form worth testing.
+  http.patch(`${BASE}/admin/exams/:examId`, async ({ params, request }) => {
+    const exam = state.exams.find((e) => e.id === params.examId)
+    if (!exam) return notFound('Không tìm thấy đề này.')
+
+    const body = (await request.json()) as UpdateExamRequest
+    const title = body.title.trim()
+    if (title === '') {
+      return problem(422, 'exam_title_required', 'Đề phải có tên')
+    }
+    if ([...title].length > MAX_EXAM_TITLE_LENGTH) {
+      return problem(422, 'exam_title_too_long',
+        `Tên đề dài quá ${MAX_EXAM_TITLE_LENGTH} ký tự`)
+    }
+
+    // Written into the shared fixture, so the list screen and a re-fetch of the
+    // detail both see the new name — a rename the next GET does not report is
+    // not a rename.
+    exam.title = title
+    return HttpResponse.json(exam)
+  }),
+
   http.get(`${BASE}/admin/exams/:examId/questions`, ({ params }) => {
     const exam = state.exams.find((e) => e.id === params.examId)
     if (!exam) return notFound('Không tìm thấy đề này.')
@@ -1160,6 +1185,16 @@ const IMPORT_REPORT: ImportReport = {
     { where: 'questions[14].choices', message: 'Chỉ có 3 lựa chọn, phải đúng 4 (GĐ-4).' },
     { where: 'questions[27].evidence', message: 'Căn cứ trỏ tới đoạn văn không tồn tại: p-reading-9.' },
   ],
+}
+
+/** The server's cap on `UpdateExamRequest.title`, in characters. */
+const MAX_EXAM_TITLE_LENGTH = 200
+
+function problem(status: number, code: string, detail: string) {
+  return HttpResponse.json(
+    { type: `/problems/${code}`, title: 'Dữ liệu không hợp lệ', status, code, detail },
+    { status, headers: { 'content-type': 'application/problem+json' } },
+  )
 }
 
 function notFound(detail: string) {
