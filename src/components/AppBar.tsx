@@ -28,7 +28,7 @@ export function AppBar() {
       <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between gap-2 px-4">
         <Link
           to="/exams"
-          aria-label="Kolearn — ngân hàng đề"
+          aria-label="Xami — ngân hàng đề"
           className="tap -ml-1 flex shrink-0 items-center gap-2 rounded-lg px-1 font-bold tracking-tight text-brand-800"
         >
           <span
