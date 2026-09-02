@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { useAuth } from '../lib/auth'
+import { XamiMark } from './XamiMark'
 
 /**
  * The one navigation bar, mounted once in `RootLayout`.
@@ -31,12 +32,7 @@ export function AppBar() {
           aria-label="Xami — ngân hàng đề"
           className="tap -ml-1 flex shrink-0 items-center gap-2 rounded-lg px-1 font-bold tracking-tight text-brand-800"
         >
-          <span
-            aria-hidden
-            className="grid size-7 shrink-0 place-items-center rounded-lg bg-brand-400 text-xs font-bold text-brand-900"
-          >
-            한
-          </span>
+          <XamiMark className="size-7" />
           <span className="hidden sm:inline">Ngân hàng đề</span>
         </Link>
 

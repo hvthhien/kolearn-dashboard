@@ -1,0 +1,52 @@
+/**
+ * The Xami mark — the red X crossed by a green check that carries on upward
+ * into an arrow.
+ *
+ * NOT in `icons.tsx`, and the reason is that file's own contract: every icon
+ * there is a 24×24 box, a 2px `currentColor` stroke, and no colour of its own,
+ * precisely so a parent decides the tone. This is the opposite on all three
+ * counts — it is filled, it is two fixed colours, and those colours are the
+ * brand rather than a palette's. Dropping it into `icons.tsx` would mean the
+ * one shape in there that ignores every rule the file's header sets out.
+ *
+ * The colours are literals, not tokens, and that is deliberate. The app ships
+ * several palettes and a dark mode; a logo that shifted with them would be a
+ * different logo on each, which is the one thing a mark may not do. WCAG
+ * contrast does not apply to it either — 1.4.3 exempts logotypes — so the red
+ * staying legible against `--ink` was never a constraint on the palette.
+ *
+ * Traced from `Xami_logo_square.png`. The source art carries a transparent
+ * counter-space between the X and the arrow rather than a white one, so the
+ * mark sits on any background without a plate behind it.
+ *
+ * `aria-hidden` by default: on all five call sites the wordmark's own text, or
+ * the link's `aria-label`, already names the app. Pass `title` only where this
+ * becomes the sole label.
+ */
+export function XamiMark({
+  className = 'size-10',
+  title,
+}: {
+  className?: string
+  title?: string
+}) {
+  return (
+    <svg
+      aria-hidden={title === undefined || undefined}
+      role={title === undefined ? undefined : 'img'}
+      viewBox="0 0 256 224.77"
+      fill="none"
+      className={`shrink-0 ${className}`}
+    >
+      {title !== undefined && <title>{title}</title>}
+      <g fill="#D03401">
+        <path d="M21.77,37.15 L70.27,37.15 L74.77,38.09 L79.50,40.22 L86.83,46.61 L126.34,93.93 L104.10,116.17 L93.93,106.94 L84.94,103.16 L79.02,102.68 L73.58,103.39 L69.32,104.81 L63.65,108.13 L13.96,52.52 L12.54,47.79 L13.72,42.59 L17.27,38.80 L21.77,37.15Z" />
+        <path d="M167.51,134.15 L232.10,208.92 L233.76,212.70 L233.76,216.72 L232.81,219.33 L229.97,222.64 L225.24,224.53 L173.19,224.53 L166.80,223.11 L160.41,219.80 L155.68,215.54 L123.03,178.16 L167.51,134.15Z" />
+        <path d="M61.52,146.69 L98.90,185.26 L66.01,218.14 L58.91,222.64 L51.34,224.53 L7.33,224.53 L3.79,223.35 L1.89,221.69 L0.00,217.67 L0.24,213.65 L1.89,210.57 L61.52,146.69Z" />
+      </g>
+      <g fill="#109E60">
+        <path d="M249.14,0.00 L252.21,0.24 L254.58,1.89 L255.76,4.26 L255.76,7.57 L242.75,68.61 L241.57,71.45 L239.20,73.11 L236.13,73.11 L225.72,63.88 L174.14,116.41 L108.13,181.71 L65.06,137.70 L62.70,132.97 L62.23,126.34 L63.17,122.79 L65.54,118.77 L68.61,115.70 L72.40,113.57 L76.42,112.38 L83.52,112.62 L90.62,116.17 L103.39,128.95 L190.70,39.51 L178.87,31.70 L178.16,28.63 L179.58,26.50 L249.14,0.00Z" />
+      </g>
+    </svg>
+  )
+}
