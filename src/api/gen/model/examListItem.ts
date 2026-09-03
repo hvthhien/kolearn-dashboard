@@ -42,6 +42,14 @@ export interface ExamListItem {
   bestScore?: number;
   lastAttemptedAt?: string;
   /**
+     * Whether the CALLER may sit this paper. False on Premium; on gói
+     * Cơ bản false for the first two papers published at each level
+     * and true for the rest. A guest reads the shelf with the same flag
+     * a basic learner does. `POST /attempts` refuses a locked paper with
+     * `403 premium_required`.
+     */
+  locked: boolean;
+  /**
      * Whether this paper has a bảng từ vựng a learner can open
      * (R-33, YC-506).
      *

@@ -16,6 +16,15 @@ import type { RedeemCode } from '../api/gen/model'
  * Fixtures: rc-1 fresh, rc-2 a campaign part-way through, rc-3 revoked.
  */
 
+/** The codes live on their own tab; open it the way an operator does. */
+async function renderCodes() {
+  const user = userEvent.setup()
+  renderRoute('/billing')
+  await screen.findByRole('heading', { name: 'Thanh toán' })
+  await user.click(screen.getByRole('button', { name: 'Mã nâng cấp' }))
+  return user
+}
+
 function rowFor(code: string) {
   return screen.getByText(formatCode(code)).closest('tr')!
 }
@@ -48,7 +57,7 @@ describe('trạng thái của một mã', () => {
 
 describe('danh sách mã', () => {
   it('lists every code with its state, and offers Thu hồi only where it applies', async () => {
-    renderRoute('/billing')
+    await renderCodes()
 
     expect(await screen.findByRole('heading', { name: 'Thanh toán' })).toBeInTheDocument()
     await screen.findByText('ABCD-EFGH-JKLM')
@@ -65,7 +74,7 @@ describe('danh sách mã', () => {
 
   it('shows who used a campaign code', async () => {
     const user = userEvent.setup()
-    renderRoute('/billing')
+    await renderCodes()
 
     await screen.findByText('XYZX-YZXY-ZXYZ')
     await user.click(within(rowFor('XYZXYZXYZXYZ')).getByRole('button', { name: 'Ai đã dùng' }))
@@ -80,7 +89,7 @@ describe('danh sách mã', () => {
 describe('phát hành mã', () => {
   it('mints a batch and keeps the codes on screen to copy', async () => {
     const user = userEvent.setup()
-    renderRoute('/billing')
+    await renderCodes()
 
     await screen.findByText('ABCD-EFGH-JKLM')
     await user.click(screen.getByRole('button', { name: 'Phát hành mã' }))
@@ -113,7 +122,7 @@ describe('phát hành mã', () => {
 
   it('refuses to submit nonsense numbers', async () => {
     const user = userEvent.setup()
-    renderRoute('/billing')
+    await renderCodes()
 
     await screen.findByText('ABCD-EFGH-JKLM')
     await user.click(screen.getByRole('button', { name: 'Phát hành mã' }))
@@ -127,7 +136,7 @@ describe('phát hành mã', () => {
 describe('thu hồi mã', () => {
   it('asks first, says what survives, and then the row reads đã thu hồi', async () => {
     const user = userEvent.setup()
-    renderRoute('/billing')
+    await renderCodes()
 
     await screen.findByText('ABCD-EFGH-JKLM')
     await user.click(within(rowFor('ABCDEFGHJKLM')).getByRole('button', { name: 'Thu hồi' }))

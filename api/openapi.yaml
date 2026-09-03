@@ -520,6 +520,119 @@ paths:
         '422': { $ref: '#/components/responses/Unprocessable' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
 
+  # ── billing: chuyển khoản ──────────────────────────────────────────────────
+
+  /billing/products:
+    get:
+      tags: [billing]
+      operationId: listPremiumProducts
+      summary: Bảng giá
+      description: |
+        What Premium costs, readable with no account — a visitor deciding
+        whether to register may read it. Prices are reference data, edited by
+        migration; a client never sends an amount.
+      security: []
+      responses:
+        '200':
+          description: The products on sale, in display order.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PremiumProductList' }
+
+  /billing/orders:
+    post:
+      tags: [billing]
+      operationId: createPaymentOrder
+      summary: Tạo mã chuyển khoản
+      description: |
+        Opens a bank-transfer order for one product and answers with the
+        account to pay and the memo to put on the transfer. The price is
+        frozen on the order; the QR carries the same four fields printed
+        beside it.
+
+        **Idempotent per learner.** While an order is `PENDING`, asking again
+        — for any product — answers with that order, so the memo a learner
+        already typed into their banking app stays the right memo. Cancel it
+        to start over.
+
+        `503 billing_unavailable` when this deployment has no receiving
+        account configured; codes still redeem.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreatePaymentOrderRequest' }
+      responses:
+        '201':
+          description: The order, new or already open.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentOrder' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '503':
+          description: '`billing_unavailable`.'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /billing/orders/{orderId}:
+    parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [billing]
+      operationId: getPaymentOrder
+      summary: Trạng thái đơn
+      description: |
+        The learner's own order. The client polls this while the transfer
+        dialog is open; `PAID` means the days have already been granted and
+        `CurrentUser.plan` will read premium on the next `GET /me`.
+      responses:
+        '200':
+          description: The order.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentOrder' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /billing/orders/{orderId}/cancel:
+    parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [billing]
+      operationId: cancelPaymentOrder
+      summary: Huỷ đơn
+      description: 'Only `PENDING` can be cancelled; `409 order_not_pending` otherwise.'
+      responses:
+        '200':
+          description: The order, now cancelled.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentOrder' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /me/billing/orders:
+    get:
+      tags: [billing]
+      operationId: listMyPaymentOrders
+      summary: Lịch sử đơn
+      responses:
+        '200':
+          description: The learner's orders, newest first.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PaymentOrderList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
   /me/streak:
     get:
       tags: [streak]
@@ -4112,6 +4225,167 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /admin/billing/orders:
+    get:
+      tags: [billing]
+      operationId: listAdminPaymentOrders
+      summary: Đơn chuyển khoản
+      description: 'rbac: `billing:manage`. Newest first; filter by status.'
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/PaymentOrderStatus' }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 500, default: 200 }
+      responses:
+        '200':
+          description: The orders.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminPaymentOrderList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/billing/orders/{orderId}/confirm:
+    parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [billing]
+      operationId: confirmPaymentOrder
+      summary: Xác nhận đã nhận tiền
+      description: |
+        rbac: `billing:manage`. The by-hand road: an operator has seen the
+        money on the statement. `PENDING`, `REVIEW` and `EXPIRED` can be
+        confirmed; the days are granted and an audit row written.
+        `409 order_not_payable` for `PAID` or `CANCELLED`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ConfirmPaymentOrderRequest' }
+      responses:
+        '200':
+          description: The order, now paid.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminPaymentOrder' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /admin/billing/transactions:
+    get:
+      tags: [billing]
+      operationId: listBankTransactions
+      summary: Giao dịch ngân hàng đã nhận
+      description: |
+        rbac: `billing:manage`. Every inbound transfer the provider reported,
+        newest first. `matched=false` narrows to the ones no order claimed —
+        a mistyped memo, a stray payment — which is the queue an operator
+        works through.
+      parameters:
+        - name: matched
+          in: query
+          schema: { type: boolean }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 500, default: 200 }
+      responses:
+        '200':
+          description: The transactions.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BankTransactionList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/billing/transactions/{transactionId}/match:
+    parameters:
+      - name: transactionId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [billing]
+      operationId: matchBankTransaction
+      summary: Khớp giao dịch với đơn
+      description: |
+        rbac: `billing:manage`. Links a stray transfer to an order and pays
+        it with the transfer's amount. `409 transaction_already_matched` when
+        the transfer already pays an order; `409 order_not_payable` when the
+        order is `PAID` or `CANCELLED`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MatchBankTransactionRequest' }
+      responses:
+        '200':
+          description: The order, now paid.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminPaymentOrder' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /admin/users:
+    get:
+      tags: [billing]
+      operationId: findUsers
+      summary: Tìm người dùng theo email
+      description: |
+        rbac: `billing:manage`. Prefix match on the address, at most twenty
+        rows — for finding one person, not for listing everybody.
+      parameters:
+        - name: email
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: The matches.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminUserList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/users/{userId}/plan:
+    parameters:
+      - name: userId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [billing]
+      operationId: grantUserPlan
+      summary: Tặng ngày Premium
+      description: |
+        rbac: `billing:manage`. Hands a learner days, stacked after their
+        current end date, with a note saying why. Audited.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/GrantPlanRequest' }
+      responses:
+        '200':
+          description: The learner, with the plan as it now stands.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminUser' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
   /admin/exams:
     get:
       tags: [admin]
@@ -5308,6 +5582,162 @@ components:
           type: array
           items: { $ref: '#/components/schemas/CodeRedemption' }
 
+    PremiumProduct:
+      type: object
+      required: [code, title, days, priceVnd]
+      properties:
+        code: { type: string }
+        title: { type: string }
+        days: { type: integer }
+        priceVnd: { type: integer }
+
+    PremiumProductList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/PremiumProduct' }
+
+    CreatePaymentOrderRequest:
+      type: object
+      required: [productCode]
+      properties:
+        productCode: { type: string }
+
+    PaymentOrderStatus:
+      type: string
+      enum: [PENDING, PAID, REVIEW, EXPIRED, CANCELLED]
+      description: |
+        `REVIEW` is a transfer that arrived short of the price; a person
+        decides. `EXPIRED` is past its TTL but a late transfer still pays it.
+
+    TransferInstructions:
+      type: object
+      required: [bankBin, bankName, accountNo, accountName, memo, qrImageUrl]
+      description: |
+        The account to pay and the memo to put on the transfer. `qrImageUrl`
+        is a VietQR image carrying exactly these fields, for a banking app's
+        scanner; the fields are printed beside it for a learner who types.
+      properties:
+        bankBin: { type: string }
+        bankName: { type: string }
+        accountNo: { type: string }
+        accountName: { type: string }
+        memo:
+          type: string
+          description: '`XAMI` and six characters. Must appear in the transfer''s content, as is.'
+        qrImageUrl: { type: string, format: uri }
+
+    PaymentOrder:
+      type: object
+      required: [id, status, productCode, productTitle, days, amountVnd, expiresAt, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        status: { $ref: '#/components/schemas/PaymentOrderStatus' }
+        productCode: { type: string }
+        productTitle: { type: string }
+        days: { type: integer }
+        amountVnd: { type: integer }
+        expiresAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+        paidAt: { type: string, format: date-time }
+        paidAmountVnd: { type: integer }
+        transfer:
+          $ref: '#/components/schemas/TransferInstructions'
+          description: Present only while the order is `PENDING`.
+
+    PaymentOrderList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/PaymentOrder' }
+
+    AdminPaymentOrder:
+      allOf:
+        - $ref: '#/components/schemas/PaymentOrder'
+        - type: object
+          required: [userId, email, displayName, transferCode, note]
+          properties:
+            userId: { type: string, format: uuid }
+            email: { type: string, format: email }
+            displayName: { type: string }
+            transferCode: { type: string }
+            note: { type: string }
+
+    AdminPaymentOrderList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AdminPaymentOrder' }
+
+    ConfirmPaymentOrderRequest:
+      type: object
+      properties:
+        paidAmountVnd:
+          type: integer
+          description: What actually arrived. Omit for the order's own price.
+        bankRef:
+          type: string
+          description: The statement's reference, for the reconciliation row.
+        note: { type: string, maxLength: 200 }
+
+    BankTransaction:
+      type: object
+      required: [id, provider, providerTxnId, amountVnd, memo, reference, occurredAt, receivedAt]
+      properties:
+        id: { type: string, format: uuid }
+        provider: { type: string }
+        providerTxnId: { type: string }
+        amountVnd: { type: integer }
+        memo: { type: string }
+        reference: { type: string }
+        occurredAt: { type: string, format: date-time }
+        receivedAt: { type: string, format: date-time }
+        matchedOrderId: { type: string, format: uuid }
+
+    BankTransactionList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/BankTransaction' }
+
+    MatchBankTransactionRequest:
+      type: object
+      required: [orderId]
+      properties:
+        orderId: { type: string, format: uuid }
+
+    AdminUser:
+      type: object
+      required: [id, email, displayName, plan]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        displayName: { type: string }
+        plan: { $ref: '#/components/schemas/UserPlan' }
+
+    AdminUserList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AdminUser' }
+
+    GrantPlanRequest:
+      type: object
+      required: [days]
+      properties:
+        days: { type: integer, minimum: 1, maximum: 3650 }
+        note: { type: string, maxLength: 200 }
+
     UpdateProfile:
       type: object
       description: |
@@ -5847,7 +6277,7 @@ components:
 
     ExamListItem:
       type: object
-      required: [id, code, title, level, questionCount, attemptCount]
+      required: [id, code, title, level, questionCount, attemptCount, locked]
       properties:
         id: { type: string, format: uuid }
         code: { type: string }
@@ -5865,6 +6295,14 @@ components:
             attempt — which the list screen renders as its empty state rather
             than as a zero (R-13).
         lastAttemptedAt: { type: string, format: date-time }
+        locked:
+          type: boolean
+          description: |
+            Whether the CALLER may sit this paper. False on Premium; on gói
+            Cơ bản false for the first two papers published at each level
+            and true for the rest. A guest reads the shelf with the same flag
+            a basic learner does. `POST /attempts` refuses a locked paper with
+            `403 premium_required`.
         hasWordbook:
           type: boolean
           description: |
@@ -5879,7 +6317,7 @@ components:
 
     ExamDetail:
       type: object
-      required: [id, code, title, level, blueprintVersion, totalScore, sections]
+      required: [id, code, title, level, blueprintVersion, totalScore, sections, locked]
       properties:
         id: { type: string, format: uuid }
         code: { type: string }
@@ -5887,6 +6325,12 @@ components:
         level: { $ref: '#/components/schemas/ExamLevel' }
         blueprintVersion: { type: string }
         totalScore: { type: integer }
+        locked:
+          type: boolean
+          description: |
+            Whether the caller may sit this paper — see `ExamListItem.locked`.
+            The entry screen still opens a locked paper, so the learner can
+            read what it is; only starting it is refused.
         hasTranslations:
           type: boolean
           description: |
@@ -8775,7 +9219,7 @@ components:
 
     ShadowVideoListItem:
       type: object
-      required: [id, title, durationMs, lineCount, wordCount, practisedCount, tags]
+      required: [id, title, durationMs, lineCount, wordCount, practisedCount, tags, locked]
       description: |
         Carries no level, deliberately. The list is ordered by level on the
         server and the screen never shows one; a field on the wire is one
@@ -8785,6 +9229,13 @@ components:
         id: { type: string, format: uuid }
         title: { type: string }
         durationMs: { type: integer }
+        locked:
+          type: boolean
+          description: |
+            Whether the caller may open this video: false on Premium and on
+            gói Cơ bản's two earliest-published videos, true otherwise. The
+            detail and progress routes refuse a locked video with
+            `403 premium_required`.
         thumbnailUrl:
           type: string
           description: |
@@ -8828,7 +9279,7 @@ components:
 
     DictationSetListItem:
       type: object
-      required: [id, title, durationMs, itemCount, wordCount, correctCount, tags]
+      required: [id, title, durationMs, itemCount, wordCount, correctCount, tags, locked]
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
@@ -8839,6 +9290,13 @@ components:
         wordCount:
           type: integer
           description: Entries in this set's own dictionary.
+        locked:
+          type: boolean
+          description: |
+            Whether the caller may open this set: false on Premium and on gói
+            Cơ bản's two earliest-published sets, true otherwise. The detail,
+            attempt and skip routes refuse a locked set with
+            `403 premium_required`.
         correctCount:
           type: integer
           description: |

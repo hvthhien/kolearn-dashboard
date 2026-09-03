@@ -33,6 +33,13 @@ export interface DictationSetListItem {
   /** Entries in this set's own dictionary. */
   wordCount: number;
   /**
+     * Whether the caller may open this set: false on Premium and on gói
+     * Cơ bản's two earliest-published sets, true otherwise. The detail,
+     * attempt and skip routes refuse a locked set with
+     * `403 premium_required`.
+     */
+  locked: boolean;
+  /**
      * TCCN-427-1's numerator: sentences whose BEST result was đúng or
      * gần đúng. A gần đúng counts — the learner heard every character.
      */

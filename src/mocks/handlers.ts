@@ -8,6 +8,12 @@ import type {
   ShadowPublishReport,
   CreateRedeemCodesRequest,
   RedeemCode,
+  AdminPaymentOrder,
+  AdminUser,
+  BankTransaction,
+  ConfirmPaymentOrderRequest,
+  GrantPlanRequest,
+  MatchBankTransactionRequest,
   AdminQuestion,
   AdminQuestionRow,
   AuthTokens,
@@ -22,6 +28,7 @@ import { EXAMS, LISTENING_PASSAGE, QUESTIONS, READING_PASSAGE, layers } from './
 import { SHADOW_VIDEOS } from './fixtures/shadowing'
 import { DICTATION_SETS } from './fixtures/dictation'
 import { CODE_REDEMPTIONS, REDEEM_CODES } from './fixtures/billing'
+import { ADMIN_USERS, BANK_TRANSACTIONS, PAYMENT_ORDERS } from './fixtures/orders'
 
 /**
  * The mock backend, shared by `npm run dev` and by the test suite.
@@ -101,6 +108,22 @@ const categoryState = {
  */
 const billingState = {
   codes: clone(REDEEM_CODES) as RedeemCode[],
+  orders: clone(PAYMENT_ORDERS) as AdminPaymentOrder[],
+  transactions: clone(BANK_TRANSACTIONS) as BankTransaction[],
+  users: clone(ADMIN_USERS) as AdminUser[],
+}
+
+/** Pays an order the way the server does: status, amounts, and the learner's plan. */
+function settleOrder(order: AdminPaymentOrder, paid: number): void {
+  order.status = 'PAID'
+  order.paidAt = new Date().toISOString()
+  order.paidAmountVnd = paid
+  const u = billingState.users.find((x) => x.id === order.userId)
+  if (u) {
+    const from = u.plan.premiumUntil ? new Date(u.plan.premiumUntil) : new Date()
+    const until = new Date(Math.max(from.getTime(), Date.now()) + order.days * 86400000)
+    u.plan = { tier: 'premium', premiumUntil: until.toISOString() }
+  }
 }
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -116,6 +139,9 @@ function mintCode(): string {
 
 export function resetMockBank(): void {
   billingState.codes = clone(REDEEM_CODES)
+  billingState.orders = clone(PAYMENT_ORDERS)
+  billingState.transactions = clone(BANK_TRANSACTIONS)
+  billingState.users = clone(ADMIN_USERS)
   state = {
     exams: clone(EXAMS),
     questions: clone(QUESTIONS),
@@ -495,6 +521,90 @@ function categoryRoutes(
 }
 
 export const handlers = [
+  /* ── Thanh toán: đơn chuyển khoản, giao dịch, người dùng (00048) ──────── */
+  http.get(`${BASE}/admin/billing/orders`, ({ request }) => {
+    const status = new URL(request.url).searchParams.get('status')
+    const items = billingState.orders
+      .filter((o) => status === null || o.status === status)
+      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+    return HttpResponse.json({ items })
+  }),
+  http.post(`${BASE}/admin/billing/orders/:orderId/confirm`, async ({ params, request }) => {
+    const order = billingState.orders.find((o) => o.id === params.orderId)
+    if (!order) {
+      return HttpResponse.json(
+        { type: 'about:blank', title: 'Không tìm thấy', status: 404, code: 'order_not_found' },
+        { status: 404 },
+      )
+    }
+    if (order.status === 'PAID' || order.status === 'CANCELLED') {
+      return HttpResponse.json(
+        { type: 'about:blank', title: 'Xung đột trạng thái', status: 409, code: 'order_not_payable' },
+        { status: 409 },
+      )
+    }
+    const body = (await request.json()) as ConfirmPaymentOrderRequest
+    settleOrder(order, body.paidAmountVnd ?? order.amountVnd)
+    order.note = body.note ?? ''
+    return HttpResponse.json(order)
+  }),
+  http.get(`${BASE}/admin/billing/transactions`, ({ request }) => {
+    const matched = new URL(request.url).searchParams.get('matched')
+    const items = billingState.transactions.filter(
+      (t) => matched !== 'false' || t.matchedOrderId === undefined,
+    )
+    return HttpResponse.json({ items })
+  }),
+  http.post(
+    `${BASE}/admin/billing/transactions/:transactionId/match`,
+    async ({ params, request }) => {
+      const txn = billingState.transactions.find((t) => t.id === params.transactionId)
+      if (!txn) {
+        return HttpResponse.json(
+          { type: 'about:blank', title: 'Không tìm thấy', status: 404, code: 'transaction_not_found' },
+          { status: 404 },
+        )
+      }
+      if (txn.matchedOrderId !== undefined) {
+        return HttpResponse.json(
+          { type: 'about:blank', title: 'Xung đột trạng thái', status: 409, code: 'transaction_already_matched' },
+          { status: 409 },
+        )
+      }
+      const body = (await request.json()) as MatchBankTransactionRequest
+      const order = billingState.orders.find((o) => o.id === body.orderId)
+      if (!order || order.status === 'PAID' || order.status === 'CANCELLED') {
+        return HttpResponse.json(
+          { type: 'about:blank', title: 'Xung đột trạng thái', status: 409, code: 'order_not_payable' },
+          { status: 409 },
+        )
+      }
+      settleOrder(order, txn.amountVnd)
+      txn.matchedOrderId = order.id
+      return HttpResponse.json(order)
+    },
+  ),
+  http.get(`${BASE}/admin/users`, ({ request }) => {
+    const email = (new URL(request.url).searchParams.get('email') ?? '').toLowerCase()
+    return HttpResponse.json({
+      items: email === '' ? [] : billingState.users.filter((u) => u.email.startsWith(email)),
+    })
+  }),
+  http.post(`${BASE}/admin/users/:userId/plan`, async ({ params, request }) => {
+    const u = billingState.users.find((x) => x.id === params.userId)
+    if (!u) {
+      return HttpResponse.json(
+        { type: 'about:blank', title: 'Không tìm thấy', status: 404, code: 'user_not_found' },
+        { status: 404 },
+      )
+    }
+    const body = (await request.json()) as GrantPlanRequest
+    const from = u.plan.premiumUntil ? new Date(u.plan.premiumUntil) : new Date()
+    const until = new Date(Math.max(from.getTime(), Date.now()) + body.days * 86400000)
+    u.plan = { tier: 'premium', premiumUntil: until.toISOString() }
+    return HttpResponse.json(u)
+  }),
+
   /* ── Thanh toán: mã nâng cấp (00046) ──────────────────────────────────── */
   http.get(`${BASE}/admin/billing/codes`, () =>
     HttpResponse.json({

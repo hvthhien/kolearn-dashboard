@@ -35,6 +35,13 @@ export interface ShadowVideoListItem {
   title: string;
   durationMs: number;
   /**
+     * Whether the caller may open this video: false on Premium and on
+     * gói Cơ bản's two earliest-published videos, true otherwise. The
+     * detail and progress routes refuse a locked video with
+     * `403 premium_required`.
+     */
+  locked: boolean;
+  /**
      * Absent on a video that never got a poster, which is a normal state
      * — the row falls back to a generic icon. A published `AUDIO` item
      * always has one: the publish gate refuses it otherwise, in Go and

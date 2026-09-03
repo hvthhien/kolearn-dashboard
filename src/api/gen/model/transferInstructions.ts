@@ -23,27 +23,18 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { ExamLevel } from './examLevel';
-import type { ExamSection } from './examSection';
 
-export interface ExamDetail {
-  id: string;
-  code: string;
-  title: string;
-  level: ExamLevel;
-  blueprintVersion: string;
-  totalScore: number;
-  /**
-     * Whether the caller may sit this paper — see `ExamListItem.locked`.
-     * The entry screen still opens a locked paper, so the learner can
-     * read what it is; only starting it is refused.
-     */
-  locked: boolean;
-  /**
-     * False when this exam has no Vietnamese content, in which case the
-     * client hides the translation toggle entirely rather than showing it
-     * disabled (TCCN-121-3).
-     */
-  hasTranslations?: boolean;
-  sections: ExamSection[];
+/**
+ * The account to pay and the memo to put on the transfer. `qrImageUrl`
+ * is a VietQR image carrying exactly these fields, for a banking app's
+ * scanner; the fields are printed beside it for a learner who types.
+ */
+export interface TransferInstructions {
+  bankBin: string;
+  bankName: string;
+  accountNo: string;
+  accountName: string;
+  /** `XAMI` and six characters. Must appear in the transfer's content, as is. */
+  memo: string;
+  qrImageUrl: string;
 }

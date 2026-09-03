@@ -9,12 +9,16 @@ import {
 } from '../api/gen/kolearn'
 import type { RedeemCode } from '../api/gen/model'
 import { userMessage } from '../lib/problem'
+import { OrdersSection } from '../features/billing/OrdersSection'
+import { TransactionsSection } from '../features/billing/TransactionsSection'
+import { UsersSection } from '../features/billing/UsersSection'
 import {
   Badge,
   Button,
   Dialog,
   EmptyState,
   ErrorNote,
+  FilterChips,
   PageShell,
   PageTitle,
   Refreshing,
@@ -73,7 +77,41 @@ const STATE_LABEL: Record<CodeState, { text: string; tone: 'ok' | 'neutral' | 'w
   exhausted: { text: 'hết lượt', tone: 'neutral' },
 }
 
+type Tab = 'orders' | 'transactions' | 'codes' | 'users'
+
 export function BillingPage() {
+  const [tab, setTab] = useState<Tab>('orders')
+
+  return (
+    <PageShell>
+      <PageTitle>Thanh toán</PageTitle>
+      <p className="mt-1 text-sm text-muted">
+        Đơn chuyển khoản tự khớp khi SePay báo tiền về; những gì không tự khớp được nằm ở hai
+        thẻ đầu. Mã nâng cấp và tặng ngày là hai cách cộng Premium không qua ngân hàng.
+      </p>
+
+      <FilterChips<Tab>
+        label="Khu vực"
+        className="mt-4"
+        value={tab}
+        onChange={setTab}
+        choices={[
+          { value: 'orders', label: 'Đơn chuyển khoản' },
+          { value: 'transactions', label: 'Chưa khớp' },
+          { value: 'codes', label: 'Mã nâng cấp' },
+          { value: 'users', label: 'Người dùng' },
+        ]}
+      />
+
+      {tab === 'orders' && <OrdersSection />}
+      {tab === 'transactions' && <TransactionsSection />}
+      {tab === 'codes' && <CodesSection />}
+      {tab === 'users' && <UsersSection />}
+    </PageShell>
+  )
+}
+
+function CodesSection() {
   const [issuing, setIssuing] = useState(false)
   const [revoking, setRevoking] = useState<RedeemCode | null>(null)
   const [viewing, setViewing] = useState<RedeemCode | null>(null)
@@ -83,17 +121,17 @@ export function BillingPage() {
   const refresh = () => queryClient.invalidateQueries({ queryKey: getListRedeemCodesQueryKey() })
 
   return (
-    <PageShell>
+    <section aria-labelledby="codes-heading" className="mt-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <PageTitle>Thanh toán</PageTitle>
+        <h2 id="codes-heading" className="text-base font-semibold text-ink">
+          Mã nâng cấp
+        </h2>
         <Button onClick={() => setIssuing(true)}>Phát hành mã</Button>
       </div>
       <p className="mt-1 text-sm text-muted">
         Mã nâng cấp cộng ngày Premium vào tài khoản người học. Mã dùng nhiều lượt thì mỗi
         người vẫn chỉ dùng được một lần.
       </p>
-
-      <h2 className="mt-6 text-base font-semibold text-ink">Mã nâng cấp</h2>
 
       {error !== null && (
         <div className="mt-3">
@@ -170,7 +208,7 @@ export function BillingPage() {
       <IssueDialog open={issuing} onClose={() => setIssuing(false)} onIssued={refresh} />
       <RevokeDialog code={revoking} onClose={() => setRevoking(null)} onRevoked={refresh} />
       <RedemptionsDialog code={viewing} onClose={() => setViewing(null)} />
-    </PageShell>
+    </section>
   )
 }
 

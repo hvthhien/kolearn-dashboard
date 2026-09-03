@@ -23,27 +23,18 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { ExamLevel } from './examLevel';
-import type { ExamSection } from './examSection';
 
-export interface ExamDetail {
-  id: string;
-  code: string;
-  title: string;
-  level: ExamLevel;
-  blueprintVersion: string;
-  totalScore: number;
-  /**
-     * Whether the caller may sit this paper — see `ExamListItem.locked`.
-     * The entry screen still opens a locked paper, so the learner can
-     * read what it is; only starting it is refused.
-     */
-  locked: boolean;
-  /**
-     * False when this exam has no Vietnamese content, in which case the
-     * client hides the translation toggle entirely rather than showing it
-     * disabled (TCCN-121-3).
-     */
-  hasTranslations?: boolean;
-  sections: ExamSection[];
-}
+/**
+ * `REVIEW` is a transfer that arrived short of the price; a person
+ * decides. `EXPIRED` is past its TTL but a late transfer still pays it.
+ */
+export type PaymentOrderStatus = typeof PaymentOrderStatus[keyof typeof PaymentOrderStatus];
+
+
+export const PaymentOrderStatus = {
+  PENDING: 'PENDING',
+  PAID: 'PAID',
+  REVIEW: 'REVIEW',
+  EXPIRED: 'EXPIRED',
+  CANCELLED: 'CANCELLED',
+} as const;

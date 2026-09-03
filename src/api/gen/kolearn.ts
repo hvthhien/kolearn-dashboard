@@ -52,12 +52,16 @@ import type {
   AdminDictationSetList,
   AdminExamDetail,
   AdminPassage,
+  AdminPaymentOrder,
+  AdminPaymentOrderList,
   AdminQuestion,
   AdminShadowCategory,
   AdminShadowCategoryList,
   AdminShadowLine,
   AdminShadowVideoDetail,
   AdminShadowVideoList,
+  AdminUser,
+  AdminUserList,
   AnswerLockedProblem,
   AnswerState,
   AssistantAskRequest,
@@ -72,6 +76,7 @@ import type {
   AuthProviders,
   AuthTokens,
   BadRequestResponse,
+  BankTransactionList,
   CardBatchResult,
   CardFrontTakenProblem,
   CardGroup,
@@ -81,11 +86,13 @@ import type {
   ClipRedirectResponse,
   CodeRedemptionList,
   CompleteGoogleSignInParams,
+  ConfirmPaymentOrderRequest,
   ConfirmShadowUploadRequest,
   ConflictResponse,
   CreateCardGroupBody,
   CreateCardRequest,
   CreateCardsBatchBody,
+  CreatePaymentOrderRequest,
   CreateRedeemCodesRequest,
   CreateShadowUploadTargetRequest,
   CreateShadowVideoRequest,
@@ -99,17 +106,20 @@ import type {
   DictationSetList,
   DictationSkipResult,
   ExamDetail,
+  FindUsersParams,
   ForbiddenResponse,
   ForgotPasswordBody,
   GetAssistantPanelParams,
   GetAttemptTopicSummary200,
   GetWeakness200,
   GetWeaknessParams,
+  GrantPlanRequest,
   ImportReport,
   ImportRequest,
   ListAdminDictationSetsParams,
   ListAdminExams200,
   ListAdminExamsParams,
+  ListAdminPaymentOrdersParams,
   ListAdminQuestions200,
   ListAdminShadowVideosParams,
   ListAssistantThreads200,
@@ -118,6 +128,7 @@ import type {
   ListAssistantTurnsParams,
   ListAttemptHistory200,
   ListAttemptHistoryParams,
+  ListBankTransactionsParams,
   ListBlueprints200,
   ListDictationSetsParams,
   ListExams200,
@@ -131,17 +142,21 @@ import type {
   ListTopics200,
   ListTopicsParams,
   LoginRequest,
+  MatchBankTransactionRequest,
   MediaRedirectResponse,
   MovedResult,
   MyCard,
   MyPlacement,
   NotFoundResponse,
   NotModifiedResponse,
+  PaymentOrder,
+  PaymentOrderList,
   PlacementAnswerRequest,
   PlacementAvailability,
   PlacementRecommendations,
   PlacementResult,
   PlacementRunner,
+  PremiumProductList,
   Problem,
   PublishAdminDictationSetParams,
   PublishAdminExamParams,
@@ -1731,6 +1746,470 @@ export const useRedeemPlanCode = <TError = UnauthorizedResponse | UnprocessableR
       > => {
       return useMutation(getRedeemPlanCodeMutationOptions(options), queryClient);
     }
+
+export const getListPremiumProductsUrl = () => {
+
+
+
+
+  return `/api/v1/billing/products`
+}
+
+/**
+ * What Premium costs, readable with no account — a visitor deciding
+ * whether to register may read it. Prices are reference data, edited by
+ * migration; a client never sends an amount.
+ * @summary Bảng giá
+ */
+export const listPremiumProducts = async ( options?: Parameters<typeof apiFetch>[1]): Promise<PremiumProductList> => {
+
+  return apiFetch<PremiumProductList>(getListPremiumProductsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPremiumProductsQueryKey = () => {
+    return [
+    `/api/v1/billing/products`
+    ] as const;
+    }
+
+
+export const getListPremiumProductsQueryOptions = <TData = Awaited<ReturnType<typeof listPremiumProducts>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPremiumProducts>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPremiumProductsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPremiumProducts>>> = ({ signal }) => listPremiumProducts({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPremiumProducts>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListPremiumProductsQueryResult = NonNullable<Awaited<ReturnType<typeof listPremiumProducts>>>
+export type ListPremiumProductsQueryError = unknown
+
+
+export function useListPremiumProducts<TData = Awaited<ReturnType<typeof listPremiumProducts>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPremiumProducts>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPremiumProducts>>,
+          TError,
+          Awaited<ReturnType<typeof listPremiumProducts>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPremiumProducts<TData = Awaited<ReturnType<typeof listPremiumProducts>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPremiumProducts>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPremiumProducts>>,
+          TError,
+          Awaited<ReturnType<typeof listPremiumProducts>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPremiumProducts<TData = Awaited<ReturnType<typeof listPremiumProducts>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPremiumProducts>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Bảng giá
+ */
+
+export function useListPremiumProducts<TData = Awaited<ReturnType<typeof listPremiumProducts>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPremiumProducts>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListPremiumProductsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreatePaymentOrderUrl = () => {
+
+
+
+
+  return `/api/v1/billing/orders`
+}
+
+/**
+ * Opens a bank-transfer order for one product and answers with the
+ * account to pay and the memo to put on the transfer. The price is
+ * frozen on the order; the QR carries the same four fields printed
+ * beside it.
+ *
+ * **Idempotent per learner.** While an order is `PENDING`, asking again
+ * — for any product — answers with that order, so the memo a learner
+ * already typed into their banking app stays the right memo. Cancel it
+ * to start over.
+ *
+ * `503 billing_unavailable` when this deployment has no receiving
+ * account configured; codes still redeem.
+ * @summary Tạo mã chuyển khoản
+ */
+export const createPaymentOrder = async (createPaymentOrderRequest: CreatePaymentOrderRequest, options?: Parameters<typeof apiFetch>[1]): Promise<PaymentOrder> => {
+
+  return apiFetch<PaymentOrder>(getCreatePaymentOrderUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createPaymentOrderRequest)
+  }
+);}
+
+
+
+
+
+export const getCreatePaymentOrderMutationOptions = <TError = UnauthorizedResponse | UnprocessableResponse | Problem,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPaymentOrder>>, TError,{data: CreatePaymentOrderRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createPaymentOrder>>, TError,{data: CreatePaymentOrderRequest}, TContext> => {
+
+const mutationKey = ['createPaymentOrder'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPaymentOrder>>, {data: CreatePaymentOrderRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createPaymentOrder(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePaymentOrderMutationResult = NonNullable<Awaited<ReturnType<typeof createPaymentOrder>>>
+    export type CreatePaymentOrderMutationBody = CreatePaymentOrderRequest
+    export type CreatePaymentOrderMutationError = UnauthorizedResponse | UnprocessableResponse | Problem
+
+    /**
+ * @summary Tạo mã chuyển khoản
+ */
+export const useCreatePaymentOrder = <TError = UnauthorizedResponse | UnprocessableResponse | Problem,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPaymentOrder>>, TError,{data: CreatePaymentOrderRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createPaymentOrder>>,
+        TError,
+        {data: CreatePaymentOrderRequest},
+        TContext
+      > => {
+      return useMutation(getCreatePaymentOrderMutationOptions(options), queryClient);
+    }
+
+export const getGetPaymentOrderUrl = (orderId: string,) => {
+
+
+
+
+  return `/api/v1/billing/orders/${orderId}`
+}
+
+/**
+ * The learner's own order. The client polls this while the transfer
+ * dialog is open; `PAID` means the days have already been granted and
+ * `CurrentUser.plan` will read premium on the next `GET /me`.
+ * @summary Trạng thái đơn
+ */
+export const getPaymentOrder = async (orderId: string, options?: Parameters<typeof apiFetch>[1]): Promise<PaymentOrder> => {
+
+  return apiFetch<PaymentOrder>(getGetPaymentOrderUrl(orderId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetPaymentOrderQueryKey = (orderId: string,) => {
+    return [
+    `/api/v1/billing/orders/${orderId}`
+    ] as const;
+    }
+
+
+export const getGetPaymentOrderQueryOptions = <TData = Awaited<ReturnType<typeof getPaymentOrder>>, TError = UnauthorizedResponse | NotFoundResponse>(orderId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPaymentOrder>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetPaymentOrderQueryKey(orderId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getPaymentOrder>>> = ({ signal }) => getPaymentOrder(orderId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: orderId !== null && orderId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getPaymentOrder>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetPaymentOrderQueryResult = NonNullable<Awaited<ReturnType<typeof getPaymentOrder>>>
+export type GetPaymentOrderQueryError = UnauthorizedResponse | NotFoundResponse
+
+
+export function useGetPaymentOrder<TData = Awaited<ReturnType<typeof getPaymentOrder>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ orderId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPaymentOrder>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPaymentOrder>>,
+          TError,
+          Awaited<ReturnType<typeof getPaymentOrder>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPaymentOrder<TData = Awaited<ReturnType<typeof getPaymentOrder>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ orderId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPaymentOrder>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getPaymentOrder>>,
+          TError,
+          Awaited<ReturnType<typeof getPaymentOrder>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetPaymentOrder<TData = Awaited<ReturnType<typeof getPaymentOrder>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ orderId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPaymentOrder>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Trạng thái đơn
+ */
+
+export function useGetPaymentOrder<TData = Awaited<ReturnType<typeof getPaymentOrder>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ orderId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPaymentOrder>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetPaymentOrderQueryOptions(orderId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCancelPaymentOrderUrl = (orderId: string,) => {
+
+
+
+
+  return `/api/v1/billing/orders/${orderId}/cancel`
+}
+
+/**
+ * Only `PENDING` can be cancelled; `409 order_not_pending` otherwise.
+ * @summary Huỷ đơn
+ */
+export const cancelPaymentOrder = async (orderId: string, options?: Parameters<typeof apiFetch>[1]): Promise<PaymentOrder> => {
+
+  return apiFetch<PaymentOrder>(getCancelPaymentOrderUrl(orderId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCancelPaymentOrderMutationOptions = <TError = UnauthorizedResponse | NotFoundResponse | ConflictResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelPaymentOrder>>, TError,{orderId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof cancelPaymentOrder>>, TError,{orderId: string}, TContext> => {
+
+const mutationKey = ['cancelPaymentOrder'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof cancelPaymentOrder>>, {orderId: string}> = (props) => {
+          const {orderId} = props ?? {};
+
+          return  cancelPaymentOrder(orderId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CancelPaymentOrderMutationResult = NonNullable<Awaited<ReturnType<typeof cancelPaymentOrder>>>
+
+    export type CancelPaymentOrderMutationError = UnauthorizedResponse | NotFoundResponse | ConflictResponse
+
+    /**
+ * @summary Huỷ đơn
+ */
+export const useCancelPaymentOrder = <TError = UnauthorizedResponse | NotFoundResponse | ConflictResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof cancelPaymentOrder>>, TError,{orderId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof cancelPaymentOrder>>,
+        TError,
+        {orderId: string},
+        TContext
+      > => {
+      return useMutation(getCancelPaymentOrderMutationOptions(options), queryClient);
+    }
+
+export const getListMyPaymentOrdersUrl = () => {
+
+
+
+
+  return `/api/v1/me/billing/orders`
+}
+
+/**
+ * @summary Lịch sử đơn
+ */
+export const listMyPaymentOrders = async ( options?: Parameters<typeof apiFetch>[1]): Promise<PaymentOrderList> => {
+
+  return apiFetch<PaymentOrderList>(getListMyPaymentOrdersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMyPaymentOrdersQueryKey = () => {
+    return [
+    `/api/v1/me/billing/orders`
+    ] as const;
+    }
+
+
+export const getListMyPaymentOrdersQueryOptions = <TData = Awaited<ReturnType<typeof listMyPaymentOrders>>, TError = UnauthorizedResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyPaymentOrders>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMyPaymentOrdersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMyPaymentOrders>>> = ({ signal }) => listMyPaymentOrders({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMyPaymentOrders>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListMyPaymentOrdersQueryResult = NonNullable<Awaited<ReturnType<typeof listMyPaymentOrders>>>
+export type ListMyPaymentOrdersQueryError = UnauthorizedResponse
+
+
+export function useListMyPaymentOrders<TData = Awaited<ReturnType<typeof listMyPaymentOrders>>, TError = UnauthorizedResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyPaymentOrders>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMyPaymentOrders>>,
+          TError,
+          Awaited<ReturnType<typeof listMyPaymentOrders>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListMyPaymentOrders<TData = Awaited<ReturnType<typeof listMyPaymentOrders>>, TError = UnauthorizedResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyPaymentOrders>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMyPaymentOrders>>,
+          TError,
+          Awaited<ReturnType<typeof listMyPaymentOrders>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListMyPaymentOrders<TData = Awaited<ReturnType<typeof listMyPaymentOrders>>, TError = UnauthorizedResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyPaymentOrders>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Lịch sử đơn
+ */
+
+export function useListMyPaymentOrders<TData = Awaited<ReturnType<typeof listMyPaymentOrders>>, TError = UnauthorizedResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMyPaymentOrders>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListMyPaymentOrdersQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetMyStreakUrl = () => {
 
@@ -11547,6 +12026,563 @@ export function useListCodeRedemptions<TData = Awaited<ReturnType<typeof listCod
 
 
 
+
+export const getListAdminPaymentOrdersUrl = (params?: ListAdminPaymentOrdersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/admin/billing/orders?${stringifiedParams}` : `/api/v1/admin/billing/orders`
+}
+
+/**
+ * rbac: `billing:manage`. Newest first; filter by status.
+ * @summary Đơn chuyển khoản
+ */
+export const listAdminPaymentOrders = async (params?: ListAdminPaymentOrdersParams, options?: Parameters<typeof apiFetch>[1]): Promise<AdminPaymentOrderList> => {
+
+  return apiFetch<AdminPaymentOrderList>(getListAdminPaymentOrdersUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAdminPaymentOrdersQueryKey = (params?: ListAdminPaymentOrdersParams,) => {
+    return [
+    `/api/v1/admin/billing/orders`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListAdminPaymentOrdersQueryOptions = <TData = Awaited<ReturnType<typeof listAdminPaymentOrders>>, TError = UnauthorizedResponse | ForbiddenResponse>(params?: ListAdminPaymentOrdersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminPaymentOrders>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminPaymentOrdersQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminPaymentOrders>>> = ({ signal }) => listAdminPaymentOrders(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminPaymentOrders>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListAdminPaymentOrdersQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminPaymentOrders>>>
+export type ListAdminPaymentOrdersQueryError = UnauthorizedResponse | ForbiddenResponse
+
+
+export function useListAdminPaymentOrders<TData = Awaited<ReturnType<typeof listAdminPaymentOrders>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params: undefined |  ListAdminPaymentOrdersParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminPaymentOrders>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAdminPaymentOrders>>,
+          TError,
+          Awaited<ReturnType<typeof listAdminPaymentOrders>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListAdminPaymentOrders<TData = Awaited<ReturnType<typeof listAdminPaymentOrders>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params?: ListAdminPaymentOrdersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminPaymentOrders>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAdminPaymentOrders>>,
+          TError,
+          Awaited<ReturnType<typeof listAdminPaymentOrders>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListAdminPaymentOrders<TData = Awaited<ReturnType<typeof listAdminPaymentOrders>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params?: ListAdminPaymentOrdersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminPaymentOrders>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Đơn chuyển khoản
+ */
+
+export function useListAdminPaymentOrders<TData = Awaited<ReturnType<typeof listAdminPaymentOrders>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params?: ListAdminPaymentOrdersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminPaymentOrders>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListAdminPaymentOrdersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getConfirmPaymentOrderUrl = (orderId: string,) => {
+
+
+
+
+  return `/api/v1/admin/billing/orders/${orderId}/confirm`
+}
+
+/**
+ * rbac: `billing:manage`. The by-hand road: an operator has seen the
+ * money on the statement. `PENDING`, `REVIEW` and `EXPIRED` can be
+ * confirmed; the days are granted and an audit row written.
+ * `409 order_not_payable` for `PAID` or `CANCELLED`.
+ * @summary Xác nhận đã nhận tiền
+ */
+export const confirmPaymentOrder = async (orderId: string,
+    confirmPaymentOrderRequest: ConfirmPaymentOrderRequest, options?: Parameters<typeof apiFetch>[1]): Promise<AdminPaymentOrder> => {
+
+  return apiFetch<AdminPaymentOrder>(getConfirmPaymentOrderUrl(orderId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(confirmPaymentOrderRequest)
+  }
+);}
+
+
+
+
+
+export const getConfirmPaymentOrderMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmPaymentOrder>>, TError,{orderId: string;data: ConfirmPaymentOrderRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof confirmPaymentOrder>>, TError,{orderId: string;data: ConfirmPaymentOrderRequest}, TContext> => {
+
+const mutationKey = ['confirmPaymentOrder'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof confirmPaymentOrder>>, {orderId: string;data: ConfirmPaymentOrderRequest}> = (props) => {
+          const {orderId,data} = props ?? {};
+
+          return  confirmPaymentOrder(orderId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConfirmPaymentOrderMutationResult = NonNullable<Awaited<ReturnType<typeof confirmPaymentOrder>>>
+    export type ConfirmPaymentOrderMutationBody = ConfirmPaymentOrderRequest
+    export type ConfirmPaymentOrderMutationError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse
+
+    /**
+ * @summary Xác nhận đã nhận tiền
+ */
+export const useConfirmPaymentOrder = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof confirmPaymentOrder>>, TError,{orderId: string;data: ConfirmPaymentOrderRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof confirmPaymentOrder>>,
+        TError,
+        {orderId: string;data: ConfirmPaymentOrderRequest},
+        TContext
+      > => {
+      return useMutation(getConfirmPaymentOrderMutationOptions(options), queryClient);
+    }
+
+export const getListBankTransactionsUrl = (params?: ListBankTransactionsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/admin/billing/transactions?${stringifiedParams}` : `/api/v1/admin/billing/transactions`
+}
+
+/**
+ * rbac: `billing:manage`. Every inbound transfer the provider reported,
+ * newest first. `matched=false` narrows to the ones no order claimed —
+ * a mistyped memo, a stray payment — which is the queue an operator
+ * works through.
+ * @summary Giao dịch ngân hàng đã nhận
+ */
+export const listBankTransactions = async (params?: ListBankTransactionsParams, options?: Parameters<typeof apiFetch>[1]): Promise<BankTransactionList> => {
+
+  return apiFetch<BankTransactionList>(getListBankTransactionsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListBankTransactionsQueryKey = (params?: ListBankTransactionsParams,) => {
+    return [
+    `/api/v1/admin/billing/transactions`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListBankTransactionsQueryOptions = <TData = Awaited<ReturnType<typeof listBankTransactions>>, TError = UnauthorizedResponse | ForbiddenResponse>(params?: ListBankTransactionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listBankTransactions>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListBankTransactionsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listBankTransactions>>> = ({ signal }) => listBankTransactions(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listBankTransactions>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListBankTransactionsQueryResult = NonNullable<Awaited<ReturnType<typeof listBankTransactions>>>
+export type ListBankTransactionsQueryError = UnauthorizedResponse | ForbiddenResponse
+
+
+export function useListBankTransactions<TData = Awaited<ReturnType<typeof listBankTransactions>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params: undefined |  ListBankTransactionsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listBankTransactions>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listBankTransactions>>,
+          TError,
+          Awaited<ReturnType<typeof listBankTransactions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListBankTransactions<TData = Awaited<ReturnType<typeof listBankTransactions>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params?: ListBankTransactionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listBankTransactions>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listBankTransactions>>,
+          TError,
+          Awaited<ReturnType<typeof listBankTransactions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListBankTransactions<TData = Awaited<ReturnType<typeof listBankTransactions>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params?: ListBankTransactionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listBankTransactions>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Giao dịch ngân hàng đã nhận
+ */
+
+export function useListBankTransactions<TData = Awaited<ReturnType<typeof listBankTransactions>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params?: ListBankTransactionsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listBankTransactions>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListBankTransactionsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getMatchBankTransactionUrl = (transactionId: string,) => {
+
+
+
+
+  return `/api/v1/admin/billing/transactions/${transactionId}/match`
+}
+
+/**
+ * rbac: `billing:manage`. Links a stray transfer to an order and pays
+ * it with the transfer's amount. `409 transaction_already_matched` when
+ * the transfer already pays an order; `409 order_not_payable` when the
+ * order is `PAID` or `CANCELLED`.
+ * @summary Khớp giao dịch với đơn
+ */
+export const matchBankTransaction = async (transactionId: string,
+    matchBankTransactionRequest: MatchBankTransactionRequest, options?: Parameters<typeof apiFetch>[1]): Promise<AdminPaymentOrder> => {
+
+  return apiFetch<AdminPaymentOrder>(getMatchBankTransactionUrl(transactionId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(matchBankTransactionRequest)
+  }
+);}
+
+
+
+
+
+export const getMatchBankTransactionMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof matchBankTransaction>>, TError,{transactionId: string;data: MatchBankTransactionRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof matchBankTransaction>>, TError,{transactionId: string;data: MatchBankTransactionRequest}, TContext> => {
+
+const mutationKey = ['matchBankTransaction'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof matchBankTransaction>>, {transactionId: string;data: MatchBankTransactionRequest}> = (props) => {
+          const {transactionId,data} = props ?? {};
+
+          return  matchBankTransaction(transactionId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MatchBankTransactionMutationResult = NonNullable<Awaited<ReturnType<typeof matchBankTransaction>>>
+    export type MatchBankTransactionMutationBody = MatchBankTransactionRequest
+    export type MatchBankTransactionMutationError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse
+
+    /**
+ * @summary Khớp giao dịch với đơn
+ */
+export const useMatchBankTransaction = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof matchBankTransaction>>, TError,{transactionId: string;data: MatchBankTransactionRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof matchBankTransaction>>,
+        TError,
+        {transactionId: string;data: MatchBankTransactionRequest},
+        TContext
+      > => {
+      return useMutation(getMatchBankTransactionMutationOptions(options), queryClient);
+    }
+
+export const getFindUsersUrl = (params: FindUsersParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/admin/users?${stringifiedParams}` : `/api/v1/admin/users`
+}
+
+/**
+ * rbac: `billing:manage`. Prefix match on the address, at most twenty
+ * rows — for finding one person, not for listing everybody.
+ * @summary Tìm người dùng theo email
+ */
+export const findUsers = async (params: FindUsersParams, options?: Parameters<typeof apiFetch>[1]): Promise<AdminUserList> => {
+
+  return apiFetch<AdminUserList>(getFindUsersUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getFindUsersQueryKey = (params?: FindUsersParams,) => {
+    return [
+    `/api/v1/admin/users`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getFindUsersQueryOptions = <TData = Awaited<ReturnType<typeof findUsers>>, TError = UnauthorizedResponse | ForbiddenResponse>(params: FindUsersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof findUsers>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getFindUsersQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof findUsers>>> = ({ signal }) => findUsers(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof findUsers>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type FindUsersQueryResult = NonNullable<Awaited<ReturnType<typeof findUsers>>>
+export type FindUsersQueryError = UnauthorizedResponse | ForbiddenResponse
+
+
+export function useFindUsers<TData = Awaited<ReturnType<typeof findUsers>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params: FindUsersParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof findUsers>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof findUsers>>,
+          TError,
+          Awaited<ReturnType<typeof findUsers>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useFindUsers<TData = Awaited<ReturnType<typeof findUsers>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params: FindUsersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof findUsers>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof findUsers>>,
+          TError,
+          Awaited<ReturnType<typeof findUsers>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useFindUsers<TData = Awaited<ReturnType<typeof findUsers>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params: FindUsersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof findUsers>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Tìm người dùng theo email
+ */
+
+export function useFindUsers<TData = Awaited<ReturnType<typeof findUsers>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params: FindUsersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof findUsers>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getFindUsersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGrantUserPlanUrl = (userId: string,) => {
+
+
+
+
+  return `/api/v1/admin/users/${userId}/plan`
+}
+
+/**
+ * rbac: `billing:manage`. Hands a learner days, stacked after their
+ * current end date, with a note saying why. Audited.
+ * @summary Tặng ngày Premium
+ */
+export const grantUserPlan = async (userId: string,
+    grantPlanRequest: GrantPlanRequest, options?: Parameters<typeof apiFetch>[1]): Promise<AdminUser> => {
+
+  return apiFetch<AdminUser>(getGrantUserPlanUrl(userId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(grantPlanRequest)
+  }
+);}
+
+
+
+
+
+export const getGrantUserPlanMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof grantUserPlan>>, TError,{userId: string;data: GrantPlanRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof grantUserPlan>>, TError,{userId: string;data: GrantPlanRequest}, TContext> => {
+
+const mutationKey = ['grantUserPlan'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof grantUserPlan>>, {userId: string;data: GrantPlanRequest}> = (props) => {
+          const {userId,data} = props ?? {};
+
+          return  grantUserPlan(userId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type GrantUserPlanMutationResult = NonNullable<Awaited<ReturnType<typeof grantUserPlan>>>
+    export type GrantUserPlanMutationBody = GrantPlanRequest
+    export type GrantUserPlanMutationError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | UnprocessableResponse
+
+    /**
+ * @summary Tặng ngày Premium
+ */
+export const useGrantUserPlan = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof grantUserPlan>>, TError,{userId: string;data: GrantPlanRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof grantUserPlan>>,
+        TError,
+        {userId: string;data: GrantPlanRequest},
+        TContext
+      > => {
+      return useMutation(getGrantUserPlanMutationOptions(options), queryClient);
+    }
 
 export const getListAdminExamsUrl = (params?: ListAdminExamsParams,) => {
   const normalizedParams = new URLSearchParams();
