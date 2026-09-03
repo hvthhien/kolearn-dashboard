@@ -27,4 +27,15 @@ import type { DictationSetListItem } from './dictationSetListItem';
 
 export interface DictationSetList {
   items: DictationSetListItem[];
+  /**
+     * Every set the filters match, not the ones on this page — what sizes
+     * the pager, and the only number that can say whether a next page
+     * exists.
+     *
+     * NOT the number on the "Tất cả" chip: that one counts the whole
+     * corpus whichever chip is pressed (see
+     * `DictationCategoryList.totalCount`), while this one counts what the
+     * pressed chip is showing.
+     */
+  totalCount: number;
 }

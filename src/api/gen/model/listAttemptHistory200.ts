@@ -24,6 +24,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { AttemptHistoryRow } from './attemptHistoryRow';
+import type { AttemptModeCounts } from './attemptModeCounts';
 
 export type ListAttemptHistory200 = {
   items: AttemptHistoryRow[];
@@ -33,4 +34,5 @@ export type ListAttemptHistory200 = {
      * page cannot say whether there is a next one.
      */
   totalCount: number;
+  modeCounts: AttemptModeCounts;
 };

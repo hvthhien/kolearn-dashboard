@@ -23,9 +23,16 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { ExamLevelCounts } from './examLevelCounts';
 import type { ExamListItem } from './examListItem';
 
 export type ListExams200 = {
   items: ExamListItem[];
-  nextCursor?: string;
+  /**
+     * Every published paper matching `level`, not the ones on
+     * this page. A pager that cannot see past its own page
+     * cannot say whether there is a next one.
+     */
+  totalCount: number;
+  levelCounts: ExamLevelCounts;
 };

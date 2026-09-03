@@ -49,6 +49,16 @@ export function AppBar() {
           <Link to="/imports" className={NAV_ITEM}>
             Nhập lô
           </Link>
+          {/* Offered only to an account that can use it. The rest of the nav
+              is open to every account that reaches this app because the bank's
+              floor, exam:read, is what let them in; billing:manage is held by
+              admin alone, and a link to a screen that 403s teaches the wrong
+              model of one's own account. */}
+          {user?.permissions.includes('billing:manage') && (
+            <Link to="/billing" className={NAV_ITEM}>
+              Thanh toán
+            </Link>
+          )}
 
           {user && (
             <span className="ml-2 hidden text-xs text-muted md:inline">

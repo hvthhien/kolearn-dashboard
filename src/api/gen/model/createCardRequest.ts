@@ -26,6 +26,18 @@
 import type { CreateCardRequestType } from './createCardRequestType';
 
 export interface CreateCardRequest {
+  /**
+     * The learner's folder for the new card. Absent leaves it ungrouped.
+     *
+     * Applied ONLY to a card this request actually inserts. A front
+     * already in the deck comes back untouched (TCCN-109-2, TCCN-109-10)
+     * and that includes its folder: someone saving a word again from
+     * another screen has not asked to re-file the card they have been
+     * working through. Moving one is `PUT /cards/{cardId}/group`.
+     *
+     * A folder belonging to another learner answers 404.
+     */
+  groupId?: string;
   type: CreateCardRequestType;
   /** @minLength 1 */
   front: string;

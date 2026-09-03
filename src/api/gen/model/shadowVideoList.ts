@@ -27,4 +27,16 @@ import type { ShadowVideoListItem } from './shadowVideoListItem';
 
 export interface ShadowVideoList {
   items: ShadowVideoListItem[];
+  /**
+     * Every video the filters match, not the ones on this page — the same
+     * contract `GET /me/attempts` states, and for the same reason: a pager
+     * that can only see its own page cannot say whether there is a next
+     * one.
+     *
+     * NOT the number on the "Tất cả" chip. That one counts the whole
+     * corpus whichever chip is pressed (see `ShadowCategoryList.totalCount`);
+     * this one counts what the pressed chip is showing, because it is what
+     * sizes the pager under it.
+     */
+  totalCount: number;
 }

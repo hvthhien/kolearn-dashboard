@@ -69,19 +69,29 @@ import type {
   AttemptResult,
   AttemptRunner,
   AudioTicket,
+  AuthProviders,
   AuthTokens,
   BadRequestResponse,
   CardBatchResult,
+  CardFrontTakenProblem,
+  CardGroup,
+  CardGroups,
   CardResult,
+  ChangePassword,
   ClipRedirectResponse,
+  CodeRedemptionList,
+  CompleteGoogleSignInParams,
   ConfirmShadowUploadRequest,
   ConflictResponse,
+  CreateCardGroupBody,
   CreateCardRequest,
   CreateCardsBatchBody,
+  CreateRedeemCodesRequest,
   CreateShadowUploadTargetRequest,
   CreateShadowVideoRequest,
   CreateTopicBody,
   CurrentUser,
+  CustomExamOptions,
   DictationAttemptRequest,
   DictationAttemptResult,
   DictationCategoryList,
@@ -102,6 +112,10 @@ import type {
   ListAdminExamsParams,
   ListAdminQuestions200,
   ListAdminShadowVideosParams,
+  ListAssistantThreads200,
+  ListAssistantThreadsParams,
+  ListAssistantTurns200,
+  ListAssistantTurnsParams,
   ListAttemptHistory200,
   ListAttemptHistoryParams,
   ListBlueprints200,
@@ -110,6 +124,7 @@ import type {
   ListExamsParams,
   ListMyCards200,
   ListMyCardsParams,
+  ListRedeemCodesParams,
   ListShadowVideosParams,
   ListStudyCards200,
   ListStudyCardsParams,
@@ -117,6 +132,7 @@ import type {
   ListTopicsParams,
   LoginRequest,
   MediaRedirectResponse,
+  MovedResult,
   MyCard,
   MyPlacement,
   NotFoundResponse,
@@ -133,7 +149,12 @@ import type {
   PublishReport,
   QuestionTopicsResult,
   RecordAnswerRequest,
+  RedeemCode,
+  RedeemCodeList,
+  RedeemCodeRequest,
+  RedeemCodeResult,
   RegisterRequest,
+  RenameCardGroupBody,
   ResetPasswordBody,
   ReviewAttempt200,
   ReviewAttemptParams,
@@ -146,6 +167,9 @@ import type {
   SaveShadowVideoRequest,
   SaveWritingDraftRequest,
   SectionKind,
+  SessionList,
+  SetCardGroupBatchBody,
+  SetCardGroupBody,
   SetCardStateBody,
   SetLevelRequest,
   SetQuestionTopicsBody,
@@ -158,10 +182,13 @@ import type {
   ShadowVideoDetail,
   ShadowVideoList,
   StartAttemptRequest,
+  StartCustomExamBody,
+  StartGoogleSignInParams,
   StartPlacementRequest,
   StartTopicPracticeBody,
   StartWeaknessRetakeBody,
   StreamTicketedAudioParams,
+  StudyStreak,
   SubmitSection200,
   TooManyRequestsResponse,
   Topic,
@@ -169,7 +196,10 @@ import type {
   UnauthorizedResponse,
   UnprocessableResponse,
   UpdateAttemptBody,
+  UpdateCardRequest,
   UpdateExamRequest,
+  UpdateProfile,
+  UserTimezone,
   VerifyEmailBody,
   WeaknessPreference,
   WeaknessRetakeSummary,
@@ -479,6 +509,348 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       return useMutation(getLogoutMutationOptions(options), queryClient);
     }
 
+export const getGetAuthProvidersUrl = () => {
+
+
+
+
+  return `/api/v1/auth/providers`
+}
+
+/**
+ * Password sign-in is always available. Google is available only when the
+ * deployment holds OAuth credentials, and the client asks rather than
+ * assuming: a button that leads to an unmounted route is worse than no
+ * button, and a build-time flag in the client would be a second copy of
+ * this fact that can disagree with it.
+ * @summary Which sign-in methods this deployment offers
+ */
+export const getAuthProviders = async ( options?: Parameters<typeof apiFetch>[1]): Promise<AuthProviders> => {
+
+  return apiFetch<AuthProviders>(getGetAuthProvidersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetAuthProvidersQueryKey = () => {
+    return [
+    `/api/v1/auth/providers`
+    ] as const;
+    }
+
+
+export const getGetAuthProvidersQueryOptions = <TData = Awaited<ReturnType<typeof getAuthProviders>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAuthProviders>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetAuthProvidersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getAuthProviders>>> = ({ signal }) => getAuthProviders({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getAuthProviders>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetAuthProvidersQueryResult = NonNullable<Awaited<ReturnType<typeof getAuthProviders>>>
+export type GetAuthProvidersQueryError = unknown
+
+
+export function useGetAuthProviders<TData = Awaited<ReturnType<typeof getAuthProviders>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAuthProviders>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getAuthProviders>>,
+          TError,
+          Awaited<ReturnType<typeof getAuthProviders>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetAuthProviders<TData = Awaited<ReturnType<typeof getAuthProviders>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAuthProviders>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getAuthProviders>>,
+          TError,
+          Awaited<ReturnType<typeof getAuthProviders>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetAuthProviders<TData = Awaited<ReturnType<typeof getAuthProviders>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAuthProviders>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Which sign-in methods this deployment offers
+ */
+
+export function useGetAuthProviders<TData = Awaited<ReturnType<typeof getAuthProviders>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getAuthProviders>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetAuthProvidersQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getStartGoogleSignInUrl = (params?: StartGoogleSignInParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/auth/google/start?${stringifiedParams}` : `/api/v1/auth/google/start`
+}
+
+/**
+ * A browser navigation, not an API call — follow it by setting
+ * `location.href`, never with `fetch`. Responds 302 to Google's consent
+ * screen and sets a short-lived httpOnly cookie holding the CSRF state and
+ * the PKCE verifier for the callback to check.
+ *
+ * Returns 404 when the deployment has no Google credentials; ask
+ * `GET /auth/providers` first.
+ * @summary Begin Google sign-in
+ */
+export const startGoogleSignIn = async (params?: StartGoogleSignInParams, options?: Parameters<typeof apiFetch>[1]): Promise<unknown> => {
+
+  return apiFetch<unknown>(getStartGoogleSignInUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getStartGoogleSignInQueryKey = (params?: StartGoogleSignInParams,) => {
+    return [
+    `/api/v1/auth/google/start`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getStartGoogleSignInQueryOptions = <TData = Awaited<ReturnType<typeof startGoogleSignIn>>, TError = void | NotFoundResponse>(params?: StartGoogleSignInParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof startGoogleSignIn>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getStartGoogleSignInQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof startGoogleSignIn>>> = ({ signal }) => startGoogleSignIn(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof startGoogleSignIn>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type StartGoogleSignInQueryResult = NonNullable<Awaited<ReturnType<typeof startGoogleSignIn>>>
+export type StartGoogleSignInQueryError = void | NotFoundResponse
+
+
+export function useStartGoogleSignIn<TData = Awaited<ReturnType<typeof startGoogleSignIn>>, TError = void | NotFoundResponse>(
+ params: undefined |  StartGoogleSignInParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof startGoogleSignIn>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof startGoogleSignIn>>,
+          TError,
+          Awaited<ReturnType<typeof startGoogleSignIn>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useStartGoogleSignIn<TData = Awaited<ReturnType<typeof startGoogleSignIn>>, TError = void | NotFoundResponse>(
+ params?: StartGoogleSignInParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof startGoogleSignIn>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof startGoogleSignIn>>,
+          TError,
+          Awaited<ReturnType<typeof startGoogleSignIn>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useStartGoogleSignIn<TData = Awaited<ReturnType<typeof startGoogleSignIn>>, TError = void | NotFoundResponse>(
+ params?: StartGoogleSignInParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof startGoogleSignIn>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Begin Google sign-in
+ */
+
+export function useStartGoogleSignIn<TData = Awaited<ReturnType<typeof startGoogleSignIn>>, TError = void | NotFoundResponse>(
+ params?: StartGoogleSignInParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof startGoogleSignIn>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getStartGoogleSignInQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCompleteGoogleSignInUrl = (params?: CompleteGoogleSignInParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/auth/google/callback?${stringifiedParams}` : `/api/v1/auth/google/callback`
+}
+
+/**
+ * Called by the browser, from Google — never by the client directly.
+ *
+ * On success the refresh token is set as the same httpOnly cookie a
+ * password login sets and the browser is redirected into the app, which
+ * discovers the session through the `/auth/refresh` it already performs on
+ * boot. Nothing about the session travels in the URL.
+ *
+ * On failure the browser is redirected to `/login?error=<code>` instead.
+ * The codes are `google_cancelled` (the learner pressed cancel),
+ * `google_state` (the attempt expired or did not start in this browser),
+ * `google_unverified` (Google has not verified the address, so it cannot
+ * be used to claim or create an account), `google_suspended`, and
+ * `google_failed`.
+ * @summary Google's redirect back
+ */
+export const completeGoogleSignIn = async (params?: CompleteGoogleSignInParams, options?: Parameters<typeof apiFetch>[1]): Promise<unknown> => {
+
+  return apiFetch<unknown>(getCompleteGoogleSignInUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getCompleteGoogleSignInQueryKey = (params?: CompleteGoogleSignInParams,) => {
+    return [
+    `/api/v1/auth/google/callback`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getCompleteGoogleSignInQueryOptions = <TData = Awaited<ReturnType<typeof completeGoogleSignIn>>, TError = void | NotFoundResponse>(params?: CompleteGoogleSignInParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof completeGoogleSignIn>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getCompleteGoogleSignInQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof completeGoogleSignIn>>> = ({ signal }) => completeGoogleSignIn(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof completeGoogleSignIn>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type CompleteGoogleSignInQueryResult = NonNullable<Awaited<ReturnType<typeof completeGoogleSignIn>>>
+export type CompleteGoogleSignInQueryError = void | NotFoundResponse
+
+
+export function useCompleteGoogleSignIn<TData = Awaited<ReturnType<typeof completeGoogleSignIn>>, TError = void | NotFoundResponse>(
+ params: undefined |  CompleteGoogleSignInParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof completeGoogleSignIn>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof completeGoogleSignIn>>,
+          TError,
+          Awaited<ReturnType<typeof completeGoogleSignIn>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useCompleteGoogleSignIn<TData = Awaited<ReturnType<typeof completeGoogleSignIn>>, TError = void | NotFoundResponse>(
+ params?: CompleteGoogleSignInParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof completeGoogleSignIn>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof completeGoogleSignIn>>,
+          TError,
+          Awaited<ReturnType<typeof completeGoogleSignIn>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useCompleteGoogleSignIn<TData = Awaited<ReturnType<typeof completeGoogleSignIn>>, TError = void | NotFoundResponse>(
+ params?: CompleteGoogleSignInParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof completeGoogleSignIn>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Google's redirect back
+ */
+
+export function useCompleteGoogleSignIn<TData = Awaited<ReturnType<typeof completeGoogleSignIn>>, TError = void | NotFoundResponse>(
+ params?: CompleteGoogleSignInParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof completeGoogleSignIn>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getCompleteGoogleSignInQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getVerifyEmailUrl = () => {
 
 
@@ -774,6 +1146,717 @@ export function useGetCurrentUser<TData = Awaited<ReturnType<typeof getCurrentUs
 
 
 
+export const getUpdateMyProfileUrl = () => {
+
+
+
+
+  return `/api/v1/me/profile`
+}
+
+/**
+ * The parts of the profile the learner owns and may change whenever they
+ * like. Today that is the name they are called on screen.
+ *
+ * **A patch, with every property optional**: an absent key leaves the
+ * stored value alone, and an empty object is a no-op that answers 200. A
+ * `PUT` would have to name the learner's whole profile, and two of the
+ * fields it would then carry do not belong to it — `timezone` has an
+ * endpoint of its own because the rules for writing it are unlike any
+ * other field's (R-38), and `locale` cannot honestly be offered by a
+ * client whose every string is Vietnamese.
+ *
+ * **Answers with the whole `CurrentUser`** rather than with the field
+ * that changed, for the reason `PUT /me/timezone` echoes its zone: the
+ * client holds this object from sign-in and would otherwise have no way
+ * to learn that what was stored differs from what it sent. It will
+ * differ. See `UpdateProfile.displayName` for the cleaning applied.
+ * @summary Tên hiển thị của người học
+ */
+export const updateMyProfile = async (updateProfile: UpdateProfile, options?: Parameters<typeof apiFetch>[1]): Promise<CurrentUser> => {
+
+  return apiFetch<CurrentUser>(getUpdateMyProfileUrl(),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateProfile)
+  }
+);}
+
+
+
+
+
+export const getUpdateMyProfileMutationOptions = <TError = UnauthorizedResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMyProfile>>, TError,{data: UpdateProfile}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateMyProfile>>, TError,{data: UpdateProfile}, TContext> => {
+
+const mutationKey = ['updateMyProfile'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateMyProfile>>, {data: UpdateProfile}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateMyProfile(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateMyProfileMutationResult = NonNullable<Awaited<ReturnType<typeof updateMyProfile>>>
+    export type UpdateMyProfileMutationBody = UpdateProfile
+    export type UpdateMyProfileMutationError = UnauthorizedResponse | UnprocessableResponse
+
+    /**
+ * @summary Tên hiển thị của người học
+ */
+export const useUpdateMyProfile = <TError = UnauthorizedResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateMyProfile>>, TError,{data: UpdateProfile}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateMyProfile>>,
+        TError,
+        {data: UpdateProfile},
+        TContext
+      > => {
+      return useMutation(getUpdateMyProfileMutationOptions(options), queryClient);
+    }
+
+export const getChangeMyPasswordUrl = () => {
+
+
+
+
+  return `/api/v1/me/password`
+}
+
+/**
+ * Change the password on an account that already has one, proving
+ * ownership with the current password rather than with the session alone.
+ *
+ * **Every other session is ended; this one is not.** Changing a password
+ * is how somebody evicts a device they no longer control, so leaving the
+ * others alive would defeat the purpose — and signing the caller out of
+ * the device they are standing at, for doing the right thing, is a
+ * punishment with no security value. `POST /auth/password/reset` revokes
+ * everything including the caller, and the difference is deliberate: a
+ * reset is reached through email, often precisely because control was
+ * lost, and there is no session there worth preserving.
+ *
+ * Ended means the refresh family is revoked, so another device keeps
+ * working until its access token expires — at most fifteen minutes. It
+ * cannot renew.
+ *
+ * **An account with no password cannot use this.** `CurrentUser.hasPassword`
+ * says which case the client is in. Where it is false the account signs in
+ * only through Google, there is nothing to prove ownership with, and a
+ * first password is set through `POST /auth/password/forgot` and the email
+ * it sends — a live session is not accepted as authority to create a
+ * credential that outlives it, because a borrowed unlocked phone would
+ * then be a permanent account takeover. This answers 409
+ * `password_not_set` rather than quietly setting one.
+ *
+ * **Not rate limited**, and stated rather than left to be discovered:
+ * neither is `POST /auth/login`, which offers the same guessing to someone
+ * holding no token at all. What actually bounds both is Argon2id at 64MiB
+ * and t=3. Worth adding at the login layer for both endpoints together,
+ * not here alone.
+ * @summary Đổi mật khẩu
+ */
+export const changeMyPassword = async (changePassword: ChangePassword, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getChangeMyPasswordUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(changePassword)
+  }
+);}
+
+
+
+
+
+export const getChangeMyPasswordMutationOptions = <TError = BadRequestResponse | UnauthorizedResponse | ConflictResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changeMyPassword>>, TError,{data: ChangePassword}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof changeMyPassword>>, TError,{data: ChangePassword}, TContext> => {
+
+const mutationKey = ['changeMyPassword'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof changeMyPassword>>, {data: ChangePassword}> = (props) => {
+          const {data} = props ?? {};
+
+          return  changeMyPassword(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ChangeMyPasswordMutationResult = NonNullable<Awaited<ReturnType<typeof changeMyPassword>>>
+    export type ChangeMyPasswordMutationBody = ChangePassword
+    export type ChangeMyPasswordMutationError = BadRequestResponse | UnauthorizedResponse | ConflictResponse | UnprocessableResponse
+
+    /**
+ * @summary Đổi mật khẩu
+ */
+export const useChangeMyPassword = <TError = BadRequestResponse | UnauthorizedResponse | ConflictResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof changeMyPassword>>, TError,{data: ChangePassword}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof changeMyPassword>>,
+        TError,
+        {data: ChangePassword},
+        TContext
+      > => {
+      return useMutation(getChangeMyPasswordMutationOptions(options), queryClient);
+    }
+
+export const getListMySessionsUrl = () => {
+
+
+
+
+  return `/api/v1/me/sessions`
+}
+
+/**
+ * Where this account is signed in, one row per device.
+ *
+ * **A row is a refresh-token FAMILY, not a session row.** Rotation inserts
+ * a new row every time the access token is renewed and inherits
+ * `family_id`, so a list keyed on rows would grow an entry every fifteen
+ * minutes for one phone that never went anywhere. The family is the only
+ * identifier that lasts as long as a sign-in does, which is also why the
+ * access token carries it as `fid`.
+ *
+ * A device is listed while it still holds a token it could present: not
+ * revoked, not already rotated away, not expired. Everything else is over
+ * and is not something the learner can act on.
+ *
+ * `current` is the device asking. It comes from the caller's own `fid`
+ * claim, so it is false on every row for a token minted before that claim
+ * existed — fifteen minutes after a deploy, and never again. A list that
+ * marks nothing is less helpful for that quarter of an hour; one that
+ * marked the WRONG row would invite somebody to end the session they are
+ * sitting in.
+ *
+ * **No IP address**, and the omission is deliberate rather than pending.
+ * What a learner needs here is to tell their devices apart, and a raw
+ * address does not do that for anybody — while it is the one field on this
+ * payload with real weight if the screen is read over a shoulder. The
+ * thing that would help is an approximate place, which needs geo-IP this
+ * product does not have. `sessions.ip` is still recorded; it is simply not
+ * answered here.
+ * @summary Các thiết bị đang đăng nhập
+ */
+export const listMySessions = async ( options?: Parameters<typeof apiFetch>[1]): Promise<SessionList> => {
+
+  return apiFetch<SessionList>(getListMySessionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListMySessionsQueryKey = () => {
+    return [
+    `/api/v1/me/sessions`
+    ] as const;
+    }
+
+
+export const getListMySessionsQueryOptions = <TData = Awaited<ReturnType<typeof listMySessions>>, TError = UnauthorizedResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMySessions>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListMySessionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listMySessions>>> = ({ signal }) => listMySessions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listMySessions>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListMySessionsQueryResult = NonNullable<Awaited<ReturnType<typeof listMySessions>>>
+export type ListMySessionsQueryError = UnauthorizedResponse
+
+
+export function useListMySessions<TData = Awaited<ReturnType<typeof listMySessions>>, TError = UnauthorizedResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMySessions>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMySessions>>,
+          TError,
+          Awaited<ReturnType<typeof listMySessions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListMySessions<TData = Awaited<ReturnType<typeof listMySessions>>, TError = UnauthorizedResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMySessions>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listMySessions>>,
+          TError,
+          Awaited<ReturnType<typeof listMySessions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListMySessions<TData = Awaited<ReturnType<typeof listMySessions>>, TError = UnauthorizedResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMySessions>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Các thiết bị đang đăng nhập
+ */
+
+export function useListMySessions<TData = Awaited<ReturnType<typeof listMySessions>>, TError = UnauthorizedResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listMySessions>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListMySessionsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getEndMySessionUrl = (sessionId: string,) => {
+
+
+
+
+  return `/api/v1/me/sessions/${sessionId}`
+}
+
+/**
+ * End one device's session. Its refresh family is revoked, so it cannot
+ * renew — but an access token already in its hands keeps working until it
+ * expires, at most fifteen minutes. Said here because "đăng xuất" sounds
+ * instantaneous and is not.
+ *
+ * **The caller's own session is refused, 409.** Ending it from this list
+ * would sign the learner out with no warning, from a control whose whole
+ * purpose is to act on the OTHER devices. Đăng xuất on Cài đặt is the way
+ * out of this one, and the message says so.
+ *
+ * Scoped to the caller by the statement itself, never by a check above it:
+ * the WHERE clause names `user_id`, so another learner's session is not
+ * something this route can reach even if the id is guessed.
+ *
+ * Already-ended is 204, not 404. The device is gone, which is what was
+ * asked for, and a double tap on a stale list should not read as a
+ * failure. 404 is kept for an id that names no session of this learner's
+ * at all.
+ * @summary Đăng xuất một thiết bị khác
+ */
+export const endMySession = async (sessionId: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getEndMySessionUrl(sessionId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getEndMySessionMutationOptions = <TError = UnauthorizedResponse | NotFoundResponse | ConflictResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof endMySession>>, TError,{sessionId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof endMySession>>, TError,{sessionId: string}, TContext> => {
+
+const mutationKey = ['endMySession'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof endMySession>>, {sessionId: string}> = (props) => {
+          const {sessionId} = props ?? {};
+
+          return  endMySession(sessionId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type EndMySessionMutationResult = NonNullable<Awaited<ReturnType<typeof endMySession>>>
+
+    export type EndMySessionMutationError = UnauthorizedResponse | NotFoundResponse | ConflictResponse
+
+    /**
+ * @summary Đăng xuất một thiết bị khác
+ */
+export const useEndMySession = <TError = UnauthorizedResponse | NotFoundResponse | ConflictResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof endMySession>>, TError,{sessionId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof endMySession>>,
+        TError,
+        {sessionId: string},
+        TContext
+      > => {
+      return useMutation(getEndMySessionMutationOptions(options), queryClient);
+    }
+
+export const getSetMyTimezoneUrl = () => {
+
+
+
+
+  return `/api/v1/me/timezone`
+}
+
+/**
+ * The learner's IANA timezone. Every "day" this API reports is a day in
+ * it — today that means the streak, and any daily rollup added later.
+ *
+ * **Written on two occasions and no others.** The client reports the
+ * browser's zone once, when `GET /me` came back without one; and the
+ * learner changes it in Cài đặt. It is deliberately NOT re-reported
+ * whenever the browser disagrees with the stored value: the stored zone
+ * *is* the day boundary, so a silent update from a VPN, a laptop with a
+ * wrong clock, or a fortnight abroad would move somebody's midnight and
+ * could end a streak they were keeping. TCCN-606-1 forbids presenting a
+ * lapse as a failure; silently causing one is worse.
+ *
+ * **tzdata link names are accepted**, not just primary identifiers.
+ * `Intl.DateTimeFormat().resolvedOptions().timeZone` returns
+ * `Asia/Saigon` on a Vietnamese machine, and that name is absent from the
+ * canonical list `Intl.supportedValuesOf('timeZone')` gives. Refusing
+ * links would 422 the typical learner of this product on their first
+ * report and count them in UTC indefinitely.
+ * @summary Set the zone every "day" is counted in (R-38)
+ */
+export const setMyTimezone = async (userTimezone: UserTimezone, options?: Parameters<typeof apiFetch>[1]): Promise<UserTimezone> => {
+
+  return apiFetch<UserTimezone>(getSetMyTimezoneUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(userTimezone)
+  }
+);}
+
+
+
+
+
+export const getSetMyTimezoneMutationOptions = <TError = UnauthorizedResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setMyTimezone>>, TError,{data: UserTimezone}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setMyTimezone>>, TError,{data: UserTimezone}, TContext> => {
+
+const mutationKey = ['setMyTimezone'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setMyTimezone>>, {data: UserTimezone}> = (props) => {
+          const {data} = props ?? {};
+
+          return  setMyTimezone(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetMyTimezoneMutationResult = NonNullable<Awaited<ReturnType<typeof setMyTimezone>>>
+    export type SetMyTimezoneMutationBody = UserTimezone
+    export type SetMyTimezoneMutationError = UnauthorizedResponse | UnprocessableResponse
+
+    /**
+ * @summary Set the zone every "day" is counted in (R-38)
+ */
+export const useSetMyTimezone = <TError = UnauthorizedResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setMyTimezone>>, TError,{data: UserTimezone}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof setMyTimezone>>,
+        TError,
+        {data: UserTimezone},
+        TContext
+      > => {
+      return useMutation(getSetMyTimezoneMutationOptions(options), queryClient);
+    }
+
+export const getRedeemPlanCodeUrl = () => {
+
+
+
+
+  return `/api/v1/me/plan/redeem`
+}
+
+/**
+ * Spends a mã nâng cấp on the caller's own account and answers with the
+ * plan as it now stands, so the client can update `CurrentUser.plan`
+ * without a second request.
+ *
+ * **Stacks.** A learner already on Premium gets the code's days added
+ * after their current end date, not from today.
+ *
+ * **Every refusal is a 422 with a `code`** the client can map to its own
+ * copy, and none of them tells a guesser anything: a code that does not
+ * exist and one that was revoked are both `code_invalid`.
+ *
+ * | code | meaning |
+ * |---|---|
+ * | `code_invalid` | not a code, or revoked |
+ * | `code_expired` | past its expiry date |
+ * | `code_exhausted` | every use spent |
+ * | `code_already_used` | this learner already redeemed it |
+ *
+ * After ten failed attempts in an hour the route answers `429
+ * too_many_attempts` without looking at the code, and keeps doing so
+ * until the window passes. Attempts are counted per account.
+ * @summary Nhập mã nâng cấp
+ */
+export const redeemPlanCode = async (redeemCodeRequest: RedeemCodeRequest, options?: Parameters<typeof apiFetch>[1]): Promise<RedeemCodeResult> => {
+
+  return apiFetch<RedeemCodeResult>(getRedeemPlanCodeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(redeemCodeRequest)
+  }
+);}
+
+
+
+
+
+export const getRedeemPlanCodeMutationOptions = <TError = UnauthorizedResponse | UnprocessableResponse | TooManyRequestsResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof redeemPlanCode>>, TError,{data: RedeemCodeRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof redeemPlanCode>>, TError,{data: RedeemCodeRequest}, TContext> => {
+
+const mutationKey = ['redeemPlanCode'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof redeemPlanCode>>, {data: RedeemCodeRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  redeemPlanCode(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RedeemPlanCodeMutationResult = NonNullable<Awaited<ReturnType<typeof redeemPlanCode>>>
+    export type RedeemPlanCodeMutationBody = RedeemCodeRequest
+    export type RedeemPlanCodeMutationError = UnauthorizedResponse | UnprocessableResponse | TooManyRequestsResponse
+
+    /**
+ * @summary Nhập mã nâng cấp
+ */
+export const useRedeemPlanCode = <TError = UnauthorizedResponse | UnprocessableResponse | TooManyRequestsResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof redeemPlanCode>>, TError,{data: RedeemCodeRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof redeemPlanCode>>,
+        TError,
+        {data: RedeemCodeRequest},
+        TContext
+      > => {
+      return useMutation(getRedeemPlanCodeMutationOptions(options), queryClient);
+    }
+
+export const getGetMyStreakUrl = () => {
+
+
+
+
+  return `/api/v1/me/streak`
+}
+
+/**
+ * How many days in a row the learner has completed at least one study
+ * task, and the longest run they have ever had.
+ *
+ * **A day counts on a study task, never on a visit** (YC-605,
+ * TCCN-605-1). Opening the app, loading the dashboard, or calling this
+ * endpoint records nothing — this is a read and it writes no row. The
+ * rule is aimed at the streak rather than at the learner: if opening
+ * counted, somebody would open the app for ten seconds a day, the number
+ * would climb, and it would be measuring nothing.
+ *
+ * What does count is any deliberate study action — grading a card,
+ * practising a shadowing line, attempting a dictation sentence, answering
+ * an exam question, submitting a section or a paper, handing in an essay.
+ * An attempt the learner later abandoned still counts, because they still
+ * answered.
+ *
+ * **The second task of a day adds nothing** (TCCN-605-2). The log holds at
+ * most one row per learner per day, so that is a property of a primary key
+ * rather than of a code path.
+ *
+ * **Days are days in `CurrentUser.timezone`**, decided when the action
+ * happened. Changing the zone later moves which day future activity lands
+ * in and never re-buckets the past. A learner who has never reported a
+ * zone is counted in UTC.
+ * @summary Chuỗi ngày học (YC-602)
+ */
+export const getMyStreak = async ( options?: Parameters<typeof apiFetch>[1]): Promise<StudyStreak> => {
+
+  return apiFetch<StudyStreak>(getGetMyStreakUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetMyStreakQueryKey = () => {
+    return [
+    `/api/v1/me/streak`
+    ] as const;
+    }
+
+
+export const getGetMyStreakQueryOptions = <TData = Awaited<ReturnType<typeof getMyStreak>>, TError = UnauthorizedResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyStreak>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetMyStreakQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMyStreak>>> = ({ signal }) => getMyStreak({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMyStreak>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetMyStreakQueryResult = NonNullable<Awaited<ReturnType<typeof getMyStreak>>>
+export type GetMyStreakQueryError = UnauthorizedResponse
+
+
+export function useGetMyStreak<TData = Awaited<ReturnType<typeof getMyStreak>>, TError = UnauthorizedResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyStreak>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyStreak>>,
+          TError,
+          Awaited<ReturnType<typeof getMyStreak>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyStreak<TData = Awaited<ReturnType<typeof getMyStreak>>, TError = UnauthorizedResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyStreak>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getMyStreak>>,
+          TError,
+          Awaited<ReturnType<typeof getMyStreak>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetMyStreak<TData = Awaited<ReturnType<typeof getMyStreak>>, TError = UnauthorizedResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyStreak>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Chuỗi ngày học (YC-602)
+ */
+
+export function useGetMyStreak<TData = Awaited<ReturnType<typeof getMyStreak>>, TError = UnauthorizedResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getMyStreak>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetMyStreakQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getListExamsUrl = (params?: ListExamsParams,) => {
   const normalizedParams = new URLSearchParams();
 
@@ -792,6 +1875,15 @@ export const getListExamsUrl = (params?: ListExamsParams,) => {
 /**
  * Each entry carries the caller's own attempt count and best score, which
  * is what the list screen shows beside each exam.
+ *
+ * Readable without a session. A visitor gets the same rows with
+ * `attemptCount` at 0 and no `bestScore` or `lastAttemptedAt` — the
+ * catalogue a brand-new account sees — so the guest preview can show
+ * the real shelf rather than a brochure of it. The paper itself
+ * (`GET /exams/{examId}`) still needs an account: the screen it feeds
+ * ends in `Bắt đầu làm bài`, and the client asks for the account at the
+ * row instead of at that press. See docs/proposals/guest-preview.md in
+ * kolearn-web.
  * @summary Browse exams (YC-101)
  */
 export const listExams = async (params?: ListExamsParams, options?: Parameters<typeof apiFetch>[1]): Promise<ListExams200> => {
@@ -816,7 +1908,7 @@ export const getListExamsQueryKey = (params?: ListExamsParams,) => {
     }
 
 
-export const getListExamsQueryOptions = <TData = Awaited<ReturnType<typeof listExams>>, TError = UnauthorizedResponse>(params?: ListExamsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listExams>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export const getListExamsQueryOptions = <TData = Awaited<ReturnType<typeof listExams>>, TError = unknown>(params?: ListExamsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listExams>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -835,10 +1927,10 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type ListExamsQueryResult = NonNullable<Awaited<ReturnType<typeof listExams>>>
-export type ListExamsQueryError = UnauthorizedResponse
+export type ListExamsQueryError = unknown
 
 
-export function useListExams<TData = Awaited<ReturnType<typeof listExams>>, TError = UnauthorizedResponse>(
+export function useListExams<TData = Awaited<ReturnType<typeof listExams>>, TError = unknown>(
  params: undefined |  ListExamsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listExams>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof listExams>>,
@@ -848,7 +1940,7 @@ export function useListExams<TData = Awaited<ReturnType<typeof listExams>>, TErr
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListExams<TData = Awaited<ReturnType<typeof listExams>>, TError = UnauthorizedResponse>(
+export function useListExams<TData = Awaited<ReturnType<typeof listExams>>, TError = unknown>(
  params?: ListExamsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listExams>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof listExams>>,
@@ -858,7 +1950,7 @@ export function useListExams<TData = Awaited<ReturnType<typeof listExams>>, TErr
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListExams<TData = Awaited<ReturnType<typeof listExams>>, TError = UnauthorizedResponse>(
+export function useListExams<TData = Awaited<ReturnType<typeof listExams>>, TError = unknown>(
  params?: ListExamsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listExams>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
@@ -866,7 +1958,7 @@ export function useListExams<TData = Awaited<ReturnType<typeof listExams>>, TErr
  * @summary Browse exams (YC-101)
  */
 
-export function useListExams<TData = Awaited<ReturnType<typeof listExams>>, TError = UnauthorizedResponse>(
+export function useListExams<TData = Awaited<ReturnType<typeof listExams>>, TError = unknown>(
  params?: ListExamsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listExams>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
@@ -3463,6 +4555,687 @@ export const useCreateCardsBatch = <TError = UnauthorizedResponse | Unprocessabl
       return useMutation(getCreateCardsBatchMutationOptions(options), queryClient);
     }
 
+export const getListCardGroupsUrl = () => {
+
+
+
+
+  return `/api/v1/me/card-groups`
+}
+
+/**
+ * Folders, not decks. Every card still belongs to the one deck the three
+ * card sources pour into — ver1.2 is blunt that "làm ra bộ thẻ thứ hai là
+ * phá nguyên tắc lớn nhất của cả sản phẩm" — and a group is a name the
+ * learner has put on some of them. `MyCard.deckId` is unaffected.
+ *
+ * Each carries its card count, because these render as filter chips and a
+ * chip that shows a number has to show the number a tap would produce.
+ * Ordered by name, so the row does not reshuffle between two visits.
+ * @summary The learner's own folders over their deck (YC-109)
+ */
+export const listCardGroups = async ( options?: Parameters<typeof apiFetch>[1]): Promise<CardGroups> => {
+
+  return apiFetch<CardGroups>(getListCardGroupsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCardGroupsQueryKey = () => {
+    return [
+    `/api/v1/me/card-groups`
+    ] as const;
+    }
+
+
+export const getListCardGroupsQueryOptions = <TData = Awaited<ReturnType<typeof listCardGroups>>, TError = UnauthorizedResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCardGroups>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCardGroupsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCardGroups>>> = ({ signal }) => listCardGroups({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCardGroups>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListCardGroupsQueryResult = NonNullable<Awaited<ReturnType<typeof listCardGroups>>>
+export type ListCardGroupsQueryError = UnauthorizedResponse
+
+
+export function useListCardGroups<TData = Awaited<ReturnType<typeof listCardGroups>>, TError = UnauthorizedResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCardGroups>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listCardGroups>>,
+          TError,
+          Awaited<ReturnType<typeof listCardGroups>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListCardGroups<TData = Awaited<ReturnType<typeof listCardGroups>>, TError = UnauthorizedResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCardGroups>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listCardGroups>>,
+          TError,
+          Awaited<ReturnType<typeof listCardGroups>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListCardGroups<TData = Awaited<ReturnType<typeof listCardGroups>>, TError = UnauthorizedResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCardGroups>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary The learner's own folders over their deck (YC-109)
+ */
+
+export function useListCardGroups<TData = Awaited<ReturnType<typeof listCardGroups>>, TError = UnauthorizedResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCardGroups>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListCardGroupsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateCardGroupUrl = () => {
+
+
+
+
+  return `/api/v1/card-groups`
+}
+
+/**
+ * Idempotent on the name, for the reason `POST /cards` is idempotent on a
+ * card's front: the picker offers "tạo nhóm" from whatever the learner
+ * typed, and someone who types a name they already have meant the folder
+ * they already have. Answering 409 there would be the app refusing to do
+ * the obvious thing and sending them off to find it.
+ *
+ * Names are compared with the same normalisation the deck dedupes cards
+ * with, so "Động từ" and "động từ" are one folder.
+ * @summary Make a folder (YC-109)
+ */
+export const createCardGroup = async (createCardGroupBody: CreateCardGroupBody, options?: Parameters<typeof apiFetch>[1]): Promise<CardGroup> => {
+
+  return apiFetch<CardGroup>(getCreateCardGroupUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createCardGroupBody)
+  }
+);}
+
+
+
+
+
+export const getCreateCardGroupMutationOptions = <TError = UnauthorizedResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCardGroup>>, TError,{data: CreateCardGroupBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createCardGroup>>, TError,{data: CreateCardGroupBody}, TContext> => {
+
+const mutationKey = ['createCardGroup'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createCardGroup>>, {data: CreateCardGroupBody}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createCardGroup(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateCardGroupMutationResult = NonNullable<Awaited<ReturnType<typeof createCardGroup>>>
+    export type CreateCardGroupMutationBody = CreateCardGroupBody
+    export type CreateCardGroupMutationError = UnauthorizedResponse | UnprocessableResponse
+
+    /**
+ * @summary Make a folder (YC-109)
+ */
+export const useCreateCardGroup = <TError = UnauthorizedResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createCardGroup>>, TError,{data: CreateCardGroupBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createCardGroup>>,
+        TError,
+        {data: CreateCardGroupBody},
+        TContext
+      > => {
+      return useMutation(getCreateCardGroupMutationOptions(options), queryClient);
+    }
+
+export const getRenameCardGroupUrl = (groupId: string,) => {
+
+
+
+
+  return `/api/v1/card-groups/${groupId}`
+}
+
+/**
+ * @summary Rename a folder (YC-109)
+ */
+export const renameCardGroup = async (groupId: string,
+    renameCardGroupBody: RenameCardGroupBody, options?: Parameters<typeof apiFetch>[1]): Promise<CardGroup> => {
+
+  return apiFetch<CardGroup>(getRenameCardGroupUrl(groupId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(renameCardGroupBody)
+  }
+);}
+
+
+
+
+
+export const getRenameCardGroupMutationOptions = <TError = UnauthorizedResponse | NotFoundResponse | Problem | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof renameCardGroup>>, TError,{groupId: string;data: RenameCardGroupBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof renameCardGroup>>, TError,{groupId: string;data: RenameCardGroupBody}, TContext> => {
+
+const mutationKey = ['renameCardGroup'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof renameCardGroup>>, {groupId: string;data: RenameCardGroupBody}> = (props) => {
+          const {groupId,data} = props ?? {};
+
+          return  renameCardGroup(groupId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RenameCardGroupMutationResult = NonNullable<Awaited<ReturnType<typeof renameCardGroup>>>
+    export type RenameCardGroupMutationBody = RenameCardGroupBody
+    export type RenameCardGroupMutationError = UnauthorizedResponse | NotFoundResponse | Problem | UnprocessableResponse
+
+    /**
+ * @summary Rename a folder (YC-109)
+ */
+export const useRenameCardGroup = <TError = UnauthorizedResponse | NotFoundResponse | Problem | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof renameCardGroup>>, TError,{groupId: string;data: RenameCardGroupBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof renameCardGroup>>,
+        TError,
+        {groupId: string;data: RenameCardGroupBody},
+        TContext
+      > => {
+      return useMutation(getRenameCardGroupMutationOptions(options), queryClient);
+    }
+
+export const getDeleteCardGroupUrl = (groupId: string,) => {
+
+
+
+
+  return `/api/v1/card-groups/${groupId}`
+}
+
+/**
+ * **The cards survive.** A learner tidying their folders is not asking to
+ * lose a month of saved words, and a cascade here would take them with a
+ * tap on "Xoá nhóm" — silently, because the deck screen would simply have
+ * fewer rows and nothing would say why. They become ungrouped, which every
+ * screen already renders.
+ *
+ * The database guarantees it rather than the handler remembering to:
+ * `cards.group_id` is ON DELETE SET NULL.
+ * @summary Remove a folder, keeping what was in it (YC-109)
+ */
+export const deleteCardGroup = async (groupId: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getDeleteCardGroupUrl(groupId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteCardGroupMutationOptions = <TError = UnauthorizedResponse | NotFoundResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCardGroup>>, TError,{groupId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteCardGroup>>, TError,{groupId: string}, TContext> => {
+
+const mutationKey = ['deleteCardGroup'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteCardGroup>>, {groupId: string}> = (props) => {
+          const {groupId} = props ?? {};
+
+          return  deleteCardGroup(groupId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteCardGroupMutationResult = NonNullable<Awaited<ReturnType<typeof deleteCardGroup>>>
+
+    export type DeleteCardGroupMutationError = UnauthorizedResponse | NotFoundResponse
+
+    /**
+ * @summary Remove a folder, keeping what was in it (YC-109)
+ */
+export const useDeleteCardGroup = <TError = UnauthorizedResponse | NotFoundResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCardGroup>>, TError,{groupId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteCardGroup>>,
+        TError,
+        {groupId: string},
+        TContext
+      > => {
+      return useMutation(getDeleteCardGroupMutationOptions(options), queryClient);
+    }
+
+export const getSetCardGroupBatchUrl = () => {
+
+
+
+
+  return `/api/v1/cards:group`
+}
+
+/**
+ * One statement, not a loop. The screen that calls this is "tick the loose
+ * cards and file them", and fifty round trips for one gesture — each able
+ * to fail on its own — would make a partial result the normal outcome and
+ * leave the learner to work out which half landed.
+ *
+ * `groupId` is nullable and required, exactly as on the single-card route:
+ * an id files them, `null` takes them all out.
+ *
+ * Ids that are not this learner's are skipped rather than refused. The
+ * caller is a multi-select over a list this API just sent, so a mismatch
+ * means the list moved underneath them — a card deleted in another tab —
+ * and failing the batch would punish a race they cannot see. A missing
+ * FOLDER is still 404, because that one the learner chose.
+ * @summary File a whole selection into a folder at once (YC-109)
+ */
+export const setCardGroupBatch = async (setCardGroupBatchBody: SetCardGroupBatchBody, options?: Parameters<typeof apiFetch>[1]): Promise<MovedResult> => {
+
+  return apiFetch<MovedResult>(getSetCardGroupBatchUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(setCardGroupBatchBody)
+  }
+);}
+
+
+
+
+
+export const getSetCardGroupBatchMutationOptions = <TError = UnauthorizedResponse | NotFoundResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setCardGroupBatch>>, TError,{data: SetCardGroupBatchBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setCardGroupBatch>>, TError,{data: SetCardGroupBatchBody}, TContext> => {
+
+const mutationKey = ['setCardGroupBatch'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setCardGroupBatch>>, {data: SetCardGroupBatchBody}> = (props) => {
+          const {data} = props ?? {};
+
+          return  setCardGroupBatch(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetCardGroupBatchMutationResult = NonNullable<Awaited<ReturnType<typeof setCardGroupBatch>>>
+    export type SetCardGroupBatchMutationBody = SetCardGroupBatchBody
+    export type SetCardGroupBatchMutationError = UnauthorizedResponse | NotFoundResponse | UnprocessableResponse
+
+    /**
+ * @summary File a whole selection into a folder at once (YC-109)
+ */
+export const useSetCardGroupBatch = <TError = UnauthorizedResponse | NotFoundResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setCardGroupBatch>>, TError,{data: SetCardGroupBatchBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof setCardGroupBatch>>,
+        TError,
+        {data: SetCardGroupBatchBody},
+        TContext
+      > => {
+      return useMutation(getSetCardGroupBatchMutationOptions(options), queryClient);
+    }
+
+export const getSetCardGroupUrl = (cardId: string,) => {
+
+
+
+
+  return `/api/v1/cards/${cardId}/group`
+}
+
+/**
+ * PUT rather than a field on `PATCH /cards/{cardId}`, and for the two
+ * reasons `PUT .../state` is a PUT. The body is the whole value of one
+ * thing, so a replay is harmless — filing a card is a tap on a phone and a
+ * flaky connection sends it twice. And "ungroup" has to be sayable: an
+ * absent field on a PATCH means "leave it", which leaves nothing to mean
+ * "take it out of every folder".
+ *
+ * So `groupId` is **nullable and required**: send an id to file it, send
+ * `null` to ungroup it. Re-sending the folder a card is already in writes
+ * nothing.
+ *
+ * A folder belonging to another learner answers 404 — checked against the
+ * same owner as the card, because the foreign key alone only knows the
+ * group exists, not whose it is.
+ * @summary File a card in a folder, or take it out (YC-109)
+ */
+export const setCardGroup = async (cardId: string,
+    setCardGroupBody: SetCardGroupBody, options?: Parameters<typeof apiFetch>[1]): Promise<MyCard> => {
+
+  return apiFetch<MyCard>(getSetCardGroupUrl(cardId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(setCardGroupBody)
+  }
+);}
+
+
+
+
+
+export const getSetCardGroupMutationOptions = <TError = UnauthorizedResponse | NotFoundResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setCardGroup>>, TError,{cardId: string;data: SetCardGroupBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setCardGroup>>, TError,{cardId: string;data: SetCardGroupBody}, TContext> => {
+
+const mutationKey = ['setCardGroup'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setCardGroup>>, {cardId: string;data: SetCardGroupBody}> = (props) => {
+          const {cardId,data} = props ?? {};
+
+          return  setCardGroup(cardId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetCardGroupMutationResult = NonNullable<Awaited<ReturnType<typeof setCardGroup>>>
+    export type SetCardGroupMutationBody = SetCardGroupBody
+    export type SetCardGroupMutationError = UnauthorizedResponse | NotFoundResponse | UnprocessableResponse
+
+    /**
+ * @summary File a card in a folder, or take it out (YC-109)
+ */
+export const useSetCardGroup = <TError = UnauthorizedResponse | NotFoundResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setCardGroup>>, TError,{cardId: string;data: SetCardGroupBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof setCardGroup>>,
+        TError,
+        {cardId: string;data: SetCardGroupBody},
+        TContext
+      > => {
+      return useMutation(getSetCardGroupMutationOptions(options), queryClient);
+    }
+
+export const getUpdateCardUrl = (cardId: string,) => {
+
+
+
+
+  return `/api/v1/cards/${cardId}`
+}
+
+/**
+ * Until this existed a card was permanent: `PUT .../state` was the only
+ * write to an existing row, so a mistyped front could not be corrected —
+ * and could not be worked around either, because the deck's unique index
+ * on `normalize_text(front)` refuses the corrected duplicate.
+ *
+ * PATCH rather than PUT, unlike the state route: two independent optional
+ * fields, where that one carries the whole value of a single thing.
+ *
+ * Writes `front` and `back` and nothing else — no state, no
+ * `createdAt`, and none of R-15's three unused scheduling columns.
+ * Re-sending the values a card already has writes nothing at all, so a
+ * replayed request does not move `updatedAt`.
+ *
+ * Editing does not open a streak day. Fixing a typo is not a study task.
+ * @summary Fix a card's front or its meaning (YC-109)
+ */
+export const updateCard = async (cardId: string,
+    updateCardRequest: UpdateCardRequest, options?: Parameters<typeof apiFetch>[1]): Promise<MyCard> => {
+
+  return apiFetch<MyCard>(getUpdateCardUrl(cardId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateCardRequest)
+  }
+);}
+
+
+
+
+
+export const getUpdateCardMutationOptions = <TError = UnauthorizedResponse | NotFoundResponse | CardFrontTakenProblem | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCard>>, TError,{cardId: string;data: UpdateCardRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateCard>>, TError,{cardId: string;data: UpdateCardRequest}, TContext> => {
+
+const mutationKey = ['updateCard'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateCard>>, {cardId: string;data: UpdateCardRequest}> = (props) => {
+          const {cardId,data} = props ?? {};
+
+          return  updateCard(cardId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateCardMutationResult = NonNullable<Awaited<ReturnType<typeof updateCard>>>
+    export type UpdateCardMutationBody = UpdateCardRequest
+    export type UpdateCardMutationError = UnauthorizedResponse | NotFoundResponse | CardFrontTakenProblem | UnprocessableResponse
+
+    /**
+ * @summary Fix a card's front or its meaning (YC-109)
+ */
+export const useUpdateCard = <TError = UnauthorizedResponse | NotFoundResponse | CardFrontTakenProblem | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateCard>>, TError,{cardId: string;data: UpdateCardRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateCard>>,
+        TError,
+        {cardId: string;data: UpdateCardRequest},
+        TContext
+      > => {
+      return useMutation(getUpdateCardMutationOptions(options), queryClient);
+    }
+
+export const getDeleteCardUrl = (cardId: string,) => {
+
+
+
+
+  return `/api/v1/cards/${cardId}`
+}
+
+/**
+ * Gone, not hidden. The card's chủ điểm rows and its record of which
+ * papers hold the word go with it; the weakness picture is computed from
+ * the error log and is untouched, and a paper's bảng từ vựng simply shows
+ * the word as "Chưa lưu" again, with a working save button.
+ *
+ * A tombstone would be wrong rather than merely heavier: the deck's
+ * unique index is unconditional, so a hidden row would permanently refuse
+ * to let the learner save that word again — they would press Lưu and be
+ * told it is already in a deck they cannot see.
+ *
+ * Deleting does not open a streak day.
+ *
+ * Repeating the request answers 404, and a client may treat that as
+ * success. Answering 204 for an id that was never there would hide a
+ * typo instead.
+ * @summary Remove a card from the deck (YC-109)
+ */
+export const deleteCard = async (cardId: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getDeleteCardUrl(cardId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteCardMutationOptions = <TError = UnauthorizedResponse | NotFoundResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCard>>, TError,{cardId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteCard>>, TError,{cardId: string}, TContext> => {
+
+const mutationKey = ['deleteCard'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteCard>>, {cardId: string}> = (props) => {
+          const {cardId} = props ?? {};
+
+          return  deleteCard(cardId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteCardMutationResult = NonNullable<Awaited<ReturnType<typeof deleteCard>>>
+
+    export type DeleteCardMutationError = UnauthorizedResponse | NotFoundResponse
+
+    /**
+ * @summary Remove a card from the deck (YC-109)
+ */
+export const useDeleteCard = <TError = UnauthorizedResponse | NotFoundResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteCard>>, TError,{cardId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteCard>>,
+        TError,
+        {cardId: string},
+        TContext
+      > => {
+      return useMutation(getDeleteCardMutationOptions(options), queryClient);
+    }
+
 export const getSetCardStateUrl = (cardId: string,) => {
 
 
@@ -3573,6 +5346,13 @@ export const getListMyCardsUrl = (params?: ListMyCardsParams,) => {
  * report the same three constants, and a constant on the wire is a field
  * a client renders as though it meant something. `state` is here because
  * R-15 makes it the learner's own answer rather than a scheduler's.
+ *
+ * Each card carries its full back (`wordbookEntry`) where the bank
+ * describes the word — the same object `GET /me/cards/study` returns, on
+ * purpose. The collection is where R-15 ràng buộc 3 puts marking, so a
+ * card marked here and a card seen in a session must not be two different
+ * payloads; a row that sprouted a back the other forty-nine lacked would
+ * be that drift arriving one card at a time.
  * @summary The cards this learner has collected (YC-109)
  */
 export const listMyCards = async (params?: ListMyCardsParams, options?: Parameters<typeof apiFetch>[1]): Promise<ListMyCards200> => {
@@ -3695,6 +5475,13 @@ export const getListStudyCardsUrl = (params?: ListStudyCardsParams,) => {
  * R-15 removed. There is no due date and no daily rollover — this list is
  * identical every day until the learner marks something. R-15 calls it
  * "danh sách ôn hằng ngày" for how it is used, not how it is computed.
+ *
+ * Each card carries its full back (`wordbookEntry`) where the bank
+ * describes the word — R-15 asks for reading, word class, both meanings,
+ * example sentences and pronunciation to be readable on the flip itself,
+ * "không phải mở sang chỗ khác". It is the same object `GET /me/cards`
+ * returns, so a card cannot look like two different cards on the two
+ * screens that show it.
  *
  * **One response is one session.** `limit` is the learner's configured
  * session size rather than a page size, and there is no cursor. That is
@@ -4417,6 +6204,217 @@ export const useStartWeaknessRetake = <TError = UnauthorizedResponse | AttemptIn
         TContext
       > => {
       return useMutation(getStartWeaknessRetakeMutationOptions(options), queryClient);
+    }
+
+export const getGetCustomExamOptionsUrl = () => {
+
+
+
+
+  return `/api/v1/custom-exams/options`
+}
+
+/**
+ * Sizes every control on the đề tự tạo screen before the learner touches
+ * one, read from the exact pool `POST /custom-exams/attempts` builds a
+ * paper from — so a number the screen offers is never a number the bank
+ * cannot serve.
+ *
+ * Both levels come back in one response rather than one per request. The
+ * learner flips between TOPIK I and TOPIK II to compare what each would
+ * give them, and a refetch per flip would blank the counts being
+ * compared.
+ * @summary Đề tự tạo — what each level and part can offer
+ */
+export const getCustomExamOptions = async ( options?: Parameters<typeof apiFetch>[1]): Promise<CustomExamOptions> => {
+
+  return apiFetch<CustomExamOptions>(getGetCustomExamOptionsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCustomExamOptionsQueryKey = () => {
+    return [
+    `/api/v1/custom-exams/options`
+    ] as const;
+    }
+
+
+export const getGetCustomExamOptionsQueryOptions = <TData = Awaited<ReturnType<typeof getCustomExamOptions>>, TError = UnauthorizedResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCustomExamOptions>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCustomExamOptionsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCustomExamOptions>>> = ({ signal }) => getCustomExamOptions({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCustomExamOptions>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetCustomExamOptionsQueryResult = NonNullable<Awaited<ReturnType<typeof getCustomExamOptions>>>
+export type GetCustomExamOptionsQueryError = UnauthorizedResponse
+
+
+export function useGetCustomExamOptions<TData = Awaited<ReturnType<typeof getCustomExamOptions>>, TError = UnauthorizedResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCustomExamOptions>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCustomExamOptions>>,
+          TError,
+          Awaited<ReturnType<typeof getCustomExamOptions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCustomExamOptions<TData = Awaited<ReturnType<typeof getCustomExamOptions>>, TError = UnauthorizedResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCustomExamOptions>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCustomExamOptions>>,
+          TError,
+          Awaited<ReturnType<typeof getCustomExamOptions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCustomExamOptions<TData = Awaited<ReturnType<typeof getCustomExamOptions>>, TError = UnauthorizedResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCustomExamOptions>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Đề tự tạo — what each level and part can offer
+ */
+
+export function useGetCustomExamOptions<TData = Awaited<ReturnType<typeof getCustomExamOptions>>, TError = UnauthorizedResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCustomExamOptions>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetCustomExamOptionsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getStartCustomExamUrl = () => {
+
+
+
+
+  return `/api/v1/custom-exams/attempts`
+}
+
+/**
+ * Two shapes, and they are two different promises:
+ *
+ * `SIMULATED` — đề mô phỏng. Built to the level's blueprint exactly:
+ * every section it names, each at that section's own `question_count` and
+ * time limit, and a độ khó mix derived from the same `level_thresholds`
+ * R-16 bands a real paper with. Complete against its blueprint, so it may
+ * be sat as `EXAM` and — only then — carries an estimated band, exactly
+ * as a published paper does. `sections` is ignored; the blueprint decides,
+ * for the same reason R-01 gives EXAM mode no choice about sitting the
+ * whole paper.
+ *
+ * `CUSTOM` — đề tự chọn. The learner says how many câu each part holds
+ * (at most 50 for Nghe and Đọc, at most 4 for Viết). 20 câu Nghe out of
+ * 50 has no honest total and no honest cấp độ, so this is `PRACTICE` only
+ * — `EXAM` is refused with a 422 rather than quietly downgraded — and the
+ * result carries `bandWithheldReason: NOT_A_FULL_PAPER` like every other
+ * generated set.
+ *
+ * Questions sharing one stimulus are always taken together and stay
+ * adjacent: a listening clip is rationed to one play (R-01), so half a
+ * group would spend the only listen on a question the clip half-answers.
+ *
+ * Neither shape creates an `exams` row. A paper one learner assembled has
+ * no place in the catalogue everyone else reads, so both hang off a
+ * `practice_sets` row — GĐ-3's exception for a generated set drawing on
+ * several source papers.
+ *
+ * R-03 still holds: one live attempt at a time. A learner with an
+ * unfinished run gets the same 409 and the same `inProgressAttempt` as
+ * every other way of starting one.
+ * @summary Build a paper out of the bank and open it
+ */
+export const startCustomExam = async (startCustomExamBody: StartCustomExamBody, options?: Parameters<typeof apiFetch>[1]): Promise<AttemptRunner> => {
+
+  return apiFetch<AttemptRunner>(getStartCustomExamUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(startCustomExamBody)
+  }
+);}
+
+
+
+
+
+export const getStartCustomExamMutationOptions = <TError = UnauthorizedResponse | AttemptInProgressProblem | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startCustomExam>>, TError,{data: StartCustomExamBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof startCustomExam>>, TError,{data: StartCustomExamBody}, TContext> => {
+
+const mutationKey = ['startCustomExam'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof startCustomExam>>, {data: StartCustomExamBody}> = (props) => {
+          const {data} = props ?? {};
+
+          return  startCustomExam(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type StartCustomExamMutationResult = NonNullable<Awaited<ReturnType<typeof startCustomExam>>>
+    export type StartCustomExamMutationBody = StartCustomExamBody
+    export type StartCustomExamMutationError = UnauthorizedResponse | AttemptInProgressProblem | UnprocessableResponse
+
+    /**
+ * @summary Build a paper out of the bank and open it
+ */
+export const useStartCustomExam = <TError = UnauthorizedResponse | AttemptInProgressProblem | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startCustomExam>>, TError,{data: StartCustomExamBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof startCustomExam>>,
+        TError,
+        {data: StartCustomExamBody},
+        TContext
+      > => {
+      return useMutation(getStartCustomExamMutationOptions(options), queryClient);
     }
 
 export const getGetPlacementAvailabilityUrl = () => {
@@ -6215,6 +8213,9 @@ export const getListShadowCategoriesUrl = () => {
 }
 
 /**
+ * Readable without a session — the vocabulary carries nothing about the
+ * reader, and the guest preview draws the same chip row a learner gets.
+ *
  * The chip row above the list, with a count on each chip and the total
  * "Tất cả" wears.
  *
@@ -6250,7 +8251,7 @@ export const getListShadowCategoriesQueryKey = () => {
     }
 
 
-export const getListShadowCategoriesQueryOptions = <TData = Awaited<ReturnType<typeof listShadowCategories>>, TError = UnauthorizedResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowCategories>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export const getListShadowCategoriesQueryOptions = <TData = Awaited<ReturnType<typeof listShadowCategories>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowCategories>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -6269,10 +8270,10 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type ListShadowCategoriesQueryResult = NonNullable<Awaited<ReturnType<typeof listShadowCategories>>>
-export type ListShadowCategoriesQueryError = UnauthorizedResponse
+export type ListShadowCategoriesQueryError = unknown
 
 
-export function useListShadowCategories<TData = Awaited<ReturnType<typeof listShadowCategories>>, TError = UnauthorizedResponse>(
+export function useListShadowCategories<TData = Awaited<ReturnType<typeof listShadowCategories>>, TError = unknown>(
   options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowCategories>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof listShadowCategories>>,
@@ -6282,7 +8283,7 @@ export function useListShadowCategories<TData = Awaited<ReturnType<typeof listSh
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListShadowCategories<TData = Awaited<ReturnType<typeof listShadowCategories>>, TError = UnauthorizedResponse>(
+export function useListShadowCategories<TData = Awaited<ReturnType<typeof listShadowCategories>>, TError = unknown>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowCategories>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof listShadowCategories>>,
@@ -6292,7 +8293,7 @@ export function useListShadowCategories<TData = Awaited<ReturnType<typeof listSh
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListShadowCategories<TData = Awaited<ReturnType<typeof listShadowCategories>>, TError = UnauthorizedResponse>(
+export function useListShadowCategories<TData = Awaited<ReturnType<typeof listShadowCategories>>, TError = unknown>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowCategories>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
@@ -6300,7 +8301,7 @@ export function useListShadowCategories<TData = Awaited<ReturnType<typeof listSh
  * @summary Chủ đề ngữ liệu nhại theo
  */
 
-export function useListShadowCategories<TData = Awaited<ReturnType<typeof listShadowCategories>>, TError = UnauthorizedResponse>(
+export function useListShadowCategories<TData = Awaited<ReturnType<typeof listShadowCategories>>, TError = unknown>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowCategories>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
@@ -6334,6 +8335,12 @@ export const getListShadowVideosUrl = (params?: ListShadowVideosParams,) => {
 }
 
 /**
+ * Readable without a session. A visitor gets the same rows with
+ * `practisedCount` at 0 and no level to measure distance from, so the
+ * order falls back to newest-first — exactly what a learner who has
+ * practised nothing and holds no level already gets. Opening a video
+ * (`GET /shadowing/videos/{videoId}`) still needs an account.
+ *
  * Published videos **that have at least one line**. A video with no
  * segmented transcript is not in this list and is not greyed out either
  * (TCCN-351-1): there is no unit to repeat, so there is nothing to
@@ -6369,7 +8376,7 @@ export const getListShadowVideosQueryKey = (params?: ListShadowVideosParams,) =>
     }
 
 
-export const getListShadowVideosQueryOptions = <TData = Awaited<ReturnType<typeof listShadowVideos>>, TError = UnauthorizedResponse>(params?: ListShadowVideosParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowVideos>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export const getListShadowVideosQueryOptions = <TData = Awaited<ReturnType<typeof listShadowVideos>>, TError = unknown>(params?: ListShadowVideosParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowVideos>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -6388,10 +8395,10 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type ListShadowVideosQueryResult = NonNullable<Awaited<ReturnType<typeof listShadowVideos>>>
-export type ListShadowVideosQueryError = UnauthorizedResponse
+export type ListShadowVideosQueryError = unknown
 
 
-export function useListShadowVideos<TData = Awaited<ReturnType<typeof listShadowVideos>>, TError = UnauthorizedResponse>(
+export function useListShadowVideos<TData = Awaited<ReturnType<typeof listShadowVideos>>, TError = unknown>(
  params: undefined |  ListShadowVideosParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowVideos>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof listShadowVideos>>,
@@ -6401,7 +8408,7 @@ export function useListShadowVideos<TData = Awaited<ReturnType<typeof listShadow
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListShadowVideos<TData = Awaited<ReturnType<typeof listShadowVideos>>, TError = UnauthorizedResponse>(
+export function useListShadowVideos<TData = Awaited<ReturnType<typeof listShadowVideos>>, TError = unknown>(
  params?: ListShadowVideosParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowVideos>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof listShadowVideos>>,
@@ -6411,7 +8418,7 @@ export function useListShadowVideos<TData = Awaited<ReturnType<typeof listShadow
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListShadowVideos<TData = Awaited<ReturnType<typeof listShadowVideos>>, TError = UnauthorizedResponse>(
+export function useListShadowVideos<TData = Awaited<ReturnType<typeof listShadowVideos>>, TError = unknown>(
  params?: ListShadowVideosParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowVideos>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
@@ -6419,7 +8426,7 @@ export function useListShadowVideos<TData = Awaited<ReturnType<typeof listShadow
  * @summary Ngữ liệu nhại theo (R-19)
  */
 
-export function useListShadowVideos<TData = Awaited<ReturnType<typeof listShadowVideos>>, TError = UnauthorizedResponse>(
+export function useListShadowVideos<TData = Awaited<ReturnType<typeof listShadowVideos>>, TError = unknown>(
  params?: ListShadowVideosParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowVideos>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
@@ -6639,6 +8646,8 @@ export const getListDictationCategoriesUrl = () => {
 }
 
 /**
+ * Readable without a session, for the reason the shadowing twin gives.
+ *
  * The chip row above the list, with a count on each chip and the total
  * "Tất cả" wears. Its own request for the reason the shadowing twin gives.
  *
@@ -6670,7 +8679,7 @@ export const getListDictationCategoriesQueryKey = () => {
     }
 
 
-export const getListDictationCategoriesQueryOptions = <TData = Awaited<ReturnType<typeof listDictationCategories>>, TError = UnauthorizedResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDictationCategories>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export const getListDictationCategoriesQueryOptions = <TData = Awaited<ReturnType<typeof listDictationCategories>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDictationCategories>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -6689,10 +8698,10 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type ListDictationCategoriesQueryResult = NonNullable<Awaited<ReturnType<typeof listDictationCategories>>>
-export type ListDictationCategoriesQueryError = UnauthorizedResponse
+export type ListDictationCategoriesQueryError = unknown
 
 
-export function useListDictationCategories<TData = Awaited<ReturnType<typeof listDictationCategories>>, TError = UnauthorizedResponse>(
+export function useListDictationCategories<TData = Awaited<ReturnType<typeof listDictationCategories>>, TError = unknown>(
   options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDictationCategories>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof listDictationCategories>>,
@@ -6702,7 +8711,7 @@ export function useListDictationCategories<TData = Awaited<ReturnType<typeof lis
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListDictationCategories<TData = Awaited<ReturnType<typeof listDictationCategories>>, TError = UnauthorizedResponse>(
+export function useListDictationCategories<TData = Awaited<ReturnType<typeof listDictationCategories>>, TError = unknown>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDictationCategories>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof listDictationCategories>>,
@@ -6712,7 +8721,7 @@ export function useListDictationCategories<TData = Awaited<ReturnType<typeof lis
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListDictationCategories<TData = Awaited<ReturnType<typeof listDictationCategories>>, TError = UnauthorizedResponse>(
+export function useListDictationCategories<TData = Awaited<ReturnType<typeof listDictationCategories>>, TError = unknown>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDictationCategories>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
@@ -6720,7 +8729,7 @@ export function useListDictationCategories<TData = Awaited<ReturnType<typeof lis
  * @summary Chủ đề bộ chép chính tả
  */
 
-export function useListDictationCategories<TData = Awaited<ReturnType<typeof listDictationCategories>>, TError = UnauthorizedResponse>(
+export function useListDictationCategories<TData = Awaited<ReturnType<typeof listDictationCategories>>, TError = unknown>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDictationCategories>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
@@ -6754,6 +8763,10 @@ export const getListDictationSetsUrl = (params?: ListDictationSetsParams,) => {
 }
 
 /**
+ * Readable without a session. A visitor gets the same rows with
+ * `correctCount` at 0 and newest-first order, as a learner with no
+ * results and no level does. Opening a set still needs an account.
+ *
  * Published sets that have at least one sentence.
  *
  * Ordered by distance from the learner's own level, never filtered by it
@@ -6786,7 +8799,7 @@ export const getListDictationSetsQueryKey = (params?: ListDictationSetsParams,) 
     }
 
 
-export const getListDictationSetsQueryOptions = <TData = Awaited<ReturnType<typeof listDictationSets>>, TError = UnauthorizedResponse>(params?: ListDictationSetsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDictationSets>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export const getListDictationSetsQueryOptions = <TData = Awaited<ReturnType<typeof listDictationSets>>, TError = unknown>(params?: ListDictationSetsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDictationSets>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -6805,10 +8818,10 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type ListDictationSetsQueryResult = NonNullable<Awaited<ReturnType<typeof listDictationSets>>>
-export type ListDictationSetsQueryError = UnauthorizedResponse
+export type ListDictationSetsQueryError = unknown
 
 
-export function useListDictationSets<TData = Awaited<ReturnType<typeof listDictationSets>>, TError = UnauthorizedResponse>(
+export function useListDictationSets<TData = Awaited<ReturnType<typeof listDictationSets>>, TError = unknown>(
  params: undefined |  ListDictationSetsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDictationSets>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof listDictationSets>>,
@@ -6818,7 +8831,7 @@ export function useListDictationSets<TData = Awaited<ReturnType<typeof listDicta
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListDictationSets<TData = Awaited<ReturnType<typeof listDictationSets>>, TError = UnauthorizedResponse>(
+export function useListDictationSets<TData = Awaited<ReturnType<typeof listDictationSets>>, TError = unknown>(
  params?: ListDictationSetsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDictationSets>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof listDictationSets>>,
@@ -6828,7 +8841,7 @@ export function useListDictationSets<TData = Awaited<ReturnType<typeof listDicta
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListDictationSets<TData = Awaited<ReturnType<typeof listDictationSets>>, TError = UnauthorizedResponse>(
+export function useListDictationSets<TData = Awaited<ReturnType<typeof listDictationSets>>, TError = unknown>(
  params?: ListDictationSetsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDictationSets>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
@@ -6836,7 +8849,7 @@ export function useListDictationSets<TData = Awaited<ReturnType<typeof listDicta
  * @summary Bộ chép chính tả (R-36)
  */
 
-export function useListDictationSets<TData = Awaited<ReturnType<typeof listDictationSets>>, TError = UnauthorizedResponse>(
+export function useListDictationSets<TData = Awaited<ReturnType<typeof listDictationSets>>, TError = unknown>(
  params?: ListDictationSetsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listDictationSets>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
@@ -7497,14 +9510,26 @@ export const getGetAssistantPanelUrl = (params?: GetAssistantPanelParams,) => {
 }
 
 /**
- * One request, because two would leave a frame in which the panel is open
- * and knows neither the allowance nor what to suggest — which is the empty
- * chat box `TCCN-562-6` forbids.
+ * The allowance, the starter questions, and whether the trợ lý is there at
+ * all. Those three travel together because `TCCN-563-1` and `TCCN-562-6`
+ * are both about the frame the panel opens in — the number before the
+ * learner types, suggestions instead of an empty chat box — and a second
+ * request for either would give the panel a frame in which it is open and
+ * does not know.
+ *
+ * **The two lists no longer ride along.** The open thread's turns are
+ * `GET /me/assistant/turns` and the cuộc trò chuyện list is
+ * `GET /me/assistant/threads`, each fetched when something is drawn from
+ * it. This response is on the path of every page load — the client asks it
+ * whether to draw the launcher at all, and re-asks on every screen the
+ * learner walks through — and carrying fifty turns and fifty threads
+ * through that made the trợ lý slow to appear for the many learners who
+ * were never going to open it.
  *
  * The anchor parameters describe what the learner has on screen. They
  * change the suggestions and the context an answer is built from; none of
  * them is required, and a panel opened with none of them still works.
- * @summary Everything the trợ lý panel needs to open (YC-561, YC-563, R-11)
+ * @summary What the trợ lý needs to open (YC-561, YC-563, R-11)
  */
 export const getAssistantPanel = async (params?: GetAssistantPanelParams, options?: Parameters<typeof apiFetch>[1]): Promise<AssistantPanel> => {
 
@@ -7575,7 +9600,7 @@ export function useGetAssistantPanel<TData = Awaited<ReturnType<typeof getAssist
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary Everything the trợ lý panel needs to open (YC-561, YC-563, R-11)
+ * @summary What the trợ lý needs to open (YC-561, YC-563, R-11)
  */
 
 export function useGetAssistantPanel<TData = Awaited<ReturnType<typeof getAssistantPanel>>, TError = UnauthorizedResponse | ForbiddenResponse>(
@@ -7792,6 +9817,124 @@ export const useAskAssistantStream = <TError = BadRequestResponse | Unauthorized
       return useMutation(getAskAssistantStreamMutationOptions(options), queryClient);
     }
 
+export const getListAssistantTurnsUrl = (params?: ListAssistantTurnsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/me/assistant/turns?${stringifiedParams}` : `/api/v1/me/assistant/turns`
+}
+
+/**
+ * Split out of `GET /me/assistant`, where it was read on every page load
+ * whether or not anything drew it. A panel that opens on a new
+ * conversation asks for no turns at all, and one that continues an old one
+ * pays for the turns rather than for the whole history.
+ *
+ * `TCCN-568-1` asks that the lượt hỏi in a conversation be readable in
+ * order, and `items` is in that order — oldest first, so the panel reads
+ * downward. Paging runs the other way, from the newest turn backwards:
+ * `offset: 0` is the end of the conversation, which is where a reader
+ * starts, and older pages are fetched as they scroll up.
+ * @summary One cuộc trò chuyện, a page at a time (TCCN-568-1)
+ */
+export const listAssistantTurns = async (params?: ListAssistantTurnsParams, options?: Parameters<typeof apiFetch>[1]): Promise<ListAssistantTurns200> => {
+
+  return apiFetch<ListAssistantTurns200>(getListAssistantTurnsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAssistantTurnsQueryKey = (params?: ListAssistantTurnsParams,) => {
+    return [
+    `/api/v1/me/assistant/turns`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListAssistantTurnsQueryOptions = <TData = Awaited<ReturnType<typeof listAssistantTurns>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(params?: ListAssistantTurnsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAssistantTurns>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAssistantTurnsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAssistantTurns>>> = ({ signal }) => listAssistantTurns(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAssistantTurns>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListAssistantTurnsQueryResult = NonNullable<Awaited<ReturnType<typeof listAssistantTurns>>>
+export type ListAssistantTurnsQueryError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse
+
+
+export function useListAssistantTurns<TData = Awaited<ReturnType<typeof listAssistantTurns>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
+ params: undefined |  ListAssistantTurnsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAssistantTurns>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAssistantTurns>>,
+          TError,
+          Awaited<ReturnType<typeof listAssistantTurns>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListAssistantTurns<TData = Awaited<ReturnType<typeof listAssistantTurns>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
+ params?: ListAssistantTurnsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAssistantTurns>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAssistantTurns>>,
+          TError,
+          Awaited<ReturnType<typeof listAssistantTurns>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListAssistantTurns<TData = Awaited<ReturnType<typeof listAssistantTurns>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
+ params?: ListAssistantTurnsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAssistantTurns>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary One cuộc trò chuyện, a page at a time (TCCN-568-1)
+ */
+
+export function useListAssistantTurns<TData = Awaited<ReturnType<typeof listAssistantTurns>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
+ params?: ListAssistantTurnsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAssistantTurns>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListAssistantTurnsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getDeleteAssistantHistoryUrl = () => {
 
 
@@ -7869,6 +10012,203 @@ export const useDeleteAssistantHistory = <TError = UnauthorizedResponse | Forbid
         TContext
       > => {
       return useMutation(getDeleteAssistantHistoryMutationOptions(options), queryClient);
+    }
+
+export const getListAssistantThreadsUrl = (params?: ListAssistantThreadsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/me/assistant/threads?${stringifiedParams}` : `/api/v1/me/assistant/threads`
+}
+
+/**
+ * Split out of `GET /me/assistant` for the reason the turns were: the list
+ * is drawn when the learner presses Lịch sử trò chuyện, and until then it
+ * was fifty rows and fifty counts fetched behind every navigation.
+ *
+ * Most recently used first. A client knows whether there is a list to
+ * offer before asking for one — `AssistantPanel.threadId` is present
+ * exactly when the learner has at least one conversation.
+ * @summary The cuộc trò chuyện list (YC-568)
+ */
+export const listAssistantThreads = async (params?: ListAssistantThreadsParams, options?: Parameters<typeof apiFetch>[1]): Promise<ListAssistantThreads200> => {
+
+  return apiFetch<ListAssistantThreads200>(getListAssistantThreadsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAssistantThreadsQueryKey = (params?: ListAssistantThreadsParams,) => {
+    return [
+    `/api/v1/me/assistant/threads`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListAssistantThreadsQueryOptions = <TData = Awaited<ReturnType<typeof listAssistantThreads>>, TError = UnauthorizedResponse | ForbiddenResponse>(params?: ListAssistantThreadsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAssistantThreads>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAssistantThreadsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAssistantThreads>>> = ({ signal }) => listAssistantThreads(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAssistantThreads>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListAssistantThreadsQueryResult = NonNullable<Awaited<ReturnType<typeof listAssistantThreads>>>
+export type ListAssistantThreadsQueryError = UnauthorizedResponse | ForbiddenResponse
+
+
+export function useListAssistantThreads<TData = Awaited<ReturnType<typeof listAssistantThreads>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params: undefined |  ListAssistantThreadsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAssistantThreads>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAssistantThreads>>,
+          TError,
+          Awaited<ReturnType<typeof listAssistantThreads>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListAssistantThreads<TData = Awaited<ReturnType<typeof listAssistantThreads>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params?: ListAssistantThreadsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAssistantThreads>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAssistantThreads>>,
+          TError,
+          Awaited<ReturnType<typeof listAssistantThreads>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListAssistantThreads<TData = Awaited<ReturnType<typeof listAssistantThreads>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params?: ListAssistantThreadsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAssistantThreads>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary The cuộc trò chuyện list (YC-568)
+ */
+
+export function useListAssistantThreads<TData = Awaited<ReturnType<typeof listAssistantThreads>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params?: ListAssistantThreadsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAssistantThreads>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListAssistantThreadsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDeleteAssistantThreadUrl = (threadId: string,) => {
+
+
+
+
+  return `/api/v1/me/assistant/threads/${threadId}`
+}
+
+/**
+ * `TCCN-568-2` narrowed to one conversation, with both of its promises
+ * intact. A real delete — the turns go with the thread — and the spent
+ * allowance does not come back, which is why `quota` is returned: "xoá
+ * lịch sử không phải cách lấy thêm lượt" is as true of one thread as it is
+ * of all of them.
+ *
+ * The all-of-it route stays. A learner who wants everything gone should
+ * not have to delete twenty threads one at a time to get it.
+ *
+ * The confirmation the criterion asks for happens in the client, before
+ * this is called.
+ * @summary Xoá một cuộc trò chuyện (YC-568)
+ */
+export const deleteAssistantThread = async (threadId: string, options?: Parameters<typeof apiFetch>[1]): Promise<AssistantDeleteResult> => {
+
+  return apiFetch<AssistantDeleteResult>(getDeleteAssistantThreadUrl(threadId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteAssistantThreadMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAssistantThread>>, TError,{threadId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteAssistantThread>>, TError,{threadId: string}, TContext> => {
+
+const mutationKey = ['deleteAssistantThread'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteAssistantThread>>, {threadId: string}> = (props) => {
+          const {threadId} = props ?? {};
+
+          return  deleteAssistantThread(threadId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteAssistantThreadMutationResult = NonNullable<Awaited<ReturnType<typeof deleteAssistantThread>>>
+
+    export type DeleteAssistantThreadMutationError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse
+
+    /**
+ * @summary Xoá một cuộc trò chuyện (YC-568)
+ */
+export const useDeleteAssistantThread = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteAssistantThread>>, TError,{threadId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteAssistantThread>>,
+        TError,
+        {threadId: string},
+        TContext
+      > => {
+      return useMutation(getDeleteAssistantThreadMutationOptions(options), queryClient);
     }
 
 export const getListAdminDictationCategoriesUrl = () => {
@@ -8844,6 +11184,369 @@ export const useRetireAdminDictationSet = <TError = UnauthorizedResponse | Forbi
       > => {
       return useMutation(getRetireAdminDictationSetMutationOptions(options), queryClient);
     }
+
+export const getListRedeemCodesUrl = (params?: ListRedeemCodesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/admin/billing/codes?${stringifiedParams}` : `/api/v1/admin/billing/codes`
+}
+
+/**
+ * rbac: `billing:manage`. Newest first, capped — a campaign can mint
+ * hundreds at once, and the screen this feeds is for finding the code
+ * somebody asked about, not for exporting the lot.
+ * @summary Mã nâng cấp đã phát hành
+ */
+export const listRedeemCodes = async (params?: ListRedeemCodesParams, options?: Parameters<typeof apiFetch>[1]): Promise<RedeemCodeList> => {
+
+  return apiFetch<RedeemCodeList>(getListRedeemCodesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListRedeemCodesQueryKey = (params?: ListRedeemCodesParams,) => {
+    return [
+    `/api/v1/admin/billing/codes`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListRedeemCodesQueryOptions = <TData = Awaited<ReturnType<typeof listRedeemCodes>>, TError = UnauthorizedResponse | ForbiddenResponse>(params?: ListRedeemCodesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listRedeemCodes>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListRedeemCodesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listRedeemCodes>>> = ({ signal }) => listRedeemCodes(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listRedeemCodes>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListRedeemCodesQueryResult = NonNullable<Awaited<ReturnType<typeof listRedeemCodes>>>
+export type ListRedeemCodesQueryError = UnauthorizedResponse | ForbiddenResponse
+
+
+export function useListRedeemCodes<TData = Awaited<ReturnType<typeof listRedeemCodes>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params: undefined |  ListRedeemCodesParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listRedeemCodes>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listRedeemCodes>>,
+          TError,
+          Awaited<ReturnType<typeof listRedeemCodes>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListRedeemCodes<TData = Awaited<ReturnType<typeof listRedeemCodes>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params?: ListRedeemCodesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listRedeemCodes>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listRedeemCodes>>,
+          TError,
+          Awaited<ReturnType<typeof listRedeemCodes>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListRedeemCodes<TData = Awaited<ReturnType<typeof listRedeemCodes>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params?: ListRedeemCodesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listRedeemCodes>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Mã nâng cấp đã phát hành
+ */
+
+export function useListRedeemCodes<TData = Awaited<ReturnType<typeof listRedeemCodes>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params?: ListRedeemCodesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listRedeemCodes>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListRedeemCodesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateRedeemCodesUrl = () => {
+
+
+
+
+  return `/api/v1/admin/billing/codes`
+}
+
+/**
+ * rbac: `billing:manage`. Mints `count` codes with the same terms in one
+ * transaction, with one audit row naming all of them. Answers with the
+ * codes, which is the only time a batch is handed back together — copy
+ * them from here.
+ * @summary Phát hành mã
+ */
+export const createRedeemCodes = async (createRedeemCodesRequest: CreateRedeemCodesRequest, options?: Parameters<typeof apiFetch>[1]): Promise<RedeemCodeList> => {
+
+  return apiFetch<RedeemCodeList>(getCreateRedeemCodesUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createRedeemCodesRequest)
+  }
+);}
+
+
+
+
+
+export const getCreateRedeemCodesMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createRedeemCodes>>, TError,{data: CreateRedeemCodesRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createRedeemCodes>>, TError,{data: CreateRedeemCodesRequest}, TContext> => {
+
+const mutationKey = ['createRedeemCodes'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createRedeemCodes>>, {data: CreateRedeemCodesRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createRedeemCodes(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateRedeemCodesMutationResult = NonNullable<Awaited<ReturnType<typeof createRedeemCodes>>>
+    export type CreateRedeemCodesMutationBody = CreateRedeemCodesRequest
+    export type CreateRedeemCodesMutationError = UnauthorizedResponse | ForbiddenResponse | UnprocessableResponse
+
+    /**
+ * @summary Phát hành mã
+ */
+export const useCreateRedeemCodes = <TError = UnauthorizedResponse | ForbiddenResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createRedeemCodes>>, TError,{data: CreateRedeemCodesRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createRedeemCodes>>,
+        TError,
+        {data: CreateRedeemCodesRequest},
+        TContext
+      > => {
+      return useMutation(getCreateRedeemCodesMutationOptions(options), queryClient);
+    }
+
+export const getRevokeRedeemCodeUrl = (codeId: string,) => {
+
+
+
+
+  return `/api/v1/admin/billing/codes/${codeId}/revoke`
+}
+
+/**
+ * rbac: `billing:manage`. From now on the code answers `code_invalid`.
+ * Redemptions already made stand: a learner who used it in good faith
+ * keeps their days, and taking them back would be an UPDATE on a ledger
+ * that forbids one.
+ * @summary Thu hồi mã
+ */
+export const revokeRedeemCode = async (codeId: string, options?: Parameters<typeof apiFetch>[1]): Promise<RedeemCode> => {
+
+  return apiFetch<RedeemCode>(getRevokeRedeemCodeUrl(codeId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRevokeRedeemCodeMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | Problem,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeRedeemCode>>, TError,{codeId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof revokeRedeemCode>>, TError,{codeId: string}, TContext> => {
+
+const mutationKey = ['revokeRedeemCode'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revokeRedeemCode>>, {codeId: string}> = (props) => {
+          const {codeId} = props ?? {};
+
+          return  revokeRedeemCode(codeId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RevokeRedeemCodeMutationResult = NonNullable<Awaited<ReturnType<typeof revokeRedeemCode>>>
+
+    export type RevokeRedeemCodeMutationError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | Problem
+
+    /**
+ * @summary Thu hồi mã
+ */
+export const useRevokeRedeemCode = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | Problem,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokeRedeemCode>>, TError,{codeId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof revokeRedeemCode>>,
+        TError,
+        {codeId: string},
+        TContext
+      > => {
+      return useMutation(getRevokeRedeemCodeMutationOptions(options), queryClient);
+    }
+
+export const getListCodeRedemptionsUrl = (codeId: string,) => {
+
+
+
+
+  return `/api/v1/admin/billing/codes/${codeId}/redemptions`
+}
+
+/**
+ * rbac: `billing:manage`.
+ * @summary Ai đã dùng mã này
+ */
+export const listCodeRedemptions = async (codeId: string, options?: Parameters<typeof apiFetch>[1]): Promise<CodeRedemptionList> => {
+
+  return apiFetch<CodeRedemptionList>(getListCodeRedemptionsUrl(codeId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListCodeRedemptionsQueryKey = (codeId: string,) => {
+    return [
+    `/api/v1/admin/billing/codes/${codeId}/redemptions`
+    ] as const;
+    }
+
+
+export const getListCodeRedemptionsQueryOptions = <TData = Awaited<ReturnType<typeof listCodeRedemptions>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(codeId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCodeRedemptions>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListCodeRedemptionsQueryKey(codeId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listCodeRedemptions>>> = ({ signal }) => listCodeRedemptions(codeId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: codeId !== null && codeId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listCodeRedemptions>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListCodeRedemptionsQueryResult = NonNullable<Awaited<ReturnType<typeof listCodeRedemptions>>>
+export type ListCodeRedemptionsQueryError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse
+
+
+export function useListCodeRedemptions<TData = Awaited<ReturnType<typeof listCodeRedemptions>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
+ codeId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCodeRedemptions>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listCodeRedemptions>>,
+          TError,
+          Awaited<ReturnType<typeof listCodeRedemptions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListCodeRedemptions<TData = Awaited<ReturnType<typeof listCodeRedemptions>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
+ codeId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCodeRedemptions>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listCodeRedemptions>>,
+          TError,
+          Awaited<ReturnType<typeof listCodeRedemptions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListCodeRedemptions<TData = Awaited<ReturnType<typeof listCodeRedemptions>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
+ codeId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCodeRedemptions>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Ai đã dùng mã này
+ */
+
+export function useListCodeRedemptions<TData = Awaited<ReturnType<typeof listCodeRedemptions>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
+ codeId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listCodeRedemptions>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListCodeRedemptionsQueryOptions(codeId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getListAdminExamsUrl = (params?: ListAdminExamsParams,) => {
   const normalizedParams = new URLSearchParams();

@@ -40,6 +40,8 @@ tags:
   - name: dictation
   - name: wordbook
   - name: assistant
+  - name: streak
+  - name: billing
   - name: studio
   - name: admin
 
@@ -116,6 +118,91 @@ paths:
         '204': { description: Signed out; the refresh family is revoked. }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  /auth/providers:
+    get:
+      tags: [auth]
+      operationId: getAuthProviders
+      security: []
+      summary: Which sign-in methods this deployment offers
+      description: |
+        Password sign-in is always available. Google is available only when the
+        deployment holds OAuth credentials, and the client asks rather than
+        assuming: a button that leads to an unmounted route is worse than no
+        button, and a build-time flag in the client would be a second copy of
+        this fact that can disagree with it.
+      responses:
+        '200':
+          description: The providers this deployment can sign a learner in with.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthProviders' }
+
+  /auth/google/start:
+    get:
+      tags: [auth]
+      operationId: startGoogleSignIn
+      security: []
+      summary: Begin Google sign-in
+      description: |
+        A browser navigation, not an API call — follow it by setting
+        `location.href`, never with `fetch`. Responds 302 to Google's consent
+        screen and sets a short-lived httpOnly cookie holding the CSRF state and
+        the PKCE verifier for the callback to check.
+
+        Returns 404 when the deployment has no Google credentials; ask
+        `GET /auth/providers` first.
+      parameters:
+        - name: returnTo
+          in: query
+          required: false
+          description: |
+            Site-relative path to land on after signing in. Anything that is not
+            a site-relative path — an absolute URL, a protocol-relative `//host`
+            — is ignored in favour of the default, so this cannot be used as an
+            open redirect. Defaults to `/exams`.
+          schema: { type: string }
+      responses:
+        '302': { description: Redirect to Google. }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /auth/google/callback:
+    get:
+      tags: [auth]
+      operationId: completeGoogleSignIn
+      security: []
+      summary: Google's redirect back
+      description: |
+        Called by the browser, from Google — never by the client directly.
+
+        On success the refresh token is set as the same httpOnly cookie a
+        password login sets and the browser is redirected into the app, which
+        discovers the session through the `/auth/refresh` it already performs on
+        boot. Nothing about the session travels in the URL.
+
+        On failure the browser is redirected to `/login?error=<code>` instead.
+        The codes are `google_cancelled` (the learner pressed cancel),
+        `google_state` (the attempt expired or did not start in this browser),
+        `google_unverified` (Google has not verified the address, so it cannot
+        be used to claim or create an account), `google_suspended`, and
+        `google_failed`.
+      parameters:
+        - name: code
+          in: query
+          required: false
+          schema: { type: string }
+        - name: state
+          in: query
+          required: false
+          schema: { type: string }
+        - name: error
+          in: query
+          required: false
+          description: Set by Google when the learner declined or the request was rejected.
+          schema: { type: string }
+      responses:
+        '302': { description: 'Redirect into the app, or back to /login with an error code.' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /auth/verify-email:
     post:
       tags: [auth]
@@ -188,6 +275,289 @@ paths:
               schema: { $ref: '#/components/schemas/CurrentUser' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  /me/profile:
+    patch:
+      tags: [auth]
+      operationId: updateMyProfile
+      summary: Tên hiển thị của người học
+      description: |
+        The parts of the profile the learner owns and may change whenever they
+        like. Today that is the name they are called on screen.
+
+        **A patch, with every property optional**: an absent key leaves the
+        stored value alone, and an empty object is a no-op that answers 200. A
+        `PUT` would have to name the learner's whole profile, and two of the
+        fields it would then carry do not belong to it — `timezone` has an
+        endpoint of its own because the rules for writing it are unlike any
+        other field's (R-38), and `locale` cannot honestly be offered by a
+        client whose every string is Vietnamese.
+
+        **Answers with the whole `CurrentUser`** rather than with the field
+        that changed, for the reason `PUT /me/timezone` echoes its zone: the
+        client holds this object from sign-in and would otherwise have no way
+        to learn that what was stored differs from what it sent. It will
+        differ. See `UpdateProfile.displayName` for the cleaning applied.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateProfile' }
+      responses:
+        '200':
+          description: The profile as it now stands.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CurrentUser' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /me/password:
+    put:
+      tags: [auth]
+      operationId: changeMyPassword
+      summary: Đổi mật khẩu
+      description: |
+        Change the password on an account that already has one, proving
+        ownership with the current password rather than with the session alone.
+
+        **Every other session is ended; this one is not.** Changing a password
+        is how somebody evicts a device they no longer control, so leaving the
+        others alive would defeat the purpose — and signing the caller out of
+        the device they are standing at, for doing the right thing, is a
+        punishment with no security value. `POST /auth/password/reset` revokes
+        everything including the caller, and the difference is deliberate: a
+        reset is reached through email, often precisely because control was
+        lost, and there is no session there worth preserving.
+
+        Ended means the refresh family is revoked, so another device keeps
+        working until its access token expires — at most fifteen minutes. It
+        cannot renew.
+
+        **An account with no password cannot use this.** `CurrentUser.hasPassword`
+        says which case the client is in. Where it is false the account signs in
+        only through Google, there is nothing to prove ownership with, and a
+        first password is set through `POST /auth/password/forgot` and the email
+        it sends — a live session is not accepted as authority to create a
+        credential that outlives it, because a borrowed unlocked phone would
+        then be a permanent account takeover. This answers 409
+        `password_not_set` rather than quietly setting one.
+
+        **Not rate limited**, and stated rather than left to be discovered:
+        neither is `POST /auth/login`, which offers the same guessing to someone
+        holding no token at all. What actually bounds both is Argon2id at 64MiB
+        and t=3. Worth adding at the login layer for both endpoints together,
+        not here alone.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChangePassword' }
+      responses:
+        '204': { description: Changed; every other session revoked. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /me/sessions:
+    get:
+      tags: [auth]
+      operationId: listMySessions
+      summary: Các thiết bị đang đăng nhập
+      description: |
+        Where this account is signed in, one row per device.
+
+        **A row is a refresh-token FAMILY, not a session row.** Rotation inserts
+        a new row every time the access token is renewed and inherits
+        `family_id`, so a list keyed on rows would grow an entry every fifteen
+        minutes for one phone that never went anywhere. The family is the only
+        identifier that lasts as long as a sign-in does, which is also why the
+        access token carries it as `fid`.
+
+        A device is listed while it still holds a token it could present: not
+        revoked, not already rotated away, not expired. Everything else is over
+        and is not something the learner can act on.
+
+        `current` is the device asking. It comes from the caller's own `fid`
+        claim, so it is false on every row for a token minted before that claim
+        existed — fifteen minutes after a deploy, and never again. A list that
+        marks nothing is less helpful for that quarter of an hour; one that
+        marked the WRONG row would invite somebody to end the session they are
+        sitting in.
+
+        **No IP address**, and the omission is deliberate rather than pending.
+        What a learner needs here is to tell their devices apart, and a raw
+        address does not do that for anybody — while it is the one field on this
+        payload with real weight if the screen is read over a shoulder. The
+        thing that would help is an approximate place, which needs geo-IP this
+        product does not have. `sessions.ip` is still recorded; it is simply not
+        answered here.
+      responses:
+        '200':
+          description: Every device holding a live session, newest first.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /me/sessions/{sessionId}:
+    delete:
+      tags: [auth]
+      operationId: endMySession
+      summary: Đăng xuất một thiết bị khác
+      description: |
+        End one device's session. Its refresh family is revoked, so it cannot
+        renew — but an access token already in its hands keeps working until it
+        expires, at most fifteen minutes. Said here because "đăng xuất" sounds
+        instantaneous and is not.
+
+        **The caller's own session is refused, 409.** Ending it from this list
+        would sign the learner out with no warning, from a control whose whole
+        purpose is to act on the OTHER devices. Đăng xuất on Cài đặt is the way
+        out of this one, and the message says so.
+
+        Scoped to the caller by the statement itself, never by a check above it:
+        the WHERE clause names `user_id`, so another learner's session is not
+        something this route can reach even if the id is guessed.
+
+        Already-ended is 204, not 404. The device is gone, which is what was
+        asked for, and a double tap on a stale list should not read as a
+        failure. 404 is kept for an id that names no session of this learner's
+        at all.
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+          description: '`SignedInSession.id` — the family, not one token.'
+      responses:
+        '204': { description: 'Ended, or already over.' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /me/timezone:
+    put:
+      tags: [auth]
+      operationId: setMyTimezone
+      summary: Set the zone every "day" is counted in (R-38)
+      description: |
+        The learner's IANA timezone. Every "day" this API reports is a day in
+        it — today that means the streak, and any daily rollup added later.
+
+        **Written on two occasions and no others.** The client reports the
+        browser's zone once, when `GET /me` came back without one; and the
+        learner changes it in Cài đặt. It is deliberately NOT re-reported
+        whenever the browser disagrees with the stored value: the stored zone
+        *is* the day boundary, so a silent update from a VPN, a laptop with a
+        wrong clock, or a fortnight abroad would move somebody's midnight and
+        could end a streak they were keeping. TCCN-606-1 forbids presenting a
+        lapse as a failure; silently causing one is worse.
+
+        **tzdata link names are accepted**, not just primary identifiers.
+        `Intl.DateTimeFormat().resolvedOptions().timeZone` returns
+        `Asia/Saigon` on a Vietnamese machine, and that name is absent from the
+        canonical list `Intl.supportedValuesOf('timeZone')` gives. Refusing
+        links would 422 the typical learner of this product on their first
+        report and count them in UTC indefinitely.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UserTimezone' }
+      responses:
+        '200':
+          description: |
+            The zone now stored, which the client should prefer over the one it
+            sent — the server may hold a different spelling of the same zone.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserTimezone' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  # ── streak ────────────────────────────────────────────────────────────────
+
+  /me/plan/redeem:
+    post:
+      tags: [billing]
+      operationId: redeemPlanCode
+      summary: Nhập mã nâng cấp
+      description: |
+        Spends a mã nâng cấp on the caller's own account and answers with the
+        plan as it now stands, so the client can update `CurrentUser.plan`
+        without a second request.
+
+        **Stacks.** A learner already on Premium gets the code's days added
+        after their current end date, not from today.
+
+        **Every refusal is a 422 with a `code`** the client can map to its own
+        copy, and none of them tells a guesser anything: a code that does not
+        exist and one that was revoked are both `code_invalid`.
+
+        | code | meaning |
+        |---|---|
+        | `code_invalid` | not a code, or revoked |
+        | `code_expired` | past its expiry date |
+        | `code_exhausted` | every use spent |
+        | `code_already_used` | this learner already redeemed it |
+
+        After ten failed attempts in an hour the route answers `429
+        too_many_attempts` without looking at the code, and keeps doing so
+        until the window passes. Attempts are counted per account.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RedeemCodeRequest' }
+      responses:
+        '200':
+          description: Redeemed.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RedeemCodeResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+
+  /me/streak:
+    get:
+      tags: [streak]
+      operationId: getMyStreak
+      summary: Chuỗi ngày học (YC-602)
+      description: |
+        How many days in a row the learner has completed at least one study
+        task, and the longest run they have ever had.
+
+        **A day counts on a study task, never on a visit** (YC-605,
+        TCCN-605-1). Opening the app, loading the dashboard, or calling this
+        endpoint records nothing — this is a read and it writes no row. The
+        rule is aimed at the streak rather than at the learner: if opening
+        counted, somebody would open the app for ten seconds a day, the number
+        would climb, and it would be measuring nothing.
+
+        What does count is any deliberate study action — grading a card,
+        practising a shadowing line, attempting a dictation sentence, answering
+        an exam question, submitting a section or a paper, handing in an essay.
+        An attempt the learner later abandoned still counts, because they still
+        answered.
+
+        **The second task of a day adds nothing** (TCCN-605-2). The log holds at
+        most one row per learner per day, so that is a property of a primary key
+        rather than of a code path.
+
+        **Days are days in `CurrentUser.timezone`**, decided when the action
+        happened. Changing the zone later moves which day future activity lands
+        in and never re-buckets the past. A learner who has never reported a
+        zone is counted in UTC.
+      responses:
+        '200':
+          description: The learner's own streak. Never compared to anyone else's.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StudyStreak' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
   # ── catalog ───────────────────────────────────────────────────────────────
 
   /exams:
@@ -195,13 +565,34 @@ paths:
       tags: [catalog]
       operationId: listExams
       summary: Browse exams (YC-101)
+      security: []
       description: |
         Each entry carries the caller's own attempt count and best score, which
         is what the list screen shows beside each exam.
+
+        Readable without a session. A visitor gets the same rows with
+        `attemptCount` at 0 and no `bestScore` or `lastAttemptedAt` — the
+        catalogue a brand-new account sees — so the guest preview can show
+        the real shelf rather than a brochure of it. The paper itself
+        (`GET /exams/{examId}`) still needs an account: the screen it feeds
+        ends in `Bắt đầu làm bài`, and the client asks for the account at the
+        row instead of at that press. See docs/proposals/guest-preview.md in
+        kolearn-web.
       parameters:
         - { name: level, in: query, schema: { $ref: '#/components/schemas/ExamLevel' } }
-        - { name: cursor, in: query, schema: { type: string } }
         - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - name: offset
+          in: query
+          description: |
+            Papers to skip, over the same newest-first order the page returns.
+            The order breaks ties on `code`, which is unique, so a paper cannot
+            land on two pages at once or fall between them.
+
+            This replaced a `cursor`/`nextCursor` pair that no handler ever
+            implemented and no client ever sent. Offset paging is what the rest
+            of the surface does (`GET /me/attempts`), and one paging scheme that
+            works beats two where the documented one does not.
+          schema: { type: integer, minimum: 0, default: 0 }
       responses:
         '200':
           description: A page of exams.
@@ -209,13 +600,18 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [items]
+                required: [items, totalCount, levelCounts]
                 properties:
                   items:
                     type: array
                     items: { $ref: '#/components/schemas/ExamListItem' }
-                  nextCursor: { type: string }
-        '401': { $ref: '#/components/responses/Unauthorized' }
+                  totalCount:
+                    type: integer
+                    description: |
+                      Every published paper matching `level`, not the ones on
+                      this page. A pager that cannot see past its own page
+                      cannot say whether there is a next one.
+                  levelCounts: { $ref: '#/components/schemas/ExamLevelCounts' }
 
   /exams/{examId}:
     get:
@@ -921,7 +1317,7 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [items, totalCount]
+                required: [items, totalCount, modeCounts]
                 properties:
                   items:
                     type: array
@@ -932,6 +1328,7 @@ paths:
                       Every attempt matching `mode` and `hideAbandoned`, not the
                       ones on this page. A pager that cannot see past its own
                       page cannot say whether there is a next one.
+                  modeCounts: { $ref: '#/components/schemas/AttemptModeCounts' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
   /attempts/{attemptId}/review:
@@ -1150,6 +1547,296 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '422': { $ref: '#/components/responses/Unprocessable' }
 
+  /me/card-groups:
+    get:
+      tags: [cards]
+      operationId: listCardGroups
+      summary: The learner's own folders over their deck (YC-109)
+      description: |
+        Folders, not decks. Every card still belongs to the one deck the three
+        card sources pour into — ver1.2 is blunt that "làm ra bộ thẻ thứ hai là
+        phá nguyên tắc lớn nhất của cả sản phẩm" — and a group is a name the
+        learner has put on some of them. `MyCard.deckId` is unaffected.
+
+        Each carries its card count, because these render as filter chips and a
+        chip that shows a number has to show the number a tap would produce.
+        Ordered by name, so the row does not reshuffle between two visits.
+      responses:
+        '200':
+          description: |
+            The folders, always as an array, plus how many cards are in no
+            folder at all. Ungrouped is a real state a learner chooses rather
+            than an absence, so it is counted and filterable — it simply has no
+            id, cannot be renamed and cannot be deleted, which is why it is a
+            number here and not an entry in the list.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CardGroups' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /card-groups:
+    post:
+      tags: [cards]
+      operationId: createCardGroup
+      summary: Make a folder (YC-109)
+      description: |
+        Idempotent on the name, for the reason `POST /cards` is idempotent on a
+        card's front: the picker offers "tạo nhóm" from whatever the learner
+        typed, and someone who types a name they already have meant the folder
+        they already have. Answering 409 there would be the app refusing to do
+        the obvious thing and sending them off to find it.
+
+        Names are compared with the same normalisation the deck dedupes cards
+        with, so "Động từ" and "động từ" are one folder.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 60 }
+      responses:
+        '200':
+          description: The folder, whether it was just made or already there.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CardGroup' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /card-groups/{groupId}:
+    patch:
+      tags: [cards]
+      operationId: renameCardGroup
+      summary: Rename a folder (YC-109)
+      parameters:
+        - $ref: '#/components/parameters/CardGroupId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 60 }
+      responses:
+        '200':
+          description: The folder under its new name.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CardGroup' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: |
+            `group_name_taken` — the learner already has a folder with this
+            name. Unlike creating, renaming cannot quietly resolve to the
+            existing one: that would silently merge two folders and there is no
+            way back from it.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+    delete:
+      tags: [cards]
+      operationId: deleteCardGroup
+      summary: Remove a folder, keeping what was in it (YC-109)
+      description: |
+        **The cards survive.** A learner tidying their folders is not asking to
+        lose a month of saved words, and a cascade here would take them with a
+        tap on "Xoá nhóm" — silently, because the deck screen would simply have
+        fewer rows and nothing would say why. They become ungrouped, which every
+        screen already renders.
+
+        The database guarantees it rather than the handler remembering to:
+        `cards.group_id` is ON DELETE SET NULL.
+      parameters:
+        - $ref: '#/components/parameters/CardGroupId'
+      responses:
+        '204':
+          description: Deleted. The cards that were in it are now ungrouped.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /cards:group:
+    put:
+      tags: [cards]
+      operationId: setCardGroupBatch
+      summary: File a whole selection into a folder at once (YC-109)
+      description: |
+        One statement, not a loop. The screen that calls this is "tick the loose
+        cards and file them", and fifty round trips for one gesture — each able
+        to fail on its own — would make a partial result the normal outcome and
+        leave the learner to work out which half landed.
+
+        `groupId` is nullable and required, exactly as on the single-card route:
+        an id files them, `null` takes them all out.
+
+        Ids that are not this learner's are skipped rather than refused. The
+        caller is a multi-select over a list this API just sent, so a mismatch
+        means the list moved underneath them — a card deleted in another tab —
+        and failing the batch would punish a race they cannot see. A missing
+        FOLDER is still 404, because that one the learner chose.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cardIds, groupId]
+              properties:
+                cardIds:
+                  type: array
+                  minItems: 1
+                  items: { type: string, format: uuid }
+                groupId:
+                  type: string
+                  format: uuid
+                  nullable: true
+                  description: The folder, or `null` to take them out of every folder.
+      responses:
+        '200':
+          description: |
+            How many cards actually moved — what CHANGED, not what was asked
+            for. A card already in the target folder is not written and not
+            counted, so a screen reporting this cannot claim work it did not do.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MovedResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /cards/{cardId}/group:
+    put:
+      tags: [cards]
+      operationId: setCardGroup
+      summary: File a card in a folder, or take it out (YC-109)
+      description: |
+        PUT rather than a field on `PATCH /cards/{cardId}`, and for the two
+        reasons `PUT .../state` is a PUT. The body is the whole value of one
+        thing, so a replay is harmless — filing a card is a tap on a phone and a
+        flaky connection sends it twice. And "ungroup" has to be sayable: an
+        absent field on a PATCH means "leave it", which leaves nothing to mean
+        "take it out of every folder".
+
+        So `groupId` is **nullable and required**: send an id to file it, send
+        `null` to ungroup it. Re-sending the folder a card is already in writes
+        nothing.
+
+        A folder belonging to another learner answers 404 — checked against the
+        same owner as the card, because the foreign key alone only knows the
+        group exists, not whose it is.
+      parameters:
+        - $ref: '#/components/parameters/CardId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [groupId]
+              properties:
+                groupId:
+                  type: string
+                  format: uuid
+                  nullable: true
+                  description: The folder, or `null` for ungrouped.
+      responses:
+        '200':
+          description: The card, in the folder it now sits in.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MyCard' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /cards/{cardId}:
+    patch:
+      tags: [cards]
+      operationId: updateCard
+      summary: Fix a card's front or its meaning (YC-109)
+      description: |
+        Until this existed a card was permanent: `PUT .../state` was the only
+        write to an existing row, so a mistyped front could not be corrected —
+        and could not be worked around either, because the deck's unique index
+        on `normalize_text(front)` refuses the corrected duplicate.
+
+        PATCH rather than PUT, unlike the state route: two independent optional
+        fields, where that one carries the whole value of a single thing.
+
+        Writes `front` and `back` and nothing else — no state, no
+        `createdAt`, and none of R-15's three unused scheduling columns.
+        Re-sending the values a card already has writes nothing at all, so a
+        replayed request does not move `updatedAt`.
+
+        Editing does not open a streak day. Fixing a typo is not a study task.
+      parameters:
+        - $ref: '#/components/parameters/CardId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateCardRequest' }
+      responses:
+        '200':
+          description: The whole card as it now stands, read back after the write.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MyCard' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: |
+            `card_front_taken` — another of this learner's cards already holds
+            this front, and the deck allows one card per word. The problem
+            carries that card so the client can link to it. Neither row is
+            touched; the two are never merged, because merging would have to
+            silently pick which state, which provenance and which chủ điểm
+            survive.
+
+            `card_front_locked` — this card came from a question, a video line,
+            a dictation sentence or a paper's bảng từ vựng, so its front is the
+            citation and cannot move. See `UpdateCardRequest.front`. Send only
+            `back` for such a card.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/CardFrontTakenProblem' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+    delete:
+      tags: [cards]
+      operationId: deleteCard
+      summary: Remove a card from the deck (YC-109)
+      description: |
+        Gone, not hidden. The card's chủ điểm rows and its record of which
+        papers hold the word go with it; the weakness picture is computed from
+        the error log and is untouched, and a paper's bảng từ vựng simply shows
+        the word as "Chưa lưu" again, with a working save button.
+
+        A tombstone would be wrong rather than merely heavier: the deck's
+        unique index is unconditional, so a hidden row would permanently refuse
+        to let the learner save that word again — they would press Lưu and be
+        told it is already in a deck they cannot see.
+
+        Deleting does not open a streak day.
+
+        Repeating the request answers 404, and a client may treat that as
+        success. Answering 204 for an id that was never there would hide a
+        typo instead.
+      parameters:
+        - $ref: '#/components/parameters/CardId'
+      responses:
+        '204':
+          description: Deleted. No body — there is no longer a card to describe.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /cards/{cardId}/state:
     put:
       tags: [cards]
@@ -1205,8 +1892,26 @@ paths:
         report the same three constants, and a constant on the wire is a field
         a client renders as though it meant something. `state` is here because
         R-15 makes it the learner's own answer rather than a scheduler's.
+
+        Each card carries its full back (`wordbookEntry`) where the bank
+        describes the word — the same object `GET /me/cards/study` returns, on
+        purpose. The collection is where R-15 ràng buộc 3 puts marking, so a
+        card marked here and a card seen in a session must not be two different
+        payloads; a row that sprouted a back the other forty-nine lacked would
+        be that drift arriving one card at a time.
       parameters:
         - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - name: group
+          in: query
+          description: |
+            Which of the learner's folders to narrow to. Absent is the whole
+            deck; `none` is the cards deliberately left out of every folder;
+            anything else is a group id.
+
+            An unknown id narrows to nothing rather than answering 404 — a
+            stale bookmark should give an empty screen, not a broken one, which
+            is what any filter matching no rows does.
+          schema: { type: string }
       responses:
         '200':
           description: |
@@ -1244,6 +1949,13 @@ paths:
         identical every day until the learner marks something. R-15 calls it
         "danh sách ôn hằng ngày" for how it is used, not how it is computed.
 
+        Each card carries its full back (`wordbookEntry`) where the bank
+        describes the word — R-15 asks for reading, word class, both meanings,
+        example sentences and pronunciation to be readable on the flip itself,
+        "không phải mở sang chỗ khác". It is the same object `GET /me/cards`
+        returns, so a card cannot look like two different cards on the two
+        screens that show it.
+
         **One response is one session.** `limit` is the learner's configured
         session size rather than a page size, and there is no cursor. That is
         deliberate: the sort key includes `state`, which reviewing is the act
@@ -1257,6 +1969,19 @@ paths:
             the default rather than erroring — a stale client is not worth a
             422 on a read.
           schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: group
+          in: query
+          description: |
+            Narrow the session to one of the learner's folders. Absent is the
+            whole deck; `none` is the cards left out of every folder; anything
+            else is a group id, and an unknown one gives an empty session
+            rather than a 404.
+
+            It narrows WHICH cards are in the session, never their ORDER. R-15
+            fixes that — "Ưu tiên thứ đang dở hơn thứ chưa bắt đầu" — so Đang
+            học still comes before Mới inside a folder exactly as it does over
+            the whole deck (TCCN-116-2). There is no shuffled mode.
+          schema: { type: string }
       responses:
         '200':
           description: |
@@ -1576,6 +2301,89 @@ paths:
           description: |
             Another attempt is already in progress, or nothing is left to
             retake in the selected parts.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/AttemptInProgressProblem' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  # ── đề tự tạo (SC-CUSTOM-EXAM) ────────────────────────────────────────────
+
+  /custom-exams/options:
+    get:
+      tags: [exams]
+      operationId: getCustomExamOptions
+      summary: Đề tự tạo — what each level and part can offer
+      description: |
+        Sizes every control on the đề tự tạo screen before the learner touches
+        one, read from the exact pool `POST /custom-exams/attempts` builds a
+        paper from — so a number the screen offers is never a number the bank
+        cannot serve.
+
+        Both levels come back in one response rather than one per request. The
+        learner flips between TOPIK I and TOPIK II to compare what each would
+        give them, and a refetch per flip would blank the counts being
+        compared.
+      responses:
+        '200':
+          description: Both levels, and the one the screen should open on.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CustomExamOptions' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /custom-exams/attempts:
+    post:
+      tags: [exams]
+      operationId: startCustomExam
+      summary: Build a paper out of the bank and open it
+      description: |
+        Two shapes, and they are two different promises:
+
+        `SIMULATED` — đề mô phỏng. Built to the level's blueprint exactly:
+        every section it names, each at that section's own `question_count` and
+        time limit, and a độ khó mix derived from the same `level_thresholds`
+        R-16 bands a real paper with. Complete against its blueprint, so it may
+        be sat as `EXAM` and — only then — carries an estimated band, exactly
+        as a published paper does. `sections` is ignored; the blueprint decides,
+        for the same reason R-01 gives EXAM mode no choice about sitting the
+        whole paper.
+
+        `CUSTOM` — đề tự chọn. The learner says how many câu each part holds
+        (at most 50 for Nghe and Đọc, at most 4 for Viết). 20 câu Nghe out of
+        50 has no honest total and no honest cấp độ, so this is `PRACTICE` only
+        — `EXAM` is refused with a 422 rather than quietly downgraded — and the
+        result carries `bandWithheldReason: NOT_A_FULL_PAPER` like every other
+        generated set.
+
+        Questions sharing one stimulus are always taken together and stay
+        adjacent: a listening clip is rationed to one play (R-01), so half a
+        group would spend the only listen on a question the clip half-answers.
+
+        Neither shape creates an `exams` row. A paper one learner assembled has
+        no place in the catalogue everyone else reads, so both hang off a
+        `practice_sets` row — GĐ-3's exception for a generated set drawing on
+        several source papers.
+
+        R-03 still holds: one live attempt at a time. A learner with an
+        unfinished run gets the same 409 and the same `inProgressAttempt` as
+        every other way of starting one.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StartCustomExamBody' }
+      responses:
+        '201':
+          description: The paper, ready to sit.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AttemptRunner' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409':
+          description: |
+            Another attempt is already in progress, or the bank does not hold
+            enough published questions to build what was asked for
+            (`not_enough_questions`).
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/AttemptInProgressProblem' }
@@ -2135,7 +2943,11 @@ paths:
       tags: [shadowing]
       operationId: listShadowCategories
       summary: Chủ đề ngữ liệu nhại theo
+      security: []
       description: |
+        Readable without a session — the vocabulary carries nothing about the
+        reader, and the guest preview draws the same chip row a learner gets.
+
         The chip row above the list, with a count on each chip and the total
         "Tất cả" wears.
 
@@ -2153,14 +2965,20 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ShadowCategoryList' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
 
   /shadowing/videos:
     get:
       tags: [shadowing]
       operationId: listShadowVideos
       summary: Ngữ liệu nhại theo (R-19)
+      security: []
       description: |
+        Readable without a session. A visitor gets the same rows with
+        `practisedCount` at 0 and no level to measure distance from, so the
+        order falls back to newest-first — exactly what a learner who has
+        practised nothing and holds no level already gets. Opening a video
+        (`GET /shadowing/videos/{videoId}`) still needs an account.
+
         Published videos **that have at least one line**. A video with no
         segmented transcript is not in this list and is not greyed out either
         (TCCN-351-1): there is no unit to repeat, so there is nothing to
@@ -2177,6 +2995,16 @@ paths:
           in: query
           description: Clamped rather than refused, as everywhere else here.
           schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - name: offset
+          in: query
+          description: |
+            Videos to skip, over the same order the page returns. That order
+            ends on `id`, so it is total: a video cannot sit on two pages at
+            once or fall between them as the learner steps through.
+
+            Clamped like `limit` — a negative offset reads as page one rather
+            than a 422 about a query string nobody typed.
+          schema: { type: integer, minimum: 0, default: 0 }
         - name: topicId
           in: query
           description: |
@@ -2199,7 +3027,6 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ShadowVideoList' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
 
   /shadowing/videos/{videoId}:
     parameters:
@@ -2270,7 +3097,10 @@ paths:
       tags: [dictation]
       operationId: listDictationCategories
       summary: Chủ đề bộ chép chính tả
+      security: []
       description: |
+        Readable without a session, for the reason the shadowing twin gives.
+
         The chip row above the list, with a count on each chip and the total
         "Tất cả" wears. Its own request for the reason the shadowing twin gives.
 
@@ -2284,14 +3114,18 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/DictationCategoryList' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
 
   /dictation/sets:
     get:
       tags: [dictation]
       operationId: listDictationSets
       summary: Bộ chép chính tả (R-36)
+      security: []
       description: |
+        Readable without a session. A visitor gets the same rows with
+        `correctCount` at 0 and newest-first order, as a learner with no
+        results and no level does. Opening a set still needs an account.
+
         Published sets that have at least one sentence.
 
         Ordered by distance from the learner's own level, never filtered by it
@@ -2305,6 +3139,15 @@ paths:
           in: query
           description: Clamped rather than refused, as everywhere else here.
           schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - name: offset
+          in: query
+          description: |
+            Sets to skip, over the same order the page returns. That order ends
+            on `id`, so it is total: a set cannot sit on two pages at once or
+            fall between them as the learner steps through.
+
+            Clamped like `limit`, for the same reason.
+          schema: { type: integer, minimum: 0, default: 0 }
         - name: categoryId
           in: query
           description: |
@@ -2318,7 +3161,6 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/DictationSetList' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
 
   /dictation/sets/{setId}:
     parameters:
@@ -2510,10 +3352,16 @@ paths:
 
   # ── assistant (R-37 · SC-CHATBOT) ─────────────────────────────────────────
   #
-  # Three routes and no fourth for the allowance. TCCN-563-1 is about ordering
-  # rather than display — the number has to be on screen before the learner
-  # types anything — so it rides on the opening payload instead of a call the
-  # panel would have to make separately.
+  # No route for the allowance, and none for listing cuộc trò chuyện. Both ride
+  # on the opening payload, for one reason: TCCN-563-1 is about ordering rather
+  # than display — the number has to be on screen before the learner types
+  # anything — and a panel that fetched either separately would have a frame in
+  # which it is open and knows neither what it can spend nor which conversation
+  # it is in.
+  #
+  # Nothing here creates a thread either. One is opened by the first question
+  # asked without one, which is what keeps the list free of conversations a
+  # learner started and walked away from.
   #
   # There is deliberately no route here that accepts audio. TCCN-568-3: the
   # product removed every recording surface and therefore carries no
@@ -2524,11 +3372,23 @@ paths:
     get:
       tags: [assistant]
       operationId: getAssistantPanel
-      summary: Everything the trợ lý panel needs to open (YC-561, YC-563, R-11)
+      summary: What the trợ lý needs to open (YC-561, YC-563, R-11)
       description: |
-        One request, because two would leave a frame in which the panel is open
-        and knows neither the allowance nor what to suggest — which is the empty
-        chat box `TCCN-562-6` forbids.
+        The allowance, the starter questions, and whether the trợ lý is there at
+        all. Those three travel together because `TCCN-563-1` and `TCCN-562-6`
+        are both about the frame the panel opens in — the number before the
+        learner types, suggestions instead of an empty chat box — and a second
+        request for either would give the panel a frame in which it is open and
+        does not know.
+
+        **The two lists no longer ride along.** The open thread's turns are
+        `GET /me/assistant/turns` and the cuộc trò chuyện list is
+        `GET /me/assistant/threads`, each fetched when something is drawn from
+        it. This response is on the path of every page load — the client asks it
+        whether to draw the launcher at all, and re-asks on every screen the
+        learner walks through — and carrying fifty turns and fifty threads
+        through that made the trợ lý slow to appear for the many learners who
+        were never going to open it.
 
         The anchor parameters describe what the learner has on screen. They
         change the suggestions and the context an answer is built from; none of
@@ -2553,7 +3413,7 @@ paths:
           schema: { type: string, format: uuid }
       responses:
         '200':
-          description: The allowance, the suggestions, and this learner's history.
+          description: The allowance, the suggestions, and whether it is offered.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/AssistantPanel' }
@@ -2697,6 +3557,69 @@ paths:
               schema: { $ref: '#/components/schemas/Problem' }
 
   /me/assistant/turns:
+    get:
+      tags: [assistant]
+      operationId: listAssistantTurns
+      summary: One cuộc trò chuyện, a page at a time (TCCN-568-1)
+      description: |
+        Split out of `GET /me/assistant`, where it was read on every page load
+        whether or not anything drew it. A panel that opens on a new
+        conversation asks for no turns at all, and one that continues an old one
+        pays for the turns rather than for the whole history.
+
+        `TCCN-568-1` asks that the lượt hỏi in a conversation be readable in
+        order, and `items` is in that order — oldest first, so the panel reads
+        downward. Paging runs the other way, from the newest turn backwards:
+        `offset: 0` is the end of the conversation, which is where a reader
+        starts, and older pages are fetched as they scroll up.
+      parameters:
+        - name: threadId
+          in: query
+          description: |
+            Which cuộc trò chuyện. Omit for the one the learner last spoke in,
+            which is what somebody continuing a conversation means — they are
+            picking up what they were doing, not starting over.
+
+            A thread belonging to another learner is a `404`.
+          schema: { type: string, format: uuid }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 50, default: 20 } }
+        - name: offset
+          in: query
+          description: |
+            Turns to skip, counting back from the newest. The order breaks ties
+            on `id`, which is unique, so a turn cannot land on two pages at once
+            or fall between them.
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        '200':
+          description: A page of the conversation, oldest first within the page.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, totalCount]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/AssistantTurn' }
+                  totalCount:
+                    type: integer
+                    description: |
+                      Every turn in the thread, not the ones on this page. A
+                      pager that cannot see past its own page cannot say whether
+                      there is an older one to offer.
+                  threadId:
+                    type: string
+                    format: uuid
+                    description: |
+                      Which conversation these came from — the one asked for, or
+                      the newest when none was. Absent, with an empty `items`,
+                      when the learner has never asked anything: that is the
+                      empty panel with the starter questions in it, not an error.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
     delete:
       tags: [assistant]
       operationId: deleteAssistantHistory
@@ -2718,6 +3641,80 @@ paths:
               schema: { $ref: '#/components/schemas/AssistantDeleteResult' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+
+  /me/assistant/threads:
+    get:
+      tags: [assistant]
+      operationId: listAssistantThreads
+      summary: The cuộc trò chuyện list (YC-568)
+      description: |
+        Split out of `GET /me/assistant` for the reason the turns were: the list
+        is drawn when the learner presses Lịch sử trò chuyện, and until then it
+        was fifty rows and fifty counts fetched behind every navigation.
+
+        Most recently used first. A client knows whether there is a list to
+        offer before asking for one — `AssistantPanel.threadId` is present
+        exactly when the learner has at least one conversation.
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 50, default: 20 } }
+        - name: offset
+          in: query
+          description: |
+            Conversations to skip, over the same most-recent-first order. The
+            order breaks ties on `id`, which is unique, so a thread cannot land
+            on two pages at once or fall between them.
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        '200':
+          description: A page of conversations, most recently used first.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, totalCount]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/AssistantThread' }
+                  totalCount:
+                    type: integer
+                    description: |
+                      Every conversation the learner has, not the ones on this
+                      page.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /me/assistant/threads/{threadId}:
+    delete:
+      tags: [assistant]
+      operationId: deleteAssistantThread
+      summary: Xoá một cuộc trò chuyện (YC-568)
+      description: |
+        `TCCN-568-2` narrowed to one conversation, with both of its promises
+        intact. A real delete — the turns go with the thread — and the spent
+        allowance does not come back, which is why `quota` is returned: "xoá
+        lịch sử không phải cách lấy thêm lượt" is as true of one thread as it is
+        of all of them.
+
+        The all-of-it route stays. A learner who wants everything gone should
+        not have to delete twenty threads one at a time to get it.
+
+        The confirmation the criterion asks for happens in the client, before
+        this is called.
+      parameters:
+        - name: threadId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: How many turns went with it, and the untouched allowance.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AssistantDeleteResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /admin/dictation/categories:
     get:
@@ -3016,6 +4013,104 @@ paths:
   # Internal. Every operation here is gated by an rbac permission held only by
   # content_editor / content_admin, and none of it is reachable by a learner.
   # The screens live in kolearn-dashboard.
+
+  # ── billing (dashboard) ────────────────────────────────────────────────────
+
+  /admin/billing/codes:
+    get:
+      tags: [billing]
+      operationId: listRedeemCodes
+      summary: Mã nâng cấp đã phát hành
+      description: |
+        rbac: `billing:manage`. Newest first, capped — a campaign can mint
+        hundreds at once, and the screen this feeds is for finding the code
+        somebody asked about, not for exporting the lot.
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 500, default: 200 }
+      responses:
+        '200':
+          description: The codes.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RedeemCodeList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [billing]
+      operationId: createRedeemCodes
+      summary: Phát hành mã
+      description: |
+        rbac: `billing:manage`. Mints `count` codes with the same terms in one
+        transaction, with one audit row naming all of them. Answers with the
+        codes, which is the only time a batch is handed back together — copy
+        them from here.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateRedeemCodesRequest' }
+      responses:
+        '201':
+          description: The codes minted.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RedeemCodeList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /admin/billing/codes/{codeId}/revoke:
+    parameters:
+      - name: codeId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [billing]
+      operationId: revokeRedeemCode
+      summary: Thu hồi mã
+      description: |
+        rbac: `billing:manage`. From now on the code answers `code_invalid`.
+        Redemptions already made stand: a learner who used it in good faith
+        keeps their days, and taking them back would be an UPDATE on a ledger
+        that forbids one.
+      responses:
+        '200':
+          description: The code, now revoked.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RedeemCode' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: '`code_already_revoked`.'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /admin/billing/codes/{codeId}/redemptions:
+    parameters:
+      - name: codeId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [billing]
+      operationId: listCodeRedemptions
+      summary: Ai đã dùng mã này
+      description: 'rbac: `billing:manage`.'
+      responses:
+        '200':
+          description: The redemptions, newest first.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CodeRedemptionList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /admin/exams:
     get:
@@ -3828,6 +4923,11 @@ components:
       in: path
       required: true
       schema: { type: string, format: uuid }
+    CardGroupId:
+      name: groupId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
     AssetId:
       name: assetId
       in: path
@@ -4015,6 +5115,16 @@ components:
         email: { type: string, format: email }
         password: { type: string }
 
+    AuthProviders:
+      type: object
+      required: [google]
+      properties:
+        google:
+          type: boolean
+          description: |
+            Whether this deployment holds Google OAuth credentials. False means
+            `/auth/google/start` is not mounted and the button must not be shown.
+
     AuthTokens:
       type: object
       required: [accessToken, expiresIn, user]
@@ -4029,25 +5139,398 @@ components:
 
     CurrentUser:
       type: object
-      required: [id, email, emailVerified, displayName, roles, permissions]
+      required: [id, email, emailVerified, hasPassword, displayName, roles, permissions, plan]
       properties:
         id: { type: string, format: uuid }
         email: { type: string, format: email }
         emailVerified: { type: boolean }
+        hasPassword:
+          type: boolean
+          description: |
+            Whether this account has a password at all.
+
+            `password_hash` is nullable: an account created through Google has
+            never had one, and `POST /auth/login` is not a way in for it. The
+            client needs this to decide between offering **Đổi mật khẩu**, which
+            can prove ownership with the current password, and **Đặt mật khẩu**,
+            which has nothing to prove it with and has to go out through email.
+            Guessing from `roles` or from the absence of anything else would be
+            guessing; there is no other field that carries it.
         displayName: { type: string }
         locale: { type: string }
+        timezone:
+          type: string
+          maxLength: 64
+          description: |
+            IANA zone (`Asia/Ho_Chi_Minh`). Every "day" this API reports is a
+            day in this zone — the streak, and any daily rollup added later.
+
+            **Absent means the learner has never reported one**, and that is a
+            state the client is expected to act on rather than tolerate: report
+            `Intl.DateTimeFormat().resolvedOptions().timeZone` through
+            `PUT /me/timezone`. It is absent rather than defaulted because a
+            default would put every account in one zone with nobody having
+            chosen it, and a wrong zone does not fail loudly — it moves
+            somebody's midnight and breaks a streak on a day they studied.
+
+            Until it is set the server counts days in UTC. That is a documented
+            fallback, not a claim about where anybody is.
         roles:
           type: array
           items: { type: string }
         permissions:
           type: array
           items: { type: string }
+        plan: { $ref: '#/components/schemas/UserPlan' }
+
+    UserPlan:
+      type: object
+      required: [tier]
+      description: |
+        The learner's gói. Always present on `CurrentUser`, never omitted: a
+        `basic` is the answer that decides what Cài đặt offers, and an absent
+        key would read as a server that had not shipped the field yet.
+
+        The tier is **derived**, not stored — a learner is `premium` while a
+        row of `premium_periods` covers this moment, and `basic` otherwise.
+        Every account starts `basic` by having no such row; registration
+        writes nothing about plans.
+      properties:
+        tier:
+          type: string
+          enum: [basic, premium]
+        premiumUntil:
+          type: string
+          format: date-time
+          description: |
+            When Premium runs out. Present only while `tier` is `premium`.
+            Grants stack end to end, so this is the far end of the whole run,
+            not of the most recent grant.
+
+    RedeemCodeRequest:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+          maxLength: 64
+          description: |
+            As typed. The server upper-cases it and drops spaces and dashes,
+            so `abcd-efgh-jklm` and `ABCDEFGHJKLM` are the same code. The
+            alphabet has no O, I, 0 or 1.
+
+    RedeemCodeResult:
+      type: object
+      required: [plan, daysAdded]
+      properties:
+        plan: { $ref: '#/components/schemas/UserPlan' }
+        daysAdded:
+          type: integer
+          description: What the code was worth, for the confirmation line.
+
+    RedeemCode:
+      type: object
+      required: [id, code, days, maxUses, uses, note, createdAt]
+      description: A mã nâng cấp as the dashboard sees it. `billing:manage`.
+      properties:
+        id: { type: string, format: uuid }
+        code:
+          type: string
+          description: Twelve characters, shown to the operator to hand out.
+        days: { type: integer }
+        maxUses: { type: integer }
+        uses: { type: integer }
+        expiresAt:
+          type: string
+          format: date-time
+          description: Absent for a code with no expiry date.
+        revokedAt:
+          type: string
+          format: date-time
+          description: Present once revoked. Redemptions already made stand.
+        note: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    RedeemCodeList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/RedeemCode' }
+
+    CreateRedeemCodesRequest:
+      type: object
+      required: [days, maxUses]
+      properties:
+        days:
+          type: integer
+          minimum: 1
+          maximum: 3650
+        maxUses:
+          type: integer
+          minimum: 1
+          maximum: 100000
+          description: '1 for a code meant for one person; more for a campaign, where each learner may still use it once.'
+        count:
+          type: integer
+          minimum: 1
+          maximum: 500
+          default: 1
+          description: How many codes to mint with these terms.
+        expiresAt:
+          type: string
+          format: date-time
+          description: Omit for a code that never expires by date.
+        note:
+          type: string
+          maxLength: 200
+          description: Who it is for, or which campaign.
+
+    CodeRedemption:
+      type: object
+      required: [userId, email, displayName, redeemedAt, premiumUntil]
+      properties:
+        userId: { type: string, format: uuid }
+        email: { type: string, format: email }
+        displayName: { type: string }
+        redeemedAt: { type: string, format: date-time }
+        premiumUntil:
+          type: string
+          format: date-time
+          description: Where the period this redemption created ends.
+
+    CodeRedemptionList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/CodeRedemption' }
+
+    UpdateProfile:
+      type: object
+      description: |
+        Every property optional: absent means "leave this one alone". See
+        `PATCH /me/profile` for why this is a patch rather than a put.
+      properties:
+        displayName:
+          type: string
+          maxLength: 60
+          description: |
+            What the learner is called on screen.
+
+            **Cleaned before it is stored, not refused.** The value is
+            normalised to NFC, characters that would not print are dropped, and
+            every run of whitespace becomes one space with the ends trimmed. A
+            name arriving with a trailing space, a tab pasted out of a
+            spreadsheet, or a newline from a box that wrapped is a paste
+            accident rather than a request for those characters, and answering
+            422 would send the learner hunting for something invisible.
+
+            **NFC first, so the limit counts what a reader would call a
+            character.** A browser may send `ế` as one rune or as two, and
+            Vietnamese names are full of them; measuring before composing would
+            give one name two different lengths depending on the keyboard that
+            typed it. `maxLength` here is characters after the cleaning.
+
+            Two results have no reasonable repair and are refused as 422:
+            nothing at all left once cleaned (`display_name_empty` — a learner
+            may not become nameless), and longer than the limit
+            (`display_name_too_long` — guessing where to cut somebody's name is
+            worse than saying it does not fit).
+
+            Accounts registered before this endpoint existed may hold a name
+            that would fail both rules, because `POST /auth/register` has never
+            checked one. `GET /me` still returns whatever is stored; it is
+            brought into line the first time its owner writes here.
+
+    ChangePassword:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword:
+          type: string
+          description: |
+            Proof that the person at the keyboard is the account holder rather
+            than someone who found it unlocked. A wrong one is 422
+            `current_password_incorrect`, carrying a field error on this
+            property so a form can put the message under the right box.
+        newPassword:
+          type: string
+          minLength: 10
+          description: |
+            Length only, the same rule `POST /auth/register` applies and for the
+            same reason: composition rules push people toward predictable
+            substitutions without adding real entropy. Too short is 422
+            `password_too_short`.
+
+            Checked BEFORE the current password is verified, which is visible
+            here only as the order the errors arrive in. Verifying costs a
+            64MiB Argon2 hash and this check costs nothing, so a malformed
+            request cannot make the server do that work.
+
+    SessionList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/SignedInSession' }
+
+    SignedInSession:
+      type: object
+      required: [id, current, userAgent, startedAt, lastSeenAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: |
+            The refresh-token family. What `DELETE /me/sessions/{sessionId}`
+            takes, and what survives every rotation of the token behind it.
+        current:
+          type: boolean
+          description: |
+            Whether this is the device making the request. Exactly one row
+            carries it, or none — see the note on `GET /me/sessions` for the
+            fifteen minutes after a deploy when it is none.
+        userAgent:
+          type: string
+          description: |
+            Exactly what the browser sent, unparsed and possibly empty.
+
+            Deliberately not turned into "Chrome trên macOS" here. That string
+            is presentation — it would put Vietnamese in the API — and it is
+            guesswork besides: user-agent parsing is a pile of heuristics that
+            are wrong often enough that the raw value has to survive as the
+            fallback. The client reduces it and decides what to show when it
+            cannot.
+        startedAt:
+          type: string
+          format: date-time
+          description: When this device first signed in.
+        lastSeenAt:
+          type: string
+          format: date-time
+          description: |
+            The most recent token this family was issued, which is the last time
+            the device renewed. Within about fifteen minutes of "last used",
+            and not a claim of anything finer.
+
+    UserTimezone:
+      type: object
+      required: [timezone]
+      description: |
+        One IANA zone, both ways round `PUT /me/timezone`. Its own schema rather
+        than a bare string so the request and the response cannot drift, and so
+        the client reads the stored spelling back from the same shape it sent.
+      properties:
+        timezone: { type: string, maxLength: 64 }
+
+    StudyStreak:
+      type: object
+      required: [current, longest, activeToday]
+      description: |
+        R-38's chuỗi ngày học. Read the note on `longest` before rendering it,
+        and note what this object does NOT carry — the list is deliberate and is
+        checked by a test.
+
+        **No deadline of any kind.** No expiry, no time remaining, no "at risk",
+        no end-of-day timestamp, nothing a countdown could be drawn from
+        (TCCN-606-3). The screen may say a learner has not studied today; it may
+        never say how long they have left.
+
+        **No restore, no repair, no freeze, no price.** A streak cannot be
+        bought back, traded, or unlocked by watching an advert (TCCN-606-4), so
+        there is no field here for a client to build one of those against — and
+        no endpoint anywhere that can write a day that has passed.
+
+        **Nothing about losing one.** No `previousStreak`, no `brokenOn`, no
+        `missedDays`. A break is not an event this API reports (TCCN-606-1); a
+        new run simply starts at 1 and is stated as an ordinary number
+        (TCCN-606-2). `longest` is the only backward-looking number here, and it
+        is a record to return to rather than a loss to mourn.
+
+        **Nothing comparative.** No rank, percentile, average or cohort. The
+        record is the learner's own (TCCN-602-1).
+      properties:
+        current:
+          type: integer
+          description: |
+            Consecutive days up to and including today — or up to yesterday,
+            when today has not counted yet.
+
+            A run that ended yesterday is still current, and that is not a
+            rounding choice: the learner has the rest of the day to continue it,
+            and reporting 0 the moment they open the app before studying would
+            be the "dấu hiệu sai hỏng" TCCN-606-1 forbids, announced at 9am to
+            somebody who has done nothing wrong.
+
+            0 means the last activity was two or more days ago, or there has
+            never been any. The client renders those two the same way, so the
+            screen cannot comment on a break it can no longer see.
+        longest:
+          type: integer
+          description: |
+            The longest run this learner has ever had. Theirs alone; never a
+            cohort figure (TCCN-602-1).
+
+            **It includes the run in progress**, so on a learner's first ever
+            day this is 1 and not 0 — `"Kỷ lục: 0 ngày"` is unreachable from
+            this API. The client hides the record line when `longest <=
+            current`, which is TCCN-602-2 on day one and is also right on day 7
+            of a 6-day record. Reporting null instead would give this field two
+            meanings, and a field with two meanings gets one of them rendered
+            wrong.
+
+            It survives gaps. Missing a day ends the current run and starts a
+            new one; it never touches this number (TCCN-606-1).
+        activeToday:
+          type: boolean
+          description: |
+            Whether today already counts. Needed separately from `current`
+            because "6 ngày liền" and "làm một việc nữa là tròn 7" are different
+            sentences and the number alone cannot tell them apart.
+
+            False is not a warning. It is the ordinary state of every morning.
+        lastActiveOn:
+          type: string
+          format: date
+          description: |
+            The most recent day that counted, in `CurrentUser.timezone`. Absent
+            when nothing ever has.
+
+            A date, never a timestamp, and that line is the one worth holding: a
+            time of day here is the one input a countdown needs.
 
     # ── catalog ─────────────────────────────────────────────────────────────
 
     ExamLevel:
       type: string
       enum: [TOPIK_I, TOPIK_II]
+
+    ExamLevelCounts:
+      type: object
+      required: [TOPIK_I, TOPIK_II]
+      description: |
+        How many published papers each level holds, for the numbers on
+        SC-TEST-LIST's chips.
+
+        Keyed by the `ExamLevel` value so a client can index it with the chip's
+        own value rather than keeping a second table mapping one to the other.
+
+        **Never narrowed by the `level` parameter.** A chip has to say how many
+        papers sit under it whichever chip is currently pressed — counts taken
+        from an already-filtered response would read zero everywhere but the
+        active one, which is the same argument `GET /shadowing/categories`
+        makes for being a request of its own.
+
+        Nothing here counts "Tất cả": every published paper has exactly one of
+        these two levels, so the sum is that number and a third field would be
+        one more thing that can disagree with the other two.
+      properties:
+        TOPIK_I: { type: integer }
+        TOPIK_II: { type: integer }
 
     SectionKind:
       type: string
@@ -4056,6 +5539,29 @@ components:
     AttemptMode:
       type: string
       enum: [PRACTICE, EXAM]
+
+    AttemptModeCounts:
+      type: object
+      required: [EXAM, PRACTICE]
+      description: |
+        How many attempts each hình thức holds, for the numbers on
+        SC-TEST-HISTORY's chips.
+
+        Keyed by the `AttemptMode` value so a client can index it with the
+        chip's own value rather than keeping a second table mapping one to the
+        other.
+
+        **Narrowed by `hideAbandoned` and never by `mode`.** The switch changes
+        what the list contains, so a count that ignored it would not describe
+        the list underneath; the chips are the choice being counted, so a count
+        narrowed by the pressed one would read zero on both of its neighbours.
+
+        Nothing here counts "Tất cả": every attempt has exactly one mode, so
+        the sum is that number and a third field would be one more thing that
+        can disagree with the other two.
+      properties:
+        EXAM: { type: integer }
+        PRACTICE: { type: integer }
 
     MyCardWordbookSource:
       type: object
@@ -4072,6 +5578,87 @@ components:
         examCode: { type: string }
         examTitle: { type: string }
         entryId: { type: string, format: uuid }
+
+    MyCardWordbookEntry:
+      type: object
+      required:
+        [entryId, examId, examCode, examTitle, readingLatin, partOfSpeech,
+         meaningVi, examples, audioUrl]
+      description: |
+        The mục từ a card's back is drawn from — R-15's "Mặt sau" in full,
+        which R-15 delegates to `R-17` and R-33 restates for a second corpus.
+
+        **Singular where `wordbookSources` is a list**, and the two are not one
+        thing at two cardinalities. `wordbookSources` answers "which papers
+        record this card" and TCCN-503-3 makes that a list. This answers "what
+        does the back SAY", and there can only be one answer: a back showing
+        two readings, two word classes and four example sentences is not a flip
+        card. The two are independent — a card may carry this and an empty
+        `wordbookSources`, because a lookup is not a save.
+
+        Absent, not empty, when nothing in the bank describes this word. R-15's
+        back is seven rows and `back` is one string; a card that has only that
+        string renders one line rather than six empty ones — TCCN-109-5's rule
+        applied to the back instead of to the source row. TCCN-116-8 still
+        requires such a card to flip.
+
+        ⚠ `back` may already hold the same contextual meaning: the wordbook
+        screen writes it there when the learner saves (`SaveControl`). A client
+        must not print it twice.
+      properties:
+        entryId: { type: string, format: uuid }
+        examId: { type: string, format: uuid }
+        examCode: { type: string }
+        examTitle:
+          type: string
+          description: |
+            The paper this back is quoted from, carried so the client can say
+            so — "theo bảng từ vựng đề TOPIK-91" — and link to it. It is also
+            what makes `contextMeaningVi` readable at all: a contextual meaning
+            with no paper on it is a claim with no subject.
+        readingLatin:
+          type: string
+          description: Cách đọc, in Latin script — R-15's first row of the back.
+        partOfSpeech: { $ref: '#/components/schemas/WordbookPartOfSpeech' }
+        meaningVi:
+          type: string
+          description: |
+            Nghĩa chung. R-33: "xem thêm được, không thay cho nghĩa trong ngữ
+            cảnh" — shown second, and never copied into the field below.
+        contextMeaningVi:
+          type: string
+          description: |
+            Nghĩa trong ngữ cảnh — "nghĩa ở chính ngữ liệu sinh ra thẻ này".
+
+            **Present ⟺ this paper is the card's own ngữ liệu.** That is the
+            invariant a client may lean on, and its absence is the correctness
+            core of this field: it is filled only when the paper is provably
+            the one that made the card (same create() transaction, and for a
+            card from a wrong answer, the same paper as that question).
+
+            A contextual meaning borrowed from an unrelated paper would be the
+            same word with a different meaning presented as this card's own,
+            with nothing on screen saying so. Absent is a designed state here
+            exactly as it is for `source` (TCCN-109-5); it is never filled by
+            copying `meaningVi`, which R-33 forbids by name.
+        examples:
+          type: array
+          description: |
+            Exactly two, in order — R-33 requires two, "không một, không ba".
+            Never absent, so a client has one branch.
+          items: { $ref: '#/components/schemas/WordbookExample' }
+        audioUrl:
+          type: string
+          description: |
+            Absolute against the public bucket when one is configured, and
+            root-relative on this API otherwise — the same convention and the
+            same helper as `WordbookItem.audioUrl`, and clients tell the two
+            apart by the leading slash.
+
+            R-15: "Nghe lại không giới hạn". The absolute form satisfies that
+            with no server in the loop at all. Note the root-relative fallback
+            is served under `wordbook:read:own`, so revoking that permission
+            would 403 a card's audio while the rest of its back still renders.
 
     Wordbook:
       type: object
@@ -4998,6 +6585,19 @@ components:
       type: object
       required: [type, front]
       properties:
+        groupId:
+          type: string
+          format: uuid
+          description: |
+            The learner's folder for the new card. Absent leaves it ungrouped.
+
+            Applied ONLY to a card this request actually inserts. A front
+            already in the deck comes back untouched (TCCN-109-2, TCCN-109-10)
+            and that includes its folder: someone saving a word again from
+            another screen has not asked to re-file the card they have been
+            working through. Moving one is `PUT /cards/{cardId}/group`.
+
+            A folder belonging to another learner answers 404.
         type:
           type: string
           enum: [VOCAB, GRAMMAR, STRUCTURE_TEMPLATE]
@@ -5054,6 +6654,132 @@ components:
             and the card that exists gains a line saying it also appears here.
             The response still reports `alreadyExisted: true`, so the screen
             says "Từ này đã có trong bộ thẻ của bạn" and offers the way to it.
+
+    MovedResult:
+      type: object
+      required: [moved]
+      properties:
+        moved:
+          type: integer
+          description: |
+            How many cards changed folder. Cards already in the target are not
+            counted, so this is what happened rather than what was requested.
+
+    CardGroup:
+      type: object
+      required: [id, name, cardCount, reviewableCount, createdAt]
+      description: |
+        One of the learner's folders over their deck. A label, never a second
+        deck — see `GET /me/card-groups`.
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        cardCount:
+          type: integer
+          description: |
+            How many cards are in it. Sent because these render as filter chips
+            and a chip showing a number has to show the number a tap would
+            produce — the argument the wordbook's filters make by name.
+        reviewableCount:
+          type: integer
+          description: |
+            How many of them are still Mới or Đang học — the cards a session
+            over this folder would draw from (R-15's danh sách ôn hằng ngày).
+
+            `cardCount` alone cannot answer the question a "review this folder"
+            control has to answer: a folder of forty-eight cards all marked Đã
+            nhớ offers nothing, and a link into it would be a tap that wasted
+            itself.
+
+            A list length, not a score. It falls only because the learner said a
+            card was known; nothing computes it and no date moves it.
+        createdAt: { type: string, format: date-time }
+
+    CardGroups:
+      type: object
+      required: [items, ungroupedCount, ungroupedReviewableCount]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/CardGroup' }
+        ungroupedCount:
+          type: integer
+          description: |
+            How many cards are in no folder. Ungrouped is a state the learner
+            chooses ("không phân loại"), so it is counted and filterable like any
+            folder; it is a number rather than an entry in `items` because it
+            has no id and cannot be renamed or deleted.
+        ungroupedReviewableCount:
+          type: integer
+          description: |
+            `reviewableCount` for those same cards, so a rail's last row can say
+            what every other row says.
+
+    MyCardGroup:
+      type: object
+      required: [id, name]
+      description: |
+        The folder a card sits in. Two fields and no count: the collection needs
+        the name to show and the id to filter by, and how many cards a folder
+        holds is a fact about the folder — it travels once on
+        `GET /me/card-groups` rather than on every card in it.
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+
+    UpdateCardRequest:
+      type: object
+      description: |
+        A partial edit. **No field is required**, and an absent field means
+        "leave it" rather than "clear it" — which is why `back: ""` has to be
+        expressible and means exactly what it says: the learner is removing a
+        meaning they had written. Sending neither field is 422 rather than a
+        silent no-op.
+
+        Only these two. Not `state` — that is `PUT /cards/{cardId}/state`, and
+        keeping them apart is what stops an edit from quietly re-marking a card
+        the learner has been working through. Not `topics`, which a card
+        inherits once from the question that made it. And none of R-15's three
+        unused scheduling columns, which nothing in this product writes.
+      properties:
+        front:
+          type: string
+          minLength: 1
+          description: |
+            Editable only on a card the learner typed themselves. A card that
+            came from a question, a video line, a dictation sentence or a
+            paper's bảng từ vựng answers `card_front_locked` (409) instead.
+
+            The reason is that `front` is the card's identity twice over: the
+            deck dedupes on `normalize_text(front)`, and the wordbook screen
+            finds a learner's card by that same key — so changing it on a card
+            saved from a paper would flip that entry back to "Chưa lưu" while
+            the card still names the paper, with nothing failing. Worse, the
+            card's provenance would go on citing a question that no longer
+            contains the word, and an unfollowable citation is the failure
+            nobody reports as a bug because it looks deliberate.
+
+            A whitespace-only change keeps the same normalized key and is
+            allowed on any card.
+        back:
+          type: string
+          description: |
+            The meaning the learner saved. Free to edit on any card, including
+            one from a corpus — the dictionary material lives in
+            `wordbookEntry` and is never written from here.
+
+    CardFrontTakenProblem:
+      allOf:
+        - $ref: '#/components/schemas/Problem'
+        - type: object
+          properties:
+            existingCard:
+              allOf: [{ $ref: '#/components/schemas/MyCard' }]
+              description: |
+                The card that already holds this front, carried on the 409 so
+                the client can render TCCN-109-2's "Từ này đã có trong bộ thẻ
+                của bạn" **with a link to it** rather than a dead end — the
+                same reason `AttemptInProgressProblem` carries its attempt.
 
     CardResult:
       type: object
@@ -5145,6 +6871,21 @@ components:
             has one branch rather than two. A paper withdrawn from the bank
             drops out of the list rather than becoming a link to a 404.
           items: { $ref: '#/components/schemas/MyCardWordbookSource' }
+        group:
+          allOf: [{ $ref: '#/components/schemas/MyCardGroup' }]
+          description: |
+            The learner's own folder for this card, absent when it is ungrouped.
+
+            Not a deck: `deckId` and `deckName` above are unaffected and still
+            name the one deck every card belongs to. Absent rather than a folder
+            called "chưa phân nhóm", so an ungrouped card renders no chip
+            instead of one claiming a folder that does not exist.
+        wordbookEntry:
+          allOf: [{ $ref: '#/components/schemas/MyCardWordbookEntry' }]
+          description: |
+            The dictionary material behind this card's back (R-15's "Mặt sau",
+            via `R-17`). Absent when nothing in the bank describes this word —
+            the card then has only `back`, and still flips (TCCN-116-8).
         source:
           allOf: [{ $ref: '#/components/schemas/MyCardSource' }]
           description: |
@@ -5412,7 +7153,11 @@ components:
 
     AssistantPanel:
       type: object
-      required: [quota, suggestions, turns, available]
+      required: [quota, suggestions, available]
+      description: |
+        What the panel needs in the frame it opens in, and nothing that can be
+        fetched once something draws it. The turns and the thread list left this
+        payload deliberately — see `GET /me/assistant`.
       properties:
         quota:
           allOf:
@@ -5428,10 +7173,18 @@ components:
             (`TCCN-562-6`). Written from the anchor, never generated: they show
             before the learner has spent anything, so a model call here would
             make opening the panel cost a lượt.
-        turns:
-          type: array
-          items: { $ref: '#/components/schemas/AssistantTurn' }
-          description: Oldest first, so the panel reads downward (`TCCN-568-1`).
+        threadId:
+          type: string
+          format: uuid
+          description: |
+            The cuộc trò chuyện a question lands in unless the client names
+            another, and the one `GET /me/assistant/turns` returns by default.
+
+            Absent when the learner has never asked anything. That is a real
+            state and not a missing value: a thread is created by asking, so
+            before the first question there is nothing to name. It is also how a
+            client knows, without asking, whether there is any history to offer
+            — present here means at least one conversation exists.
         available:
           type: boolean
           description: |
@@ -5439,11 +7192,50 @@ components:
             launcher outright rather than drawing a button that cannot answer —
             the same reasoning as `YC-565`'s "ẩn hẳn, không hiện ở trạng thái mờ".
 
-    AssistantTurn:
+    AssistantThread:
       type: object
-      required: [id, askedAt, question, outcome, charged, fromSaved]
+      required: [id, title, startedAt, lastAt, turns]
+      description: |
+        One cuộc trò chuyện, as the list draws it — deliberately without its
+        turns. The list is fifty rows in a panel about 20rem wide, and a payload
+        carrying every answer in every thread would be the learner's entire
+        history on every open, for a screen that shows three lines of each.
       properties:
         id: { type: string, format: uuid }
+        title:
+          type: string
+          description: |
+            The first question asked in this thread, trimmed to 60 characters.
+            Never empty, and never written by a model: naming a conversation
+            would be a model call on the product's only per-learner variable
+            cost, and the learner has already typed a perfectly good label.
+        startedAt: { type: string, format: date-time }
+        lastAt:
+          type: string
+          format: date-time
+          description: |
+            When the newest question in it landed. The list orders by this and
+            not by `startedAt` — a thread returned to after a week belongs at
+            the top, because that is what the learner just did with it.
+        turns:
+          type: integer
+          description: |
+            How many questions are in it. One number rather than the turns
+            themselves; it is what tells a learner which of two similarly-named
+            threads is the one they spent an afternoon in.
+
+    AssistantTurn:
+      type: object
+      required: [id, threadId, askedAt, question, outcome, charged, fromSaved]
+      properties:
+        id: { type: string, format: uuid }
+        threadId:
+          type: string
+          format: uuid
+          description: |
+            The cuộc trò chuyện this turn landed in. The client holds it and
+            sends it with the next question — it is how a thread created by a
+            first question is picked up by the second.
         askedAt: { type: string, format: date-time }
         question: { type: string }
         outcome:
@@ -5465,7 +7257,7 @@ components:
 
     AssistantAnswer:
       type: object
-      required: [kind, text, links]
+      required: [kind, text, links, vocab]
       properties:
         kind:
           type: string
@@ -5474,6 +7266,64 @@ components:
         links:
           type: array
           items: { $ref: '#/components/schemas/AssistantLink' }
+        vocab:
+          type: array
+          items: { $ref: '#/components/schemas/AssistantVocabItem' }
+          description: |
+            The Korean this answer taught, listed as well as written into the
+            prose, so the client can offer "thêm vào bộ thẻ" without the learner
+            retyping any of it (YC-109's thẻ, reached from SC-CHATBOT).
+
+            Always an array and usually empty — most answers teach nothing worth
+            saving, and the server drops the list outright on every kind except
+            `ANSWERED` and `GUIDED`: a refusal carrying a word list is a model
+            filling a required field, and those words were never on screen.
+
+            What survives is deduplicated, capped, and guaranteed to have Korean
+            in `word` and something in `meaning`. That is a bound on what the
+            model may put in front of a learner, not a claim of correctness —
+            these become rows in a collection the learner is shown every
+            morning, which is why the client confirms the list before creating
+            anything.
+
+    AssistantVocabItem:
+      type: object
+      required: [kind, word, meaning]
+      description: |
+        One term, in the shape `POST /cards` takes: `word` is the front,
+        `meaning` and `example` are the back, and `kind` is the card type.
+
+        No id of any sort. A thẻ made from an answer has no source row to point
+        at — unlike one saved from a bảng từ vựng, a shadowing line or a
+        dictation item — so `POST /cards:batch` is called with none of its
+        `source*` fields.
+      properties:
+        kind:
+          type: string
+          enum: [VOCAB, GRAMMAR]
+          description: |
+            The card type this becomes. `STRUCTURE_TEMPLATE` is deliberately not
+            here: that is R-13's writing scaffold, made from a real essay on the
+            writing screens, and a chat answer has no business minting one.
+        word:
+          type: string
+          description: |
+            The Korean, as it goes on the front of the card — a headword in
+            dictionary form, or a pattern as a textbook writes it
+            (`-(으)려고 하다`). Always contains Hangul; the server drops any item
+            whose word does not, because the front of a thẻ is what a phiên ôn
+            shows and a Vietnamese one is a card the learner has already
+            answered.
+        meaning:
+          type: string
+          description: The Vietnamese, and the first line of the back. Never empty.
+        example:
+          type: string
+          description: |
+            One Korean sentence using it, or absent. Optional because it
+            genuinely is — a pattern explained in prose often has no single
+            sentence worth lifting out, and an invented one would be worse than
+            none.
 
     AssistantLink:
       type: object
@@ -5525,6 +7375,18 @@ components:
       properties:
         question: { type: string, maxLength: 500 }
         anchor: { $ref: '#/components/schemas/AssistantAnchor' }
+        threadId:
+          type: string
+          format: uuid
+          description: |
+            The cuộc trò chuyện to ask in. Omit to start a new one, titled from
+            this question — that is the whole of what "Cuộc trò chuyện mới"
+            does, and it is why no route creates an empty thread.
+
+            A thread belonging to another learner is a `404`. Quietly answering
+            somewhere else would put this learner's question, and an answer
+            built from their weakness data, into a conversation they are not
+            looking at.
         regenerate:
           type: boolean
           description: |
@@ -5947,6 +7809,127 @@ components:
             The learner's own cap, applied to each selected part
             independently and clamped further to what that part actually has
             available. Omitted means "everything available, up to 50".
+
+    CustomExamShape:
+      type: string
+      description: |
+        Which of the two đề tự tạo the learner asked for. `SIMULATED` is a full
+        paper at the blueprint's own length and may be sat as `EXAM` with a
+        band; `CUSTOM` is the learner's own counts, is `PRACTICE` only, and
+        never carries one.
+      enum: [SIMULATED, CUSTOM]
+
+    CustomExamSectionOptions:
+      type: object
+      required: [kind, ordinal, blueprintCount, available, maxSelectable,
+                 timeLimitSeconds, maxScore]
+      properties:
+        kind: { $ref: '#/components/schemas/SectionKind' }
+        ordinal:
+          type: integer
+          description: Where this part sits in the paper — the order it is sat in.
+        blueprintCount:
+          type: integer
+          description: |
+            How many câu a real paper at this level holds in this part, and
+            therefore how many a `SIMULATED` paper will contain. Also the
+            number a `CUSTOM` choice is read against.
+        available:
+          type: integer
+          description: |
+            Distinct published questions this part actually has at this level.
+            May be below `blueprintCount`, which is what `canSimulate` reports.
+        maxSelectable:
+          type: integer
+          description: |
+            The largest `questionCount` a `CUSTOM` request may carry for this
+            part: `min(available, 50)`, or `min(available, 4)` for Viết.
+        timeLimitSeconds:
+          type: integer
+          description: |
+            The blueprint's own allowance for this part. A `CUSTOM` part
+            shorter than `blueprintCount` gets a pro-rated share of it.
+        maxScore:
+          type: integer
+
+    CustomExamLevelOptions:
+      type: object
+      required: [level, blueprintVersion, totalScore, canSimulate, sections]
+      properties:
+        level: { $ref: '#/components/schemas/ExamLevel' }
+        blueprintVersion: { type: string }
+        totalScore:
+          type: integer
+          description: What a full paper at this level is out of (R-16).
+        canSimulate:
+          type: boolean
+          description: |
+            Whether every part has at least `blueprintCount` available. False
+            means the đề mô phỏng choice must not be offered at this level —
+            an offer that 409s on press is worse than an absence with a reason
+            beside it.
+        sections:
+          type: array
+          items: { $ref: '#/components/schemas/CustomExamSectionOptions' }
+
+    CustomExamOptions:
+      type: object
+      required: [defaultLevel, levels]
+      properties:
+        defaultLevel:
+          allOf:
+            - $ref: '#/components/schemas/ExamLevel'
+          description: |
+            Which level the screen opens on: the one the learner's cấp độ đang
+            dùng falls under (bands 1–2 are TOPIK I, 3–6 TOPIK II), and TOPIK I
+            for a learner who holds none.
+
+            A default and nothing more. The level orders content and never
+            gates it (TCCN-343-4, TCCN-345-3), so both levels are always
+            offered whatever this says.
+        levels:
+          type: array
+          description: |
+            Every level this deployment has a blueprint in force for, in
+            naming order. Never nil; a level with no blueprint is absent rather
+            than present and empty.
+          items: { $ref: '#/components/schemas/CustomExamLevelOptions' }
+
+    CustomExamSectionChoice:
+      type: object
+      required: [kind, questionCount]
+      properties:
+        kind: { $ref: '#/components/schemas/SectionKind' }
+        questionCount:
+          type: integer
+          minimum: 0
+          maximum: 50
+          description: |
+            How many câu this part holds. `0` means "not this part" and is
+            dropped, so a screen with three number inputs need not prune them
+            before sending. Capped at 4 for Viết, and further at that part's
+            own `maxSelectable`.
+
+    StartCustomExamBody:
+      type: object
+      required: [shape, level]
+      properties:
+        shape: { $ref: '#/components/schemas/CustomExamShape' }
+        level: { $ref: '#/components/schemas/ExamLevel' }
+        mode:
+          allOf:
+            - $ref: '#/components/schemas/AttemptMode'
+          description: |
+            Defaults to `PRACTICE`. `EXAM` is accepted for `SIMULATED` only —
+            on a `CUSTOM` paper it is a 422, not a silent downgrade.
+        sections:
+          type: array
+          description: |
+            `CUSTOM` only, and required there: at least one part with a
+            positive `questionCount`, no duplicates, and no part the level does
+            not have. Ignored for `SIMULATED`, which takes the blueprint's own
+            layout.
+          items: { $ref: '#/components/schemas/CustomExamSectionChoice' }
 
     WeaknessCategoryRow:
       type: object
@@ -6891,11 +8874,22 @@ components:
 
     DictationSetList:
       type: object
-      required: [items]
+      required: [items, totalCount]
       properties:
         items:
           type: array
           items: { $ref: '#/components/schemas/DictationSetListItem' }
+        totalCount:
+          type: integer
+          description: |
+            Every set the filters match, not the ones on this page — what sizes
+            the pager, and the only number that can say whether a next page
+            exists.
+
+            NOT the number on the "Tất cả" chip: that one counts the whole
+            corpus whichever chip is pressed (see
+            `DictationCategoryList.totalCount`), while this one counts what the
+            pressed chip is showing.
 
     DictationCategory:
       type: object
@@ -7397,11 +9391,23 @@ components:
 
     ShadowVideoList:
       type: object
-      required: [items]
+      required: [items, totalCount]
       properties:
         items:
           type: array
           items: { $ref: '#/components/schemas/ShadowVideoListItem' }
+        totalCount:
+          type: integer
+          description: |
+            Every video the filters match, not the ones on this page — the same
+            contract `GET /me/attempts` states, and for the same reason: a pager
+            that can only see its own page cannot say whether there is a next
+            one.
+
+            NOT the number on the "Tất cả" chip. That one counts the whole
+            corpus whichever chip is pressed (see `ShadowCategoryList.totalCount`);
+            this one counts what the pressed chip is showing, because it is what
+            sizes the pager under it.
 
     ShadowCategory:
       type: object

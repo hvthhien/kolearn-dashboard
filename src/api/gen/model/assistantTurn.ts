@@ -28,6 +28,12 @@ import type { AssistantTurnOutcome } from './assistantTurnOutcome';
 
 export interface AssistantTurn {
   id: string;
+  /**
+     * The cuộc trò chuyện this turn landed in. The client holds it and
+     * sends it with the next question — it is how a thread created by a
+     * first question is picked up by the second.
+     */
+  threadId: string;
   askedAt: string;
   question: string;
   outcome: AssistantTurnOutcome;

@@ -25,9 +25,28 @@
  */
 import type { AssistantAnswerKind } from './assistantAnswerKind';
 import type { AssistantLink } from './assistantLink';
+import type { AssistantVocabItem } from './assistantVocabItem';
 
 export interface AssistantAnswer {
   kind: AssistantAnswerKind;
   text: string;
   links: AssistantLink[];
+  /**
+     * The Korean this answer taught, listed as well as written into the
+     * prose, so the client can offer "thêm vào bộ thẻ" without the learner
+     * retyping any of it (YC-109's thẻ, reached from SC-CHATBOT).
+     *
+     * Always an array and usually empty — most answers teach nothing worth
+     * saving, and the server drops the list outright on every kind except
+     * `ANSWERED` and `GUIDED`: a refusal carrying a word list is a model
+     * filling a required field, and those words were never on screen.
+     *
+     * What survives is deduplicated, capped, and guaranteed to have Korean
+     * in `word` and something in `meaning`. That is a bound on what the
+     * model may put in front of a learner, not a claim of correctness —
+     * these become rows in a collection the learner is shown every
+     * morning, which is why the client confirms the list before creating
+     * anything.
+     */
+  vocab: AssistantVocabItem[];
 }

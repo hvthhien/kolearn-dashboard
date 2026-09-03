@@ -32,6 +32,15 @@ export type ListDictationSetsParams = {
  */
 limit?: number;
 /**
+ * Sets to skip, over the same order the page returns. That order ends
+ * on `id`, so it is total: a set cannot sit on two pages at once or
+ * fall between them as the learner steps through.
+ *
+ * Clamped like `limit`, for the same reason.
+ * @minimum 0
+ */
+offset?: number;
+/**
  * Chủ đề, from a tapped chip. Filters, unlike level: the learner
  * asked for this shelf. Absent is "Tất cả", which includes
  * uncategorised sets.

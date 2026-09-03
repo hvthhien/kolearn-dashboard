@@ -32,6 +32,16 @@ export type ListShadowVideosParams = {
  */
 limit?: number;
 /**
+ * Videos to skip, over the same order the page returns. That order
+ * ends on `id`, so it is total: a video cannot sit on two pages at
+ * once or fall between them as the learner steps through.
+ *
+ * Clamped like `limit` — a negative offset reads as page one rather
+ * than a 422 about a query string nobody typed.
+ * @minimum 0
+ */
+offset?: number;
+/**
  * Arrives from a placement recommendation. Unlike level this really
  * does filter — the learner asked for this topic.
  */

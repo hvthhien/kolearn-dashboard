@@ -23,13 +23,44 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { UserPlan } from './userPlan';
 
 export interface CurrentUser {
   id: string;
   email: string;
   emailVerified: boolean;
+  /**
+     * Whether this account has a password at all.
+     *
+     * `password_hash` is nullable: an account created through Google has
+     * never had one, and `POST /auth/login` is not a way in for it. The
+     * client needs this to decide between offering **Đổi mật khẩu**, which
+     * can prove ownership with the current password, and **Đặt mật khẩu**,
+     * which has nothing to prove it with and has to go out through email.
+     * Guessing from `roles` or from the absence of anything else would be
+     * guessing; there is no other field that carries it.
+     */
+  hasPassword: boolean;
   displayName: string;
   locale?: string;
+  /**
+     * IANA zone (`Asia/Ho_Chi_Minh`). Every "day" this API reports is a
+     * day in this zone — the streak, and any daily rollup added later.
+     *
+     * **Absent means the learner has never reported one**, and that is a
+     * state the client is expected to act on rather than tolerate: report
+     * `Intl.DateTimeFormat().resolvedOptions().timeZone` through
+     * `PUT /me/timezone`. It is absent rather than defaulted because a
+     * default would put every account in one zone with nobody having
+     * chosen it, and a wrong zone does not fail loudly — it moves
+     * somebody's midnight and breaks a streak on a day they studied.
+     *
+     * Until it is set the server counts days in UTC. That is a documented
+     * fallback, not a claim about where anybody is.
+     * @maxLength 64
+     */
+  timezone?: string;
   roles: string[];
   permissions: string[];
+  plan: UserPlan;
 }

@@ -23,9 +23,13 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { AssistantTurn } from './assistantTurn';
 import type { WritingQuota } from './writingQuota';
 
+/**
+ * What the panel needs in the frame it opens in, and nothing that can be
+ * fetched once something draws it. The turns and the thread list left this
+ * payload deliberately — see `GET /me/assistant`.
+ */
 export interface AssistantPanel {
   /**
      * The ASSIST bucket. Same shape as the grading allowance because it is
@@ -39,8 +43,17 @@ export interface AssistantPanel {
      * make opening the panel cost a lượt.
      */
   suggestions: string[];
-  /** Oldest first, so the panel reads downward (`TCCN-568-1`). */
-  turns: AssistantTurn[];
+  /**
+     * The cuộc trò chuyện a question lands in unless the client names
+     * another, and the one `GET /me/assistant/turns` returns by default.
+     *
+     * Absent when the learner has never asked anything. That is a real
+     * state and not a missing value: a thread is created by asking, so
+     * before the first question there is nothing to name. It is also how a
+     * client knows, without asking, whether there is any history to offer
+     * — present here means at least one conversation exists.
+     */
+  threadId?: string;
   /**
      * False when no AI provider is configured. The client hides the
      * launcher outright rather than drawing a button that cannot answer —

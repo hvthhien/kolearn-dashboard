@@ -33,4 +33,16 @@ export type ListStudyCardsParams = {
  * @maximum 100
  */
 limit?: number;
+/**
+ * Narrow the session to one of the learner's folders. Absent is the
+ * whole deck; `none` is the cards left out of every folder; anything
+ * else is a group id, and an unknown one gives an empty session
+ * rather than a 404.
+ *
+ * It narrows WHICH cards are in the session, never their ORDER. R-15
+ * fixes that — "Ưu tiên thứ đang dở hơn thứ chưa bắt đầu" — so Đang
+ * học still comes before Mới inside a folder exactly as it does over
+ * the whole deck (TCCN-116-2). There is no shuffled mode.
+ */
+group?: string;
 };

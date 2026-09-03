@@ -6,6 +6,8 @@ import type {
   AdminExamDetail,
   AdminShadowVideoDetail,
   ShadowPublishReport,
+  CreateRedeemCodesRequest,
+  RedeemCode,
   AdminQuestion,
   AdminQuestionRow,
   AuthTokens,
@@ -19,6 +21,7 @@ import { TOPICS } from './fixtures/topics'
 import { EXAMS, LISTENING_PASSAGE, QUESTIONS, READING_PASSAGE, layers } from './fixtures/bank'
 import { SHADOW_VIDEOS } from './fixtures/shadowing'
 import { DICTATION_SETS } from './fixtures/dictation'
+import { CODE_REDEMPTIONS, REDEEM_CODES } from './fixtures/billing'
 
 /**
  * The mock backend, shared by `npm run dev` and by the test suite.
@@ -92,7 +95,27 @@ const categoryState = {
   dictation: clone(DICTATION_CATEGORIES) as MockCategory[],
 }
 
+/**
+ * Mã nâng cấp. Mutable for the same reason the bank is: issuing and revoking
+ * are writes, and a write the next GET does not reflect proves nothing.
+ */
+const billingState = {
+  codes: clone(REDEEM_CODES) as RedeemCode[],
+}
+
+const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+
+/** Twelve characters of the server's alphabet, the way the server mints one. */
+function mintCode(): string {
+  let out = ''
+  for (let i = 0; i < 12; i++) {
+    out += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)]
+  }
+  return out
+}
+
 export function resetMockBank(): void {
+  billingState.codes = clone(REDEEM_CODES)
   state = {
     exams: clone(EXAMS),
     questions: clone(QUESTIONS),
@@ -160,10 +183,18 @@ export const MOCK_USER: AuthTokens['user'] = {
   id: 'u-1',
   email: 'bien-tap@kolearn.test',
   emailVerified: true,
+  hasPassword: true,
   displayName: 'Biên tập viên',
   locale: 'vi',
-  roles: ['content_admin'],
+  // A staff account has no plan worth showing, but the field is required on
+  // every CurrentUser and a mock that omits it is a client that never
+  // learns to read it.
+  plan: { tier: 'basic' },
+  roles: ['content_admin', 'admin'],
   permissions: [
+    // Billing. Held by admin alone in 00046, so the mock account wears both
+    // hats — otherwise the Thanh toán screen would be unreachable offline.
+    'billing:manage',
     'exam:read',
     'exam:write',
     'exam:publish',
@@ -464,6 +495,59 @@ function categoryRoutes(
 }
 
 export const handlers = [
+  /* ── Thanh toán: mã nâng cấp (00046) ──────────────────────────────────── */
+  http.get(`${BASE}/admin/billing/codes`, () =>
+    HttpResponse.json({
+      items: [...billingState.codes].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)),
+    }),
+  ),
+  http.post(`${BASE}/admin/billing/codes`, async ({ request }) => {
+    const body = (await request.json()) as CreateRedeemCodesRequest
+    const count = body.count ?? 1
+    const minted: RedeemCode[] = []
+    for (let i = 0; i < count; i++) {
+      minted.push({
+        id: `rc-${Date.now()}-${i}`,
+        code: mintCode(),
+        days: body.days,
+        maxUses: body.maxUses,
+        uses: 0,
+        expiresAt: body.expiresAt,
+        note: body.note ?? '',
+        // A millisecond apart so "newest first" holds inside a batch too.
+        createdAt: new Date(Date.now() + i).toISOString(),
+      })
+    }
+    billingState.codes.push(...minted)
+    return HttpResponse.json({ items: minted }, { status: 201 })
+  }),
+  http.post(`${BASE}/admin/billing/codes/:codeId/revoke`, ({ params }) => {
+    const code = billingState.codes.find((c) => c.id === params.codeId)
+    if (!code) {
+      return HttpResponse.json(
+        { type: 'about:blank', title: 'Không tìm thấy', status: 404, code: 'code_not_found' },
+        { status: 404 },
+      )
+    }
+    if (code.revokedAt) {
+      return HttpResponse.json(
+        { type: 'about:blank', title: 'Xung đột trạng thái', status: 409, code: 'code_already_revoked' },
+        { status: 409 },
+      )
+    }
+    code.revokedAt = new Date().toISOString()
+    return HttpResponse.json(code)
+  }),
+  http.get(`${BASE}/admin/billing/codes/:codeId/redemptions`, ({ params }) => {
+    if (!billingState.codes.some((c) => c.id === params.codeId)) {
+      return HttpResponse.json(
+        { type: 'about:blank', title: 'Không tìm thấy', status: 404, code: 'code_not_found' },
+        { status: 404 },
+      )
+    }
+    return HttpResponse.json({ items: CODE_REDEMPTIONS[String(params.codeId)] ?? [] })
+  }),
+
   /* ── Chủ đề (00035) ──────────────────────────────────────────────────── */
   //
   // Two vocabularies, never one, because the server keeps them apart: R-36's

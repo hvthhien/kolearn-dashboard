@@ -30,4 +30,14 @@ export type ListMyCardsParams = {
  * @maximum 200
  */
 limit?: number;
+/**
+ * Which of the learner's folders to narrow to. Absent is the whole
+ * deck; `none` is the cards deliberately left out of every folder;
+ * anything else is a group id.
+ *
+ * An unknown id narrows to nothing rather than answering 404 — a
+ * stale bookmark should give an empty screen, not a broken one, which
+ * is what any filter matching no rows does.
+ */
+group?: string;
 };

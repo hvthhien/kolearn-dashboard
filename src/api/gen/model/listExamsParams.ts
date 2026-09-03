@@ -27,10 +27,21 @@ import type { ExamLevel } from './examLevel';
 
 export type ListExamsParams = {
 level?: ExamLevel;
-cursor?: string;
 /**
  * @minimum 1
  * @maximum 100
  */
 limit?: number;
+/**
+ * Papers to skip, over the same newest-first order the page returns.
+ * The order breaks ties on `code`, which is unique, so a paper cannot
+ * land on two pages at once or fall between them.
+ *
+ * This replaced a `cursor`/`nextCursor` pair that no handler ever
+ * implemented and no client ever sent. Offset paging is what the rest
+ * of the surface does (`GET /me/attempts`), and one paging scheme that
+ * works beats two where the documented one does not.
+ * @minimum 0
+ */
+offset?: number;
 };

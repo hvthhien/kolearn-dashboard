@@ -30,6 +30,17 @@ export interface AssistantAskRequest {
   question: string;
   anchor?: AssistantAnchor;
   /**
+     * The cuộc trò chuyện to ask in. Omit to start a new one, titled from
+     * this question — that is the whole of what "Cuộc trò chuyện mới"
+     * does, and it is why no route creates an empty thread.
+     *
+     * A thread belonging to another learner is a `404`. Quietly answering
+     * somewhere else would put this learner's question, and an answer
+     * built from their weakness data, into a conversation they are not
+     * looking at.
+     */
+  threadId?: string;
+  /**
      * Skip the saved answer and pay for a fresh one. `TCCN-564-1`'s "hỏi
      * lại để sinh mới" button, and that turn does charge — the criterion
      * says so, and the button says so before it is pressed.

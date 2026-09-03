@@ -24,6 +24,7 @@ import { DictationSetListPage } from './routes/DictationSetListPage'
 import { DictationStudioPage } from './routes/DictationStudioPage'
 import { VideoListPage } from './routes/VideoListPage'
 import { VideoStudioPage } from './routes/VideoStudioPage'
+import { BillingPage } from './routes/BillingPage'
 
 interface RouterContext {
   queryClient: QueryClient
@@ -186,7 +187,19 @@ const dictationStudioRoute = createRoute({
   component: DictationStudioPage,
 })
 
+/* ── Thanh toán ───────────────────────────────────────────────────────────
+   Mã nâng cấp today; đơn chuyển khoản next. `billing:manage` is checked on
+   the server; here the nav simply does not offer the link to an account
+   without it, the same courtesy the studios extend. */
+
+const billingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/billing',
+  component: BillingPage,
+})
+
 export const routeTree = rootRoute.addChildren([
+  billingRoute,
   indexRoute,
   loginRoute,
   examsRoute,

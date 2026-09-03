@@ -25,9 +25,11 @@
  */
 import type { CardState } from './cardState';
 import type { MyCardDictationSource } from './myCardDictationSource';
+import type { MyCardGroup } from './myCardGroup';
 import type { MyCardShadowSource } from './myCardShadowSource';
 import type { MyCardSource } from './myCardSource';
 import type { MyCardType } from './myCardType';
+import type { MyCardWordbookEntry } from './myCardWordbookEntry';
 import type { MyCardWordbookSource } from './myCardWordbookSource';
 import type { Topic } from './topic';
 
@@ -70,6 +72,21 @@ export interface MyCard {
      * drops out of the list rather than becoming a link to a 404.
      */
   wordbookSources: MyCardWordbookSource[];
+  /**
+     * The learner's own folder for this card, absent when it is ungrouped.
+     *
+     * Not a deck: `deckId` and `deckName` above are unaffected and still
+     * name the one deck every card belongs to. Absent rather than a folder
+     * called "chưa phân nhóm", so an ungrouped card renders no chip
+     * instead of one claiming a folder that does not exist.
+     */
+  group?: MyCardGroup;
+  /**
+     * The dictionary material behind this card's back (R-15's "Mặt sau",
+     * via `R-17`). Absent when nothing in the bank describes this word —
+     * the card then has only `back`, and still flips (TCCN-116-8).
+     */
+  wordbookEntry?: MyCardWordbookEntry;
   /**
      * Absent when the card has no source question, or when the exam it
      * came from has been removed — `cards.source_question_id` is
