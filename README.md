@@ -51,7 +51,7 @@ npm run check      # api:check + lint + typecheck + test
 
 The checked-in `vercel.json` and `api/proxy.ts` make this app deployment-ready:
 
-- Vercel builds with Node 22 (from `engines`), runs `npm run build`, and
+- Vercel builds with Node 24 (from `engines`), runs `npm run build`, and
   publishes `dist/`;
 - client-side routes fall back to `index.html`, so a reload on `/exams` or a
   question editor route does not 404;
