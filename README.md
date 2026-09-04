@@ -115,6 +115,62 @@ is invented.
 unless the app registers it, which only the mock branch does, and it has to be
 served from the site root for local development to work at all.
 
+## Deploying to Cloudflare Workers
+
+The app deploys to Cloudflare as an alternative to Vercel; both configurations
+are checked in and neither disturbs the other. `wrangler.jsonc` uploads `dist/`
+as [static assets](https://developers.cloudflare.com/workers/static-assets/) and
+puts `worker/index.ts` in front of them.
+
+```bash
+npx wrangler login
+```
+
+```bash
+npx wrangler secret put KOLEARN_API_ORIGIN
+```
+
+```bash
+npm run cf:deploy
+```
+
+`KOLEARN_API_ORIGIN` is the backend origin only, exactly as on Vercel — no
+`/api` suffix, no path. The proxy is the same code on both hosts
+(`shared/api-proxy.ts`), so the same-origin httpOnly refresh cookie works the
+same way here, and this app still does not need to appear in the server's
+`HTTP_ALLOWED_ORIGINS`.
+
+Two differences from the Vercel setup are worth knowing:
+
+- **the SPA fallback is written in the Worker, not in config.** Cloudflare's
+  `not_found_handling: "single-page-application"` behaves like this repo's
+  `/(.*)` rewrite: it answers *every* unmatched path with `index.html`,
+  including a hashed `/assets/` URL from a build that no longer exists — served
+  200 as `text/html`, which the browser then refuses to parse as CSS or JS.
+  `worker/index.ts` returns a plain 404 under `/assets/` and the shell
+  everywhere else. (kolearn-web's README explains the failure in full; its
+  `vercel.json` carries the exclusion and this one does not.)
+- **cache headers live in `public/_headers`**, read by Cloudflare and ignored by
+  Vercel, which takes the same rules from `vercel.json`. `_headers` does not
+  apply to responses the Worker builds, so the shell sets its own
+  `Cache-Control` in `worker/index.ts`.
+
+`npm run cf:dev` serves the built `dist/` through the real Worker locally, which
+is the only way to exercise the fallback and the proxy together. `npm run dev`
+remains the everyday loop.
+
+```bash
+npm run build
+```
+
+```bash
+npm run cf:dev
+```
+
+`VITE_MOCK_API` is inlined at build time, so the guard in `vite.config.ts`
+refuses a mock-backed build here exactly as it does on Vercel — a shell that
+still has the variable set is the way it would otherwise reach a deploy.
+
 ## The API client is generated
 
 `src/api/gen/` is orval output and is committed. `api/openapi.yaml` is a

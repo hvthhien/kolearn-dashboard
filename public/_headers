@@ -1,0 +1,14 @@
+# Cache rules for assets Cloudflare serves directly, without waking the Worker.
+# Vercel takes the equivalent rules from `vercel.json` and ignores this file.
+#
+# These do not cover responses the Worker builds itself — the SPA shell it
+# returns for a client-side route sets its own Cache-Control, in worker/index.ts.
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+/
+  Cache-Control: public, max-age=0, must-revalidate

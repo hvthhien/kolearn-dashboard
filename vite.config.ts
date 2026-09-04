@@ -13,7 +13,8 @@ import tailwindcss from '@tailwindcss/vite'
  *
  * That is the same shape as the failures the server guards below the layer that
  * could regress: nothing reports a problem, and the damage surfaces much later.
- * A checkbox in the Vercel dashboard is exactly how it would happen, so the
+ * A checkbox in the Vercel dashboard — or a stray `wrangler deploy` from a shell
+ * that still has the variable set — is exactly how it would happen, so the
  * refusal is here rather than in a paragraph of the README.
  *
  * A mock-backed deployment is occasionally the point — a preview for someone
@@ -27,7 +28,7 @@ function refuseMockProductionBuild(): Plugin {
     config(_config, { mode }) {
       if (process.env.VITE_MOCK_API !== '1') return
       if (process.env.KOLEARN_ALLOW_MOCK_BUILD === '1') {
-        // Loud on the way past, so it appears in the Vercel build log of the
+        // Loud on the way past, so it appears in the build log of the
         // deployment it applies to rather than only in whoever's memory set it.
         console.warn(
           '\n  ⚠  Building with the MOCK backend (KOLEARN_ALLOW_MOCK_BUILD=1).\n' +
@@ -41,8 +42,9 @@ function refuseMockProductionBuild(): Plugin {
           'invented exams and an always-agreeable publish gate, with nothing on screen\n' +
           'saying so — an editor could author a paper into a browser tab.\n\n' +
           'Unset VITE_MOCK_API for a real deployment (on Vercel: Settings →\n' +
-          'Environment Variables), or set KOLEARN_ALLOW_MOCK_BUILD=1 to build a\n' +
-          'deliberately mock-backed preview.',
+          'Environment Variables; on Cloudflare: the Worker\'s Variables, or your\n' +
+          'shell before `npm run cf:deploy`), or set KOLEARN_ALLOW_MOCK_BUILD=1 to\n' +
+          'build a deliberately mock-backed preview.',
       )
     },
   }

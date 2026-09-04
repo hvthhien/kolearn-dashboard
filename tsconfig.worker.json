@@ -1,0 +1,17 @@
+{
+  // The Worker runs on Cloudflare's runtime, not in a browser and not on Node,
+  // so it is typechecked on its own: DOM is dropped from `lib` and the ambient
+  // types come from `@cloudflare/workers-types`. Loading those alongside DOM in
+  // one project conflicts on the globals they both declare.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "types": ["@cloudflare/workers-types"]
+  },
+  // `shared/` is deliberately typechecked twice — here against Cloudflare's
+  // globals and by `tsconfig.json` against the DOM's — which is what proves the
+  // core really does compile on both runtimes. Its test runs under vitest/jsdom,
+  // so it belongs to that project, not this one.
+  "include": ["worker", "shared"],
+  "exclude": ["**/*.test.ts"]
+}

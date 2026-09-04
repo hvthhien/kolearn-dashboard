@@ -10,3 +10,9 @@ coverage/
 .env.*
 !.env.example
 .claude/
+
+# Wrangler's local state and its local secret file (the Cloudflare counterpart
+# of the .env entries above).
+.wrangler/
+.dev.vars
+.dev.vars.*

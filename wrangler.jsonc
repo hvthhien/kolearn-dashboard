@@ -1,0 +1,26 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kolearn-dashboard",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-09-04",
+
+  // No `nodejs_compat`: `worker/` and `shared/` are written against web
+  // standards only, so the Worker stays on the plain runtime.
+
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+
+    // Deliberately NOT "single-page-application". That setting answers every
+    // unmatched path with index.html, including a hashed `/assets/` URL from a
+    // superseded build — served 200 as text/html, which Chrome refuses to parse
+    // as CSS or JS and renders unstyled. `worker/index.ts` does the fallback
+    // instead, so it can 404 under `/assets/` and serve the shell everywhere
+    // else. "none" is what routes an asset miss to the Worker at all.
+    "not_found_handling": "none"
+  },
+
+  "observability": {
+    "enabled": true
+  }
+}
