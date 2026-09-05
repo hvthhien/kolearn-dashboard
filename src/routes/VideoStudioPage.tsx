@@ -172,10 +172,13 @@ function Studio({ video }: { video: AdminShadowVideoDetail }) {
       endMs: l.endMs,
       textKo: l.textKo,
       textVi: l.textVi,
+      transcription: l.transcription,
       speaker: l.speaker,
-      // Every field linesRequest sends has to be here, or the two shapes never
-      // match and the video reads as dirty from the moment it loads — which
-      // disables the approval buttons for a change nobody made.
+      // Every field linesRequest sends has to be here, IN THE SAME ORDER, or
+      // the two shapes never match and the video reads as dirty from the moment
+      // it loads — which disables the approval buttons for a change nobody
+      // made. `JSON.stringify` compares key order, so this is not a free
+      // rearrangement.
       chunks: l.chunks.map((c) => ({
         startMs: c.startMs,
         endMs: c.endMs,
@@ -256,6 +259,7 @@ function Studio({ video }: { video: AdminShadowVideoDetail }) {
                 chunks: [],
                 textKo: '',
                 textVi: '',
+                transcription: '',
                 speaker: '',
               })),
             }))

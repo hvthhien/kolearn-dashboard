@@ -31,6 +31,18 @@ export interface EditableLine {
   endMs: number
   textKo: string
   textVi: string
+  /**
+   * Phiên âm — how to read `textKo`.
+   *
+   * Empty is a permanent, unremarkable state, and there is deliberately no
+   * `LineIssue` for a missing one. `missing-translation` exists because an
+   * unglossed line is unfinished; most material carries no transcription on
+   * purpose, so warning about it would fire on every correct video — and a
+   * warning that always fires is one nobody reads on the video where it
+   * mattered, which is the argument this file already makes about gaps
+   * between lines.
+   */
+  transcription: string
   speaker: string
   /** Empty on a line nobody has split, which is most of them. */
   chunks: EditableChunk[]

@@ -10018,6 +10018,25 @@ components:
             current line **is** the screen: shadowing a sentence you do not
             understand is parroting (TCCN-352-9). The publish gate is what
             makes "required" true.
+        transcription:
+          type: string
+          description: |
+            Phiên âm — how to **read** the line, beside what it says (`textKo`)
+            and what it means (`textVi`).
+
+            Optional forever, and absent is the ordinary case. Unlike `textVi`,
+            which is empty only while a line is unfinished, most material
+            deliberately carries none: a romanisation under every line is a
+            crutch that stops a learner ever reading Hangul, so above level 2 it
+            is left out on purpose. The publish gate says nothing about it in
+            either direction.
+
+            Authored, never derived. Romanisation is not a function of the
+            spelling — 좋아요 reads "jo-a-yo", 신라 reads "silla" — and a wrong
+            reading aid is worse than none, because the learner practises it.
+
+            Absent rather than `""` when there is none, so the client's "is
+            there one?" branch is a presence check and not a trim.
         speaker:
           type: string
           description: 민수 / 지수. Absent when the material has no named speakers.
@@ -10168,7 +10187,9 @@ components:
 
     AdminShadowLine:
       type: object
-      required: [id, ordinal, startMs, endMs, textKo, textVi, speaker, revision, approval, chunks]
+      required:
+        [id, ordinal, startMs, endMs, textKo, textVi, transcription, speaker,
+         revision, approval, chunks]
       properties:
         id: { type: string, format: uuid }
         ordinal: { type: integer, minimum: 1 }
@@ -10176,6 +10197,20 @@ components:
         endMs: { type: integer, minimum: 1 }
         textKo: { type: string }
         textVi: { type: string }
+        transcription:
+          type: string
+          description: |
+            Phiên âm — how to read `textKo`. Empty when there is none, which is
+            ordinary and never blocks publication.
+
+            Always present here and optional on `ShadowLine`, and the difference
+            is what each reader is: the studio is a form, and a form binds a text
+            box to a key that is always there.
+
+            Editing it does NOT bump `revision`. An approval is a native
+            speaker's verdict on a stretch of audio, and writing down how to read
+            that audio changes not one sample of it — the same rule `textVi` and
+            `speaker` already follow.
         speaker: { type: string }
         revision:
           type: integer
@@ -10366,6 +10401,12 @@ components:
         endMs: { type: integer, minimum: 1 }
         textKo: { type: string, minLength: 1 }
         textVi: { type: string }
+        transcription:
+          type: string
+          description: |
+            Phiên âm. Absent and empty mean the same thing — no transcription —
+            so a client that has never heard of this field clears none by staying
+            silent about it, the same rule `chunks` documents below.
         speaker: { type: string }
         chunks:
           type: array

@@ -66,6 +66,7 @@ export function LineEditor({
       endMs: at ? at.endMs + 1000 : 1000,
       textKo: '',
       textVi: '',
+      transcription: '',
       speaker: at?.speaker ?? '',
       chunks: [],
     })
@@ -93,7 +94,19 @@ export function LineEditor({
       // them: the Korean of the second half is empty, so every offset in it
       // would point at nothing. Re-proposing is one click.
       { ...line, endMs: cut, chunks: [] },
-      { startMs: cut, endMs: line.endMs, textKo: '', textVi: '', speaker: line.speaker, chunks: [] },
+      // The second half keeps nothing but the speaker, and the transcription
+      // goes with the rest: it reads the Korean that is now split across two
+      // rows, so leaving a copy on either would put a reading aid under words
+      // it does not read.
+      {
+        startMs: cut,
+        endMs: line.endMs,
+        textKo: '',
+        textVi: '',
+        transcription: '',
+        speaker: line.speaker,
+        chunks: [],
+      },
     )
     onChangeLines(next)
   }
@@ -108,6 +121,7 @@ export function LineEditor({
       endMs: after.endMs,
       textKo: `${line.textKo} ${after.textKo}`.trim(),
       textVi: `${line.textVi} ${after.textVi}`.trim(),
+      transcription: `${line.transcription} ${after.transcription}`.trim(),
     })
     onChangeLines(next)
   }
@@ -181,6 +195,27 @@ export function LineEditor({
                 rows={2}
                 value={line.textVi}
                 onChange={(e) => onChangeLine(i, { textVi: e.target.value })}
+              />
+              {/*
+                Phiên âm, and it is optional in a way no other field here is.
+
+                Leaving it blank is not an unfinished line: above level 2 the
+                material deliberately carries none, because a romanisation
+                under every line is a crutch that stops a learner ever reading
+                Hangul. Nothing warns about an empty one and the publish gate
+                says nothing either way — so the hint has to carry that, or an
+                author reads the empty box as work outstanding.
+
+                Not `korean` — what goes in it is Latin, so the Korean face and
+                the 24px floor `korean` sets would both be wrong.
+              */}
+              <Textarea
+                id={`rom-${i}`}
+                label="Phiên âm (không bắt buộc)"
+                hint="Cách đọc câu này — 좋아요 là “jo-a-yo”, không phải “joh-a-yo”. Để trống nếu ngữ liệu không cần."
+                rows={1}
+                value={line.transcription}
+                onChange={(e) => onChangeLine(i, { transcription: e.target.value })}
               />
               <Field label="Người nói" htmlFor={`sp-${i}`}>
                 {/* A datalist rather than free text alone, so "Nữ" and "nữ "

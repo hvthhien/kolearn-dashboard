@@ -778,6 +778,7 @@ export const handlers = [
         endMs: number
         textKo: string
         textVi: string
+        transcription?: string
         speaker: string
         chunks?: { startMs: number; endMs: number; charStart: number; charEnd: number }[]
       }[]
@@ -786,7 +787,8 @@ export const handlers = [
     video.lines = body.lines.map((incoming, i) => {
       const before = incoming.id ? video.lines.find((l) => l.id === incoming.id) : undefined
       // Only the timing and the Korean retire a verdict: those are the audio a
-      // native speaker listened to. A translation edit is not.
+      // native speaker listened to. Neither a translation edit nor a phiên âm
+      // one is — both describe the audio rather than change it.
       const changed =
         before !== undefined &&
         (before.startMs !== incoming.startMs ||
@@ -801,6 +803,8 @@ export const handlers = [
         endMs: incoming.endMs,
         textKo: incoming.textKo,
         textVi: incoming.textVi,
+        // Absent and empty mean the same thing here, exactly as the API says.
+        transcription: incoming.transcription ?? '',
         speaker: incoming.speaker,
         revision,
         approval: before

@@ -28,7 +28,8 @@ export const VIDEO_RESTAURANT: AdminShadowVideoDetail = {
     durationMs: 21_000,
   },
   lines: [
-    line('sl-1', 1, 0, 2140, '안녕하세요, 예약하셨어요?', 'Xin chào, anh/chị đã đặt bàn chưa?', 'APPROVED'),
+    line('sl-1', 1, 0, 2140, '안녕하세요, 예약하셨어요?', 'Xin chào, anh/chị đã đặt bàn chưa?', 'APPROVED',
+      'an-nyeong-ha-se-yo, ye-ya-ka-syeo-sseo-yo?'),
     line('sl-2', 2, 2500, 5200, '네, 두 명으로 예약하려고 합니다.', 'Vâng, tôi muốn đặt bàn cho hai người.', 'APPROVED'),
     {
       ...line('sl-3', 3, 5600, 8000, '창가 자리로 하시겠어요?', 'Anh/chị muốn ngồi cạnh cửa sổ chứ?', 'REJECTED'),
@@ -122,6 +123,14 @@ function line(
   textKo: string,
   textVi: string,
   verdict: 'APPROVED' | 'REJECTED' | 'UNREVIEWED',
+  /**
+   * Phiên âm, and left off most rows on purpose.
+   *
+   * Empty is the ordinary state for this column — the publish gate says nothing
+   * about it — so a fixture that filled every row would only ever exercise the
+   * studio with material that does not look like most material.
+   */
+  transcription = '',
 ) {
   return {
     id,
@@ -130,6 +139,7 @@ function line(
     endMs,
     textKo,
     textVi,
+    transcription,
     speaker: ordinal % 2 === 1 ? '민수' : '지수',
     revision: 1,
     // Unsplit by default. Chunking is something an author does to the lines

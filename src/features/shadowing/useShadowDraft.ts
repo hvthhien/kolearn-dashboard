@@ -50,6 +50,7 @@ function toDraft(video: AdminShadowVideoDetail): ShadowDraft {
       endMs: l.endMs,
       textKo: l.textKo,
       textVi: l.textVi,
+      transcription: l.transcription,
       speaker: l.speaker,
       chunks: l.chunks.map((c) => ({
         startMs: c.startMs,
@@ -123,6 +124,10 @@ export function useShadowDraft(video: AdminShadowVideoDetail) {
         endMs: l.endMs,
         textKo: l.textKo.trim(),
         textVi: l.textVi.trim(),
+        // Collapsed, not just trimmed. This one is typed by hand against a
+        // syllable count and arrives with double spaces in it, and two spaces
+        // inside a romanisation render as a word boundary that is not there.
+        transcription: l.transcription.trim().replace(/\s+/g, ' '),
         speaker: l.speaker.trim(),
         // Sent even when empty: the server replaces the whole set, so omitting
         // it on a line an author just un-split would leave the old chunks in

@@ -44,6 +44,25 @@ export interface ShadowLine {
      * makes "required" true.
      */
   textVi: string;
+  /**
+     * Phiên âm — how to **read** the line, beside what it says (`textKo`)
+     * and what it means (`textVi`).
+     *
+     * Optional forever, and absent is the ordinary case. Unlike `textVi`,
+     * which is empty only while a line is unfinished, most material
+     * deliberately carries none: a romanisation under every line is a
+     * crutch that stops a learner ever reading Hangul, so above level 2 it
+     * is left out on purpose. The publish gate says nothing about it in
+     * either direction.
+     *
+     * Authored, never derived. Romanisation is not a function of the
+     * spelling — 좋아요 reads "jo-a-yo", 신라 reads "silla" — and a wrong
+     * reading aid is worse than none, because the learner practises it.
+     *
+     * Absent rather than `""` when there is none, so the client's "is
+     * there one?" branch is a presence check and not a trim.
+     */
+  transcription?: string;
   /** 민수 / 지수. Absent when the material has no named speakers. */
   speaker?: string;
   /**

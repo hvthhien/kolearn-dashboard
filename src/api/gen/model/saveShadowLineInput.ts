@@ -38,6 +38,12 @@ export interface SaveShadowLineInput {
   /** @minLength 1 */
   textKo: string;
   textVi?: string;
+  /**
+     * Phiên âm. Absent and empty mean the same thing — no transcription —
+     * so a client that has never heard of this field clears none by staying
+     * silent about it, the same rule `chunks` documents below.
+     */
+  transcription?: string;
   speaker?: string;
   /**
      * Replaced wholesale on every save, like the glossary's occurrences: a

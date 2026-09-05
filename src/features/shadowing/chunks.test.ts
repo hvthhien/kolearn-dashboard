@@ -21,6 +21,7 @@ function line(over: Partial<EditableLine> = {}): EditableLine {
     endMs: 11000,
     textKo: KO,
     textVi: 'dịch',
+    transcription: '',
     speaker: '지수',
     chunks: [],
     ...over,

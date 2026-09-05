@@ -36,6 +36,20 @@ export interface AdminShadowLine {
   endMs: number;
   textKo: string;
   textVi: string;
+  /**
+     * Phiên âm — how to read `textKo`. Empty when there is none, which is
+     * ordinary and never blocks publication.
+     *
+     * Always present here and optional on `ShadowLine`, and the difference
+     * is what each reader is: the studio is a form, and a form binds a text
+     * box to a key that is always there.
+     *
+     * Editing it does NOT bump `revision`. An approval is a native
+     * speaker's verdict on a stretch of audio, and writing down how to read
+     * that audio changes not one sample of it — the same rule `textVi` and
+     * `speaker` already follow.
+     */
+  transcription: string;
   speaker: string;
   /**
      * Bumped whenever the timing, the Korean, or the video asset changes.
