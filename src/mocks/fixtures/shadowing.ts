@@ -1,4 +1,5 @@
 import type { AdminShadowChunk, AdminShadowVideoDetail } from '../../api/gen/model'
+import { TOPICS } from './topics'
 
 /**
  * The mock-up's own content, so the fixture and the BA's screen agree about
@@ -10,9 +11,13 @@ export const VIDEO_RESTAURANT: AdminShadowVideoDetail = {
   title: 'Đặt bàn nhà hàng',
   level: 2,
   status: 'DRAFT',
+  // A real recording with a real chủ điểm attached — the two fields the list
+  // row does NOT carry. A fixture where both were empty would let a re-file
+  // from the list wipe them and no test would notice.
   voice: 'Nữ',
-  voiceKind: 'SYNTHETIC',
-  topics: [],
+  voiceKind: 'HUMAN',
+  // -(으)려고 하다, which câu 2 actually uses: 예약하려고 합니다.
+  topics: TOPICS.filter((t) => t.id === 't-3'),
   categoryId: 'sc-1',
   categoryName: 'Hội thoại hàng ngày',
   // Sorted, because the server returns tags ORDER BY name and a fixture in a

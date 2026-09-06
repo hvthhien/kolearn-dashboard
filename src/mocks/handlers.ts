@@ -735,6 +735,7 @@ export const handlers = [
       level: number
       voice?: string
       voiceKind?: 'HUMAN' | 'SYNTHETIC'
+      topicIds?: string[]
       categoryId?: string
       tags?: string[]
     }
@@ -742,6 +743,12 @@ export const handlers = [
     video.level = body.level
     video.voice = body.voice ?? ''
     video.voiceKind = body.voiceKind ?? 'SYNTHETIC'
+    // The server DELETEs every row in shadowing_video_topics and re-inserts
+    // from the body, so an absent topicIds detaches the lot. Mocked because a
+    // caller that builds the request from the list row — which has no topics
+    // on it — would silently do exactly that, and SC-WEAKNESS counts wrong
+    // answers against this taxonomy.
+    video.topics = (body.topicIds ?? []).flatMap((id) => TOPICS.filter((t) => t.id === id))
     if (body.categoryId !== undefined && body.categoryId !== '') {
       const category = categoryState.shadow.find((c) => c.id === body.categoryId)
       if (!category) {

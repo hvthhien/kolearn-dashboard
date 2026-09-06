@@ -19,6 +19,8 @@ import { useAuth } from '../lib/auth'
 import { RemoveDialog } from '../features/manage/RemoveDialog'
 import { removalFor, removalLabel } from '../features/manage/removal'
 import { CategoryManagerDialog, type ManagedCategory } from '../features/lessons/CategoryManagerDialog'
+import { InlineCategoryCell } from '../features/lessons/InlineCategoryCell'
+import { refileShadowVideo } from '../features/lessons/refile'
 import {
   Badge,
   Button,
@@ -89,6 +91,16 @@ export function VideoListPage() {
      removed under "Tất cả" must not still be sitting in the cached "Nháp". */
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: getListAdminShadowVideosQueryKey() })
+
+  /* Awaited through to the refetch, which is the contract InlineCategoryCell
+     is built on: it holds the chosen shelf on screen until this settles, so
+     resolving at the PUT would show the old one again for a frame. The
+     vocabulary is re-read too — its per-category counts have just moved, and
+     the manager dialog would otherwise open on yesterday's numbers. */
+  const refile = async (videoId: string, categoryId: string) => {
+    await refileShadowVideo(videoId, categoryId)
+    await Promise.all([refresh(), categories.refetch()])
+  }
 
   const create = async () => {
     setBusy(true)
@@ -192,8 +204,17 @@ export function VideoListPage() {
                 <Td>
                   {/* Said in the list, because this is where somebody notices
                       that nine of eleven rows are unfiled. They cannot notice
-                      it one studio page at a time. */}
-                  {v.categoryName ?? <span className="text-muted">— chưa chọn —</span>}
+                      it one studio page at a time — and now they do not have to
+                      go to the studio and back to fix each one either. */}
+                  <InlineCategoryCell
+                    rowTitle={v.title}
+                    categories={categories.data?.items ?? []}
+                    loading={categories.data === undefined && categories.error === null}
+                    value={v.categoryId ?? ''}
+                    name={v.categoryName}
+                    canEdit={canWrite}
+                    onSave={(categoryId) => refile(v.id, categoryId)}
+                  />
                 </Td>
                 <Td className="tabular-nums">TOPIK{v.level}</Td>
                 <Td className="text-right tabular-nums">{v.lineCount}</Td>

@@ -58,6 +58,29 @@ export function CategorySelect({
       disabled={loading}
       onChange={(e) => onChange(e.target.value)}
     >
+      <CategoryOptions categories={categories} value={value} />
+    </Select>
+  )
+}
+
+/**
+ * The menu itself, shared by the dialog's `CategorySelect` above and the
+ * list's `InlineCategoryCell`.
+ *
+ * Extracted rather than typed twice, because the two entries that are not
+ * categories are the ones that would drift: "— Chưa chọn —" has to be a real
+ * option in both places, and the tombstone below has to appear in both or the
+ * quicker of the two screens becomes the one that clears a field by accident.
+ */
+export function CategoryOptions({
+  categories,
+  value,
+}: {
+  categories: CategoryOption[]
+  value: string
+}) {
+  return (
+    <>
       <option value="">— Chưa chọn —</option>
       {categories.map((c) => (
         <option key={c.id} value={c.id}>
@@ -70,7 +93,7 @@ export function CategorySelect({
       {value !== '' && !categories.some((c) => c.id === value) && (
         <option value={value}>(chủ đề đã bị xoá)</option>
       )}
-    </Select>
+    </>
   )
 }
 

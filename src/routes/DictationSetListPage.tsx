@@ -19,6 +19,8 @@ import { EditSetDialog } from '../features/dictation/EditSetDialog'
 import { RemoveDialog } from '../features/manage/RemoveDialog'
 import { removalFor, removalLabel } from '../features/manage/removal'
 import { CategoryManagerDialog, type ManagedCategory } from '../features/lessons/CategoryManagerDialog'
+import { InlineCategoryCell } from '../features/lessons/InlineCategoryCell'
+import { refileDictationSet } from '../features/lessons/refile'
 import {
   Badge,
   Button,
@@ -86,6 +88,16 @@ export function DictationSetListPage() {
      removed under "Tất cả" must not still be sitting in the cached "Nháp". */
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: getListAdminDictationSetsQueryKey() })
+
+  /* Awaited through to the refetch, which is the contract InlineCategoryCell
+     is built on: it holds the chosen shelf on screen until this settles, so
+     resolving at the PUT would show the old one again for a frame. The
+     vocabulary is re-read too — its per-category counts have just moved, and
+     the manager dialog would otherwise open on yesterday's numbers. */
+  const refile = async (set: AdminDictationSetRow, categoryId: string) => {
+    await refileDictationSet(set, categoryId)
+    await Promise.all([refresh(), categories.refetch()])
+  }
 
   return (
     <PageShell>
@@ -179,8 +191,18 @@ export function DictationSetListPage() {
                 </Td>
                 <Td>
                   {/* Said in the list, because this is where somebody notices
-                      that nine of eleven rows are unfiled. */}
-                  {set.categoryName ?? <span className="text-muted">— chưa chọn —</span>}
+                      that nine of eleven rows are unfiled — and now fixed in
+                      the same cell, because noticing it and having to open a
+                      dialog per row is how nine unfiled rows stay unfiled. */}
+                  <InlineCategoryCell
+                    rowTitle={set.title}
+                    categories={categories.data?.items ?? []}
+                    loading={categories.data === undefined && categories.error === null}
+                    value={set.categoryId ?? ''}
+                    name={set.categoryName}
+                    canEdit={canWrite}
+                    onSave={(categoryId) => refile(set, categoryId)}
+                  />
                 </Td>
                 <Td>{set.level}</Td>
                 <Td>

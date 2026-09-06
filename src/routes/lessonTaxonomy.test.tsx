@@ -23,6 +23,14 @@ function rowFor(title: string) {
   return screen.getByRole('link', { name: title }).closest('tr')!
 }
 
+/** The row's chủ đề picker, once the vocabulary has landed and it is no longer
+ *  disabled — every test below either reads it or changes it. */
+async function pickerIn(row: HTMLElement) {
+  const picker = within(row).getByRole('combobox')
+  await waitFor(() => expect(picker).not.toBeDisabled())
+  return picker
+}
+
 describe('the studio files a lesson under a curated shelf', () => {
   it('offers the vocabulary as a menu and never as a free text field', async () => {
     renderRoute('/videos/sv-1')
@@ -103,14 +111,15 @@ describe('the list says which shelf each row is on', () => {
     renderRoute('/videos')
 
     await screen.findByRole('link', { name: 'Đặt bàn nhà hàng' })
-    expect(within(rowFor('Đặt bàn nhà hàng')).getAllByRole('cell')[1]).toHaveTextContent(
-      'Hội thoại hàng ngày',
-    )
+    // The displayed value rather than the cell's text: the cell is a picker
+    // now, so its textContent is the whole vocabulary and would match whatever
+    // shelf this row was on.
+    expect(await pickerIn(rowFor('Đặt bàn nhà hàng'))).toHaveDisplayValue('Hội thoại hàng ngày')
 
     // This is where somebody notices that nine of eleven rows are unfiled. They
     // cannot notice it one studio page at a time, so a blank cell would be the
     // wrong answer.
-    expect(within(rowFor('Ngữ liệu mới')).getAllByRole('cell')[1]).toHaveTextContent('chưa chọn')
+    expect(await pickerIn(rowFor('Ngữ liệu mới'))).toHaveDisplayValue('— Chưa chọn —')
   })
 
   it('shows a row its labels under the title', async () => {
