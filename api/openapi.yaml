@@ -4788,34 +4788,247 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
 
+  # ── Quản trị người dùng ───────────────────────────────────────────────────
+  #
+  # `user:read` and `user:role:assign` were seeded by migration 00003 and held
+  # by nothing for fifty-two migrations; `user:suspend` is 00055's, and
+  # `users.status` has been enforced on every read path since 00002 with no way
+  # to write it. These five operations are what those three permissions were
+  # for.
+  #
+  # Three permissions rather than one, and the line between them is what an
+  # operation does to the person on the other end. Reading an account is
+  # support's job. Granting a role hands somebody power. Suspending takes their
+  # account away. `admin` holds all three; `support` holds only the first.
+  #
+  # `POST /admin/users/{userId}/plan` sits below under `billing:manage` and is
+  # deliberately not part of this group: a plan is what somebody has paid for,
+  # a role is what they may do, and 00046 already argues that the operator
+  # trusted with one is not thereby trusted with the other.
+
   /admin/users:
     get:
-      tags: [billing]
-      operationId: findUsers
-      summary: Tìm người dùng theo email
+      tags: [admin]
+      operationId: listAdminUsers
+      summary: Danh sách người dùng
       description: |
-        rbac: `billing:manage`. Prefix match on the address, at most twenty
-        rows — for finding one person, not for listing everybody.
+        rbac: `user:read`. One page of accounts, oldest-registered last, with
+        the roles and the plan on the row.
+
+        This replaced a `?email=` prefix lookup that answered at most twenty
+        rows and carried nothing but the plan. Both screens that ask about a
+        person — Thanh toán answering "where is my Premium", Người dùng
+        answering "what may this account do" — ask it of one list, because two
+        endpoints over `users` is how the two screens drift into disagreeing
+        about who somebody is.
       parameters:
-        - name: email
+        - name: q
           in: query
-          required: true
+          required: false
+          description: |
+            Matches the address by prefix, or the display name anywhere in it,
+            case-insensitively. Absent lists everybody.
+
+            Prefix on the address rather than substring on purpose: an operator
+            types what somebody told them on the phone, from the front, and a
+            substring match over every address is a scan of the whole table for
+            a result nobody asked for.
+          schema: { type: string, maxLength: 200 }
+        - name: role
+          in: query
+          required: false
+          description: Only accounts holding this role. Absent means any.
           schema: { type: string }
+        - name: status
+          in: query
+          required: false
+          description: |
+            Only accounts in this state. Absent means any, **including
+            DELETED** — an account somebody is asking about is one this list
+            has to be able to show.
+          schema: { $ref: '#/components/schemas/AdminUserStatus' }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: offset
+          in: query
+          required: false
+          description: |
+            Rows to skip, over the same newest-first order. The order breaks
+            ties on `id`, which is unique, so an account cannot land on two
+            pages at once or fall between them.
+          schema: { type: integer, minimum: 0, default: 0 }
       responses:
         '200':
-          description: The matches.
+          description: One page of accounts.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/AdminUserList' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
+  /admin/users/{userId}/roles:
+    parameters:
+      - $ref: '#/components/parameters/UserId'
+    put:
+      tags: [admin]
+      operationId: setAdminUserRoles
+      summary: Đặt vai trò cho một tài khoản
+      description: |
+        rbac: `user:role:assign`. The whole set, not a diff: the body is what
+        the account holds afterwards, and an empty array leaves it with none.
+
+        A put rather than a pair of grant/revoke posts because the screen shows
+        the whole set and the operator edits it as one. Two endpoints would let
+        a half-applied change — the new role granted, the old one still there —
+        survive a failed second request.
+
+        **An admin cannot take `admin` off themselves** (409
+        `cannot_demote_self`). The account making the request is the one that
+        would have to undo the mistake, and an admin console whose last admin
+        can lock themselves out of it needs a database session to recover.
+        Another admin can still do it, which is the check working as intended.
+
+        Audited, with the roles before and after.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SetUserRolesRequest' }
+      responses:
+        '200':
+          description: The account, with the roles as they now stand.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminUser' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422':
+          description: |
+            `unknown_role` — a code that is not in `GET /admin/roles`. The
+            whole request is refused; no partial set is written.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /admin/users/{userId}/status:
+    parameters:
+      - $ref: '#/components/parameters/UserId'
+    put:
+      tags: [admin]
+      operationId: setAdminUserStatus
+      summary: Đình chỉ hoặc mở lại một tài khoản
+      description: |
+        rbac: `user:suspend`. Writes `users.status`, the column 00002 created
+        and nothing has ever set.
+
+        **Suspending ends every session the account holds**, in the same
+        transaction. Without that the change would be honoured immediately on
+        the access-token path — `rbac.Loader` selects `WHERE status = 'ACTIVE'`
+        — while the refresh cookie kept working, which is a suspension that
+        looks applied and is not.
+
+        Reactivating does not restore the sessions. There is nothing to
+        restore: a revoked family is gone, and the account signs in again.
+
+        **An admin cannot suspend themselves** (409 `cannot_suspend_self`), for
+        the reason they cannot demote themselves.
+
+        `DELETED` is not settable here. Erasing an account is a different act
+        with a retention question attached, and it is not this screen's.
+
+        Audited, with the status before and after and the reason.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SetUserStatusRequest' }
+      responses:
+        '200':
+          description: The account, with the status as it now stands.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminUser' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /admin/users/{userId}/sessions:
+    parameters:
+      - $ref: '#/components/parameters/UserId'
+    get:
+      tags: [admin]
+      operationId: listAdminUserSessions
+      summary: Các thiết bị đang đăng nhập của một tài khoản
+      description: |
+        rbac: `user:read`. `GET /me/sessions` for somebody else's account, and
+        the reason it is a separate schema rather than the same one: no row
+        here can be the caller's own device, so there is no `current` to
+        report and a field that was always `false` would invite a client to
+        render "this device" on somebody else's phone.
+      responses:
+        '200':
+          description: One row per device, most recently seen first.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminUserSessionList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [admin]
+      operationId: endAdminUserSessions
+      summary: Đăng xuất mọi thiết bị của một tài khoản
+      description: |
+        rbac: `user:suspend`. Every family at once — the answer to "my account
+        is on a laptop I no longer have" that does not also close the account.
+
+        Revoking a family means the device cannot RENEW. An access token
+        already in its hands works until it expires, at most fifteen minutes;
+        that is the same fifteen minutes `DELETE /me/sessions/{sessionId}`
+        documents, and it is stated here because "đăng xuất" sounds
+        instantaneous and is not. Suspending, above, is what closes the door
+        now: the next request through `rbac.Loader` fails to resolve a subject.
+
+        **Not the caller's own account** (409 `cannot_end_own_sessions`). Ending
+        one's own sessions from the console that requires a session to reach is
+        Đăng xuất, and it is one click away in the bar.
+
+        Audited, with the number of devices ended.
+      responses:
+        '204': { description: Ended. The response has no body. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /admin/roles:
+    get:
+      tags: [admin]
+      operationId: listAdminRoles
+      summary: Các vai trò có thể gán
+      description: |
+        rbac: `user:read`. The `roles` table, so the screen offering a set of
+        checkboxes reads the codes from the database that will validate them
+        rather than from a list typed into a client. A role added by a
+        migration appears in the console without a deploy.
+      responses:
+        '200':
+          description: Every role, by code.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminRoleList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
   /admin/users/{userId}/plan:
     parameters:
-      - name: userId
-        in: path
-        required: true
-        schema: { type: string, format: uuid }
+      - $ref: '#/components/parameters/UserId'
     post:
       tags: [billing]
       operationId: grantUserPlan
@@ -4823,6 +5036,12 @@ paths:
       description: |
         rbac: `billing:manage`. Hands a learner days, stacked after their
         current end date, with a note saying why. Audited.
+
+        Answers the **plan** rather than the account. What this operation
+        changed is the plan, and `AdminUser` — which now carries roles, status
+        and sessions — would have this endpoint reporting on a permission
+        surface `billing:manage` has nothing to do with. `GET /admin/users`
+        is where the whole account is read.
       requestBody:
         required: true
         content:
@@ -4830,10 +5049,10 @@ paths:
             schema: { $ref: '#/components/schemas/GrantPlanRequest' }
       responses:
         '200':
-          description: The learner, with the plan as it now stands.
+          description: The learner's plan as it now stands.
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/AdminUser' }
+              schema: { $ref: '#/components/schemas/UserPlan' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -5630,6 +5849,11 @@ components:
       bearerFormat: JWT
 
   parameters:
+    UserId:
+      name: userId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
     ExamId:
       name: examId
       in: path
@@ -6218,22 +6442,168 @@ components:
       properties:
         orderId: { type: string, format: uuid }
 
+    AdminUserStatus:
+      type: string
+      enum: [ACTIVE, SUSPENDED, DELETED]
+      description: |
+        `users.status`, the column every read path has honoured since 00002.
+
+        `ACTIVE` is the only one that can sign in: `POST /auth/login` refuses
+        the other two, and `rbac.Loader` will not resolve a subject for them,
+        so an access token already issued stops working at the next request.
+
+        `DELETED` is reachable only outside this API. It exists in the enum
+        because the list has to be able to show an account somebody is asking
+        about, not because a console can put an account into it.
+
     AdminUser:
       type: object
-      required: [id, email, displayName, plan]
+      description: |
+        A person, as the console sees them: enough to be sure it is the right
+        account, what it may do, and what it has paid for.
+
+        `roles` and `plan` sit on the same object and answer different
+        questions — what this account is permitted, and what it has bought.
+        Neither is derivable from the other: an `admin` with no Premium is the
+        ordinary case for staff, and a `learner` with a year of it is the
+        ordinary case for everybody else.
+      required: [id, email, displayName, status, emailVerified, roles, createdAt, plan]
       properties:
         id: { type: string, format: uuid }
         email: { type: string, format: email }
         displayName: { type: string }
+        status: { $ref: '#/components/schemas/AdminUserStatus' }
+        emailVerified:
+          type: boolean
+          description: |
+            Whether the address has ever been confirmed. An account that
+            registered and never typed the six-digit code cannot sign in
+            (`403 email_not_verified`), which is the first thing to check when
+            somebody says the password is right and the app disagrees.
+        hasPassword:
+          type: boolean
+          description: |
+            False for an account that only ever signed in through Google, and
+            the second thing to check on that same call: `POST /auth/login` is
+            not a way in for it, however correct the password somebody thinks
+            they set.
+        roles:
+          type: array
+          description: |
+            Role codes, sorted. Empty is a real state and the one every account
+            registers into — `learner` is granted explicitly, and an account
+            holding nothing can sign in and do nothing.
+          items: { type: string }
+        createdAt: { type: string, format: date-time }
+        lastSeenAt:
+          type: string
+          format: date-time
+          description: |
+            The newest token this account holds, so it is "last used" to about
+            fifteen minutes. **Absent means no live session**, which is not the
+            same as never having signed in — a device that stopped refreshing a
+            month ago leaves no row this can read.
         plan: { $ref: '#/components/schemas/UserPlan' }
 
     AdminUserList:
+      type: object
+      required: [items, totalCount]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AdminUser' }
+        totalCount:
+          type: integer
+          description: |
+            Accounts matching the filters, not the ones on this page.
+
+    AdminRole:
+      type: object
+      required: [code, description, requiresMfa]
+      properties:
+        code: { type: string }
+        description:
+          type: string
+          description: |
+            The role's own description, in Vietnamese, straight out of the
+            `roles` table. Presentation the server owns rather than the client,
+            because a role added by a migration has to arrive with its meaning.
+        requiresMfa:
+          type: boolean
+          description: |
+            Whether 00003 marked this role as needing a second factor. Reported
+            so the console can say so beside the checkbox; nothing enforces it
+            yet.
+
+    AdminRoleList:
       type: object
       required: [items]
       properties:
         items:
           type: array
-          items: { $ref: '#/components/schemas/AdminUser' }
+          items: { $ref: '#/components/schemas/AdminRole' }
+
+    SetUserRolesRequest:
+      type: object
+      required: [roles]
+      properties:
+        roles:
+          type: array
+          maxItems: 20
+          description: |
+            The complete set the account holds afterwards. Duplicates are
+            collapsed; order is not kept.
+          items: { type: string }
+        note:
+          type: string
+          maxLength: 200
+          description: Why, for the audit row.
+
+    SetUserStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ACTIVE, SUSPENDED]
+          description: |
+            `DELETED` is not accepted (422). See `AdminUserStatus`.
+        note:
+          type: string
+          maxLength: 200
+          description: Why, for the audit row.
+
+    AdminUserSession:
+      type: object
+      required: [id, userAgent, startedAt, lastSeenAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: The refresh-token family, surviving every rotation.
+        userAgent:
+          type: string
+          description: |
+            Exactly what the browser sent, unparsed and possibly empty — the
+            same raw value `SignedInSession` carries, for the same reason.
+        startedAt:
+          type: string
+          format: date-time
+          description: When this device first signed in.
+        lastSeenAt:
+          type: string
+          format: date-time
+          description: |
+            The newest token in the family. The device renews roughly every
+            fifteen minutes, so this makes no finer claim than that.
+
+    AdminUserSessionList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AdminUserSession' }
 
     GrantPlanRequest:
       type: object

@@ -23,10 +23,8 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { AdminUser } from './adminUser';
+import type { AdminUserSession } from './adminUserSession';
 
-export interface AdminUserList {
-  items: AdminUser[];
-  /** Accounts matching the filters, not the ones on this page. */
-  totalCount: number;
+export interface AdminUserSessionList {
+  items: AdminUserSession[];
 }

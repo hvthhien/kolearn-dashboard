@@ -24,6 +24,16 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type FindUsersParams = {
-email: string;
-};
+export interface SetUserRolesRequest {
+  /**
+     * The complete set the account holds afterwards. Duplicates are
+     * collapsed; order is not kept.
+     * @maxItems 20
+     */
+  roles: string[];
+  /**
+     * Why, for the audit row.
+     * @maxLength 200
+     */
+  note?: string;
+}

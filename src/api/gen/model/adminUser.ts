@@ -23,11 +23,51 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { AdminUserStatus } from './adminUserStatus';
 import type { UserPlan } from './userPlan';
 
+/**
+ * A person, as the console sees them: enough to be sure it is the right
+ * account, what it may do, and what it has paid for.
+ *
+ * `roles` and `plan` sit on the same object and answer different
+ * questions — what this account is permitted, and what it has bought.
+ * Neither is derivable from the other: an `admin` with no Premium is the
+ * ordinary case for staff, and a `learner` with a year of it is the
+ * ordinary case for everybody else.
+ */
 export interface AdminUser {
   id: string;
   email: string;
   displayName: string;
+  status: AdminUserStatus;
+  /**
+     * Whether the address has ever been confirmed. An account that
+     * registered and never typed the six-digit code cannot sign in
+     * (`403 email_not_verified`), which is the first thing to check when
+     * somebody says the password is right and the app disagrees.
+     */
+  emailVerified: boolean;
+  /**
+     * False for an account that only ever signed in through Google, and
+     * the second thing to check on that same call: `POST /auth/login` is
+     * not a way in for it, however correct the password somebody thinks
+     * they set.
+     */
+  hasPassword?: boolean;
+  /**
+     * Role codes, sorted. Empty is a real state and the one every account
+     * registers into — `learner` is granted explicitly, and an account
+     * holding nothing can sign in and do nothing.
+     */
+  roles: string[];
+  createdAt: string;
+  /**
+     * The newest token this account holds, so it is "last used" to about
+     * fifteen minutes. **Absent means no live session**, which is not the
+     * same as never having signed in — a device that stopped refreshing a
+     * month ago leaves no row this can read.
+     */
+  lastSeenAt?: string;
   plan: UserPlan;
 }

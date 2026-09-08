@@ -10,6 +10,7 @@ import type {
   RedeemCode,
   AdminPaymentOrder,
   AdminUser,
+  AdminUserSession,
   BankTransaction,
   ConfirmPaymentOrderRequest,
   GrantPlanRequest,
@@ -20,6 +21,8 @@ import type {
   ImportReport,
   PublishReport,
   SaveQuestionRequest,
+  SetUserRolesRequest,
+  SetUserStatusRequest,
   UpdateExamRequest,
 } from '../api/gen/model'
 import { BLUEPRINTS } from './fixtures/blueprints'
@@ -28,7 +31,13 @@ import { EXAMS, LISTENING_PASSAGE, QUESTIONS, READING_PASSAGE, layers } from './
 import { SHADOW_VIDEOS } from './fixtures/shadowing'
 import { DICTATION_SETS } from './fixtures/dictation'
 import { CODE_REDEMPTIONS, REDEEM_CODES } from './fixtures/billing'
-import { ADMIN_USERS, BANK_TRANSACTIONS, PAYMENT_ORDERS } from './fixtures/orders'
+import {
+  ADMIN_ROLES,
+  ADMIN_SESSIONS,
+  ADMIN_USERS,
+  BANK_TRANSACTIONS,
+  PAYMENT_ORDERS,
+} from './fixtures/orders'
 
 /**
  * The mock backend, shared by `npm run dev` and by the test suite.
@@ -113,6 +122,13 @@ const billingState = {
   users: clone(ADMIN_USERS) as AdminUser[],
 }
 
+/** Devices per account. Mutable: suspending and signing out both empty it. */
+let sessionState = clone(ADMIN_SESSIONS) as Record<string, AdminUserSession[]>
+
+function userNotFound() {
+  return problem(404, 'user_not_found', 'Không tìm thấy tài khoản này.')
+}
+
 /** Pays an order the way the server does: status, amounts, and the learner's plan. */
 function settleOrder(order: AdminPaymentOrder, paid: number): void {
   order.status = 'PAID'
@@ -142,6 +158,7 @@ export function resetMockBank(): void {
   billingState.orders = clone(PAYMENT_ORDERS)
   billingState.transactions = clone(BANK_TRANSACTIONS)
   billingState.users = clone(ADMIN_USERS)
+  sessionState = clone(ADMIN_SESSIONS)
   state = {
     exams: clone(EXAMS),
     questions: clone(QUESTIONS),
@@ -221,6 +238,13 @@ export const MOCK_USER: AuthTokens['user'] = {
     // Billing. Held by admin alone in 00046, so the mock account wears both
     // hats — otherwise the Thanh toán screen would be unreachable offline.
     'billing:manage',
+    // Quản trị người dùng. The same borrowed hat: 00003 gives user:read to
+    // support as well, but user:role:assign and 00055's user:suspend belong to
+    // admin alone, and without all three the Người dùng screen would refuse
+    // itself offline.
+    'user:read',
+    'user:role:assign',
+    'user:suspend',
     'exam:read',
     'exam:write',
     'exam:publish',
@@ -584,25 +608,88 @@ export const handlers = [
       return HttpResponse.json(order)
     },
   ),
+  /* ── Người dùng (00003, 00055) ────────────────────────────────────────
+     The filters are the server's, not a convenience: the email matches from
+     the FRONT and the display name anywhere, and a mock that matched both
+     loosely would let a screen ship that only works offline. */
   http.get(`${BASE}/admin/users`, ({ request }) => {
-    const email = (new URL(request.url).searchParams.get('email') ?? '').toLowerCase()
+    const url = new URL(request.url)
+    const q = (url.searchParams.get('q') ?? '').trim().toLowerCase()
+    const role = url.searchParams.get('role') ?? ''
+    const status = url.searchParams.get('status') ?? ''
+    const limit = Number(url.searchParams.get('limit') ?? '20') || 20
+    const offset = Number(url.searchParams.get('offset') ?? '0') || 0
+
+    const matched = billingState.users.filter(
+      (u) =>
+        (q === '' ||
+          u.email.toLowerCase().startsWith(q) ||
+          u.displayName.toLowerCase().includes(q)) &&
+        (role === '' || u.roles.includes(role)) &&
+        (status === '' || u.status === status),
+    )
     return HttpResponse.json({
-      items: email === '' ? [] : billingState.users.filter((u) => u.email.startsWith(email)),
+      items: matched.slice(offset, offset + limit),
+      totalCount: matched.length,
     })
+  }),
+  http.get(`${BASE}/admin/roles`, () => HttpResponse.json({ items: ADMIN_ROLES })),
+  http.put(`${BASE}/admin/users/:userId/roles`, async ({ params, request }) => {
+    const u = billingState.users.find((x) => x.id === params.userId)
+    if (!u) return userNotFound()
+    const body = (await request.json()) as SetUserRolesRequest
+    if (body.roles.some((r) => !ADMIN_ROLES.some((known) => known.code === r))) {
+      return problem(422, 'unknown_role', 'Có vai trò không tồn tại trong danh sách vai trò.')
+    }
+    // The refusal the screen is built around: the signed-in admin cannot take
+    // `admin` off themselves, and a mock that allowed it would let that path
+    // ship untested.
+    if (u.id === MOCK_USER.id && u.roles.includes('admin') && !body.roles.includes('admin')) {
+      return problem(409, 'cannot_demote_self', 'Không thể tự bỏ vai trò admin của chính mình.')
+    }
+    u.roles = [...new Set(body.roles)].sort()
+    return HttpResponse.json(u)
+  }),
+  http.put(`${BASE}/admin/users/:userId/status`, async ({ params, request }) => {
+    const u = billingState.users.find((x) => x.id === params.userId)
+    if (!u) return userNotFound()
+    const body = (await request.json()) as SetUserStatusRequest
+    if (u.id === MOCK_USER.id && body.status !== 'ACTIVE') {
+      return problem(409, 'cannot_suspend_self', 'Không thể tự đình chỉ tài khoản của chính mình.')
+    }
+    u.status = body.status
+    if (body.status === 'SUSPENDED') {
+      // The server ends every session in the same transaction, and the screen
+      // says so — so the mock has to, or the sentence is unverified.
+      sessionState[u.id] = []
+      u.lastSeenAt = undefined
+    }
+    return HttpResponse.json(u)
+  }),
+  http.get(`${BASE}/admin/users/:userId/sessions`, ({ params }) => {
+    const u = billingState.users.find((x) => x.id === params.userId)
+    if (!u) return userNotFound()
+    return HttpResponse.json({ items: sessionState[u.id] ?? [] })
+  }),
+  http.delete(`${BASE}/admin/users/:userId/sessions`, ({ params }) => {
+    const u = billingState.users.find((x) => x.id === params.userId)
+    if (!u) return userNotFound()
+    if (u.id === MOCK_USER.id) {
+      return problem(409, 'cannot_end_own_sessions', 'Đây là tài khoản bạn đang dùng.')
+    }
+    sessionState[u.id] = []
+    u.lastSeenAt = undefined
+    return new HttpResponse(null, { status: 204 })
   }),
   http.post(`${BASE}/admin/users/:userId/plan`, async ({ params, request }) => {
     const u = billingState.users.find((x) => x.id === params.userId)
-    if (!u) {
-      return HttpResponse.json(
-        { type: 'about:blank', title: 'Không tìm thấy', status: 404, code: 'user_not_found' },
-        { status: 404 },
-      )
-    }
+    if (!u) return userNotFound()
     const body = (await request.json()) as GrantPlanRequest
     const from = u.plan.premiumUntil ? new Date(u.plan.premiumUntil) : new Date()
     const until = new Date(Math.max(from.getTime(), Date.now()) + body.days * 86400000)
     u.plan = { tier: 'premium', premiumUntil: until.toISOString() }
-    return HttpResponse.json(u)
+    // The plan, not the account: `billing:manage` does not carry the roles.
+    return HttpResponse.json(u.plan)
   }),
 
   /* ── Thanh toán: mã nâng cấp (00046) ──────────────────────────────────── */

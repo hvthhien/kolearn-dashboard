@@ -23,10 +23,20 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { AdminUser } from './adminUser';
 
-export interface AdminUserList {
-  items: AdminUser[];
-  /** Accounts matching the filters, not the ones on this page. */
-  totalCount: number;
+export interface AdminUserSession {
+  /** The refresh-token family, surviving every rotation. */
+  id: string;
+  /**
+     * Exactly what the browser sent, unparsed and possibly empty — the
+     * same raw value `SignedInSession` carries, for the same reason.
+     */
+  userAgent: string;
+  /** When this device first signed in. */
+  startedAt: string;
+  /**
+     * The newest token in the family. The device renews roughly every
+     * fifteen minutes, so this makes no finer claim than that.
+     */
+  lastSeenAt: string;
 }

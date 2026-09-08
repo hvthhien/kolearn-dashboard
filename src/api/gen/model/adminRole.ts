@@ -23,10 +23,19 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { AdminUser } from './adminUser';
 
-export interface AdminUserList {
-  items: AdminUser[];
-  /** Accounts matching the filters, not the ones on this page. */
-  totalCount: number;
+export interface AdminRole {
+  code: string;
+  /**
+     * The role's own description, in Vietnamese, straight out of the
+     * `roles` table. Presentation the server owns rather than the client,
+     * because a role added by a migration has to arrive with its meaning.
+     */
+  description: string;
+  /**
+     * Whether 00003 marked this role as needing a second factor. Reported
+     * so the console can say so beside the checkbox; nothing enforces it
+     * yet.
+     */
+  requiresMfa: boolean;
 }

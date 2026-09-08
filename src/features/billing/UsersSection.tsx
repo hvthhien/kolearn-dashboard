@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { useFindUsers, useGrantUserPlan } from '../../api/gen/kolearn'
+import { useGrantUserPlan, useListAdminUsers } from '../../api/gen/kolearn'
 import type { AdminUser } from '../../api/gen/model'
 import { userMessage } from '../../lib/problem'
 import {
@@ -27,14 +27,21 @@ function day(iso: string): string {
  * is the escape hatch for everything the queue cannot settle — a transfer
  * that never reached SePay, a promise made on the phone — and it is audited
  * like a code.
+ *
+ * Reads the same `GET /admin/users` the Người dùng screen does, filtered to
+ * one address, rather than a lookup of its own. Two endpoints over `users` is
+ * how two screens end up disagreeing about who somebody is. What this one does
+ * NOT do is anything from that screen: roles and suspension are `user:*`
+ * permissions, and an operator holding `billing:manage` alone sees the person
+ * and their plan and nothing else.
  */
 export function UsersSection() {
   const [email, setEmail] = useState('')
   const [asked, setAsked] = useState('')
   const [granting, setGranting] = useState<AdminUser | null>(null)
 
-  const { data, error, isFetching, refetch } = useFindUsers(
-    { email: asked },
+  const { data, error, isFetching, refetch } = useListAdminUsers(
+    { q: asked },
     { query: { enabled: asked !== '' } },
   )
 
@@ -43,7 +50,9 @@ export function UsersSection() {
       <h2 id="users-heading" className="text-base font-semibold text-ink">
         Người dùng
       </h2>
-      <p className="mt-1 text-sm text-muted">Tìm theo email để xem gói và tặng ngày Premium.</p>
+      <p className="mt-1 text-sm text-muted">
+        Tìm theo email (tính từ đầu) hoặc tên để xem gói và tặng ngày Premium.
+      </p>
 
       <form
         className="mt-3 flex flex-wrap items-end gap-2"
@@ -76,7 +85,7 @@ export function UsersSection() {
         </div>
       )}
       {data && data.items.length === 0 && (
-        <p className="mt-3 text-sm text-muted">Không có tài khoản nào bắt đầu bằng “{asked}”.</p>
+        <p className="mt-3 text-sm text-muted">Không có tài khoản nào khớp “{asked}”.</p>
       )}
       {data && data.items.length > 0 && (
         <div className="mt-3">

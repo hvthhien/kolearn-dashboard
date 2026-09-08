@@ -23,10 +23,14 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { AdminUser } from './adminUser';
 
-export interface AdminUserList {
-  items: AdminUser[];
-  /** Accounts matching the filters, not the ones on this page. */
-  totalCount: number;
-}
+/**
+ * `DELETED` is not accepted (422). See `AdminUserStatus`.
+ */
+export type SetUserStatusRequestStatus = typeof SetUserStatusRequestStatus[keyof typeof SetUserStatusRequestStatus];
+
+
+export const SetUserStatusRequestStatus = {
+  ACTIVE: 'ACTIVE',
+  SUSPENDED: 'SUSPENDED',
+} as const;

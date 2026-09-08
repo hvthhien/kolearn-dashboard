@@ -59,6 +59,15 @@ export function AppBar() {
               Thanh toán
             </Link>
           )}
+          {/* Admin alone. `user:role:assign` is the permission 00003 gives to
+              that role and to no other, so it is what "admin only" means here;
+              `user:read` would show the link to support, whose account cannot
+              do anything on the screen behind it. */}
+          {user?.permissions.includes('user:role:assign') && (
+            <Link to="/users" className={NAV_ITEM}>
+              Người dùng
+            </Link>
+          )}
 
           {user && (
             <span className="ml-2 hidden text-xs text-muted md:inline">

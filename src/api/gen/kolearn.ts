@@ -55,6 +55,7 @@ import type {
   AdminPaymentOrder,
   AdminPaymentOrderList,
   AdminQuestion,
+  AdminRoleList,
   AdminShadowCategory,
   AdminShadowCategoryList,
   AdminShadowLine,
@@ -62,6 +63,7 @@ import type {
   AdminShadowVideoList,
   AdminUser,
   AdminUserList,
+  AdminUserSessionList,
   AnswerLockedProblem,
   AnswerState,
   AssistantAskRequest,
@@ -108,7 +110,6 @@ import type {
   DictationShadowLessonList,
   DictationSkipResult,
   ExamDetail,
-  FindUsersParams,
   ForbiddenResponse,
   ForgotPasswordBody,
   GetAssistantPanelParams,
@@ -124,6 +125,7 @@ import type {
   ListAdminPaymentOrdersParams,
   ListAdminQuestions200,
   ListAdminShadowVideosParams,
+  ListAdminUsersParams,
   ListAssistantThreads200,
   ListAssistantThreadsParams,
   ListAssistantTurns200,
@@ -194,6 +196,8 @@ import type {
   SetLevelRequest,
   SetQuestionTopicsBody,
   SetShadowLineApprovalRequest,
+  SetUserRolesRequest,
+  SetUserStatusRequest,
   SetWeaknessPreferenceBody,
   ShadowCategoryList,
   ShadowProgress,
@@ -219,6 +223,7 @@ import type {
   UpdateCardRequest,
   UpdateExamRequest,
   UpdateProfile,
+  UserPlan,
   UserTimezone,
   VerificationChallenge,
   VerifyEmailBody,
@@ -13009,7 +13014,7 @@ export const useMatchBankTransaction = <TError = UnauthorizedResponse | Forbidde
       return useMutation(getMatchBankTransactionMutationOptions(options), queryClient);
     }
 
-export const getFindUsersUrl = (params: FindUsersParams,) => {
+export const getListAdminUsersUrl = (params?: ListAdminUsersParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
@@ -13025,13 +13030,20 @@ export const getFindUsersUrl = (params: FindUsersParams,) => {
 }
 
 /**
- * rbac: `billing:manage`. Prefix match on the address, at most twenty
- * rows — for finding one person, not for listing everybody.
- * @summary Tìm người dùng theo email
+ * rbac: `user:read`. One page of accounts, oldest-registered last, with
+ * the roles and the plan on the row.
+ *
+ * This replaced a `?email=` prefix lookup that answered at most twenty
+ * rows and carried nothing but the plan. Both screens that ask about a
+ * person — Thanh toán answering "where is my Premium", Người dùng
+ * answering "what may this account do" — ask it of one list, because two
+ * endpoints over `users` is how the two screens drift into disagreeing
+ * about who somebody is.
+ * @summary Danh sách người dùng
  */
-export const findUsers = async (params: FindUsersParams, options?: Parameters<typeof apiFetch>[1]): Promise<AdminUserList> => {
+export const listAdminUsers = async (params?: ListAdminUsersParams, options?: Parameters<typeof apiFetch>[1]): Promise<AdminUserList> => {
 
-  return apiFetch<AdminUserList>(getFindUsersUrl(params),
+  return apiFetch<AdminUserList>(getListAdminUsersUrl(params),
   {
     ...options,
     method: 'GET'
@@ -13044,69 +13056,544 @@ export const findUsers = async (params: FindUsersParams, options?: Parameters<ty
 
 
 
-export const getFindUsersQueryKey = (params?: FindUsersParams,) => {
+export const getListAdminUsersQueryKey = (params?: ListAdminUsersParams,) => {
     return [
     `/api/v1/admin/users`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getFindUsersQueryOptions = <TData = Awaited<ReturnType<typeof findUsers>>, TError = UnauthorizedResponse | ForbiddenResponse>(params: FindUsersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof findUsers>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export const getListAdminUsersQueryOptions = <TData = Awaited<ReturnType<typeof listAdminUsers>>, TError = UnauthorizedResponse | ForbiddenResponse>(params?: ListAdminUsersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminUsers>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getFindUsersQueryKey(params);
+  const queryKey =  queryOptions?.queryKey ?? getListAdminUsersQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof findUsers>>> = ({ signal }) => findUsers(params, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminUsers>>> = ({ signal }) => listAdminUsers(params, { signal, ...requestOptions });
 
 
 
 
 
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof findUsers>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminUsers>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
 }
 
-export type FindUsersQueryResult = NonNullable<Awaited<ReturnType<typeof findUsers>>>
-export type FindUsersQueryError = UnauthorizedResponse | ForbiddenResponse
+export type ListAdminUsersQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminUsers>>>
+export type ListAdminUsersQueryError = UnauthorizedResponse | ForbiddenResponse
 
 
-export function useFindUsers<TData = Awaited<ReturnType<typeof findUsers>>, TError = UnauthorizedResponse | ForbiddenResponse>(
- params: FindUsersParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof findUsers>>, TError, TData>> & Pick<
+export function useListAdminUsers<TData = Awaited<ReturnType<typeof listAdminUsers>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params: undefined |  ListAdminUsersParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminUsers>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
-          Awaited<ReturnType<typeof findUsers>>,
+          Awaited<ReturnType<typeof listAdminUsers>>,
           TError,
-          Awaited<ReturnType<typeof findUsers>>
+          Awaited<ReturnType<typeof listAdminUsers>>
         > , 'initialData'
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useFindUsers<TData = Awaited<ReturnType<typeof findUsers>>, TError = UnauthorizedResponse | ForbiddenResponse>(
- params: FindUsersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof findUsers>>, TError, TData>> & Pick<
+export function useListAdminUsers<TData = Awaited<ReturnType<typeof listAdminUsers>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params?: ListAdminUsersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminUsers>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
-          Awaited<ReturnType<typeof findUsers>>,
+          Awaited<ReturnType<typeof listAdminUsers>>,
           TError,
-          Awaited<ReturnType<typeof findUsers>>
+          Awaited<ReturnType<typeof listAdminUsers>>
         > , 'initialData'
       >, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useFindUsers<TData = Awaited<ReturnType<typeof findUsers>>, TError = UnauthorizedResponse | ForbiddenResponse>(
- params: FindUsersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof findUsers>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export function useListAdminUsers<TData = Awaited<ReturnType<typeof listAdminUsers>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params?: ListAdminUsersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminUsers>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
- * @summary Tìm người dùng theo email
+ * @summary Danh sách người dùng
  */
 
-export function useFindUsers<TData = Awaited<ReturnType<typeof findUsers>>, TError = UnauthorizedResponse | ForbiddenResponse>(
- params: FindUsersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof findUsers>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export function useListAdminUsers<TData = Awaited<ReturnType<typeof listAdminUsers>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params?: ListAdminUsersParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminUsers>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getFindUsersQueryOptions(params,options)
+  const queryOptions = getListAdminUsersQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSetAdminUserRolesUrl = (userId: string,) => {
+
+
+
+
+  return `/api/v1/admin/users/${userId}/roles`
+}
+
+/**
+ * rbac: `user:role:assign`. The whole set, not a diff: the body is what
+ * the account holds afterwards, and an empty array leaves it with none.
+ *
+ * A put rather than a pair of grant/revoke posts because the screen shows
+ * the whole set and the operator edits it as one. Two endpoints would let
+ * a half-applied change — the new role granted, the old one still there —
+ * survive a failed second request.
+ *
+ * **An admin cannot take `admin` off themselves** (409
+ * `cannot_demote_self`). The account making the request is the one that
+ * would have to undo the mistake, and an admin console whose last admin
+ * can lock themselves out of it needs a database session to recover.
+ * Another admin can still do it, which is the check working as intended.
+ *
+ * Audited, with the roles before and after.
+ * @summary Đặt vai trò cho một tài khoản
+ */
+export const setAdminUserRoles = async (userId: string,
+    setUserRolesRequest: SetUserRolesRequest, options?: Parameters<typeof apiFetch>[1]): Promise<AdminUser> => {
+
+  return apiFetch<AdminUser>(getSetAdminUserRolesUrl(userId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(setUserRolesRequest)
+  }
+);}
+
+
+
+
+
+export const getSetAdminUserRolesMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse | Problem,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setAdminUserRoles>>, TError,{userId: string;data: SetUserRolesRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setAdminUserRoles>>, TError,{userId: string;data: SetUserRolesRequest}, TContext> => {
+
+const mutationKey = ['setAdminUserRoles'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setAdminUserRoles>>, {userId: string;data: SetUserRolesRequest}> = (props) => {
+          const {userId,data} = props ?? {};
+
+          return  setAdminUserRoles(userId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetAdminUserRolesMutationResult = NonNullable<Awaited<ReturnType<typeof setAdminUserRoles>>>
+    export type SetAdminUserRolesMutationBody = SetUserRolesRequest
+    export type SetAdminUserRolesMutationError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse | Problem
+
+    /**
+ * @summary Đặt vai trò cho một tài khoản
+ */
+export const useSetAdminUserRoles = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse | Problem,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setAdminUserRoles>>, TError,{userId: string;data: SetUserRolesRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof setAdminUserRoles>>,
+        TError,
+        {userId: string;data: SetUserRolesRequest},
+        TContext
+      > => {
+      return useMutation(getSetAdminUserRolesMutationOptions(options), queryClient);
+    }
+
+export const getSetAdminUserStatusUrl = (userId: string,) => {
+
+
+
+
+  return `/api/v1/admin/users/${userId}/status`
+}
+
+/**
+ * rbac: `user:suspend`. Writes `users.status`, the column 00002 created
+ * and nothing has ever set.
+ *
+ * **Suspending ends every session the account holds**, in the same
+ * transaction. Without that the change would be honoured immediately on
+ * the access-token path — `rbac.Loader` selects `WHERE status = 'ACTIVE'`
+ * — while the refresh cookie kept working, which is a suspension that
+ * looks applied and is not.
+ *
+ * Reactivating does not restore the sessions. There is nothing to
+ * restore: a revoked family is gone, and the account signs in again.
+ *
+ * **An admin cannot suspend themselves** (409 `cannot_suspend_self`), for
+ * the reason they cannot demote themselves.
+ *
+ * `DELETED` is not settable here. Erasing an account is a different act
+ * with a retention question attached, and it is not this screen's.
+ *
+ * Audited, with the status before and after and the reason.
+ * @summary Đình chỉ hoặc mở lại một tài khoản
+ */
+export const setAdminUserStatus = async (userId: string,
+    setUserStatusRequest: SetUserStatusRequest, options?: Parameters<typeof apiFetch>[1]): Promise<AdminUser> => {
+
+  return apiFetch<AdminUser>(getSetAdminUserStatusUrl(userId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(setUserStatusRequest)
+  }
+);}
+
+
+
+
+
+export const getSetAdminUserStatusMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setAdminUserStatus>>, TError,{userId: string;data: SetUserStatusRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setAdminUserStatus>>, TError,{userId: string;data: SetUserStatusRequest}, TContext> => {
+
+const mutationKey = ['setAdminUserStatus'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setAdminUserStatus>>, {userId: string;data: SetUserStatusRequest}> = (props) => {
+          const {userId,data} = props ?? {};
+
+          return  setAdminUserStatus(userId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetAdminUserStatusMutationResult = NonNullable<Awaited<ReturnType<typeof setAdminUserStatus>>>
+    export type SetAdminUserStatusMutationBody = SetUserStatusRequest
+    export type SetAdminUserStatusMutationError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse | UnprocessableResponse
+
+    /**
+ * @summary Đình chỉ hoặc mở lại một tài khoản
+ */
+export const useSetAdminUserStatus = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setAdminUserStatus>>, TError,{userId: string;data: SetUserStatusRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof setAdminUserStatus>>,
+        TError,
+        {userId: string;data: SetUserStatusRequest},
+        TContext
+      > => {
+      return useMutation(getSetAdminUserStatusMutationOptions(options), queryClient);
+    }
+
+export const getListAdminUserSessionsUrl = (userId: string,) => {
+
+
+
+
+  return `/api/v1/admin/users/${userId}/sessions`
+}
+
+/**
+ * rbac: `user:read`. `GET /me/sessions` for somebody else's account, and
+ * the reason it is a separate schema rather than the same one: no row
+ * here can be the caller's own device, so there is no `current` to
+ * report and a field that was always `false` would invite a client to
+ * render "this device" on somebody else's phone.
+ * @summary Các thiết bị đang đăng nhập của một tài khoản
+ */
+export const listAdminUserSessions = async (userId: string, options?: Parameters<typeof apiFetch>[1]): Promise<AdminUserSessionList> => {
+
+  return apiFetch<AdminUserSessionList>(getListAdminUserSessionsUrl(userId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAdminUserSessionsQueryKey = (userId: string,) => {
+    return [
+    `/api/v1/admin/users/${userId}/sessions`
+    ] as const;
+    }
+
+
+export const getListAdminUserSessionsQueryOptions = <TData = Awaited<ReturnType<typeof listAdminUserSessions>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(userId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminUserSessions>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminUserSessionsQueryKey(userId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminUserSessions>>> = ({ signal }) => listAdminUserSessions(userId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: userId !== null && userId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminUserSessions>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListAdminUserSessionsQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminUserSessions>>>
+export type ListAdminUserSessionsQueryError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse
+
+
+export function useListAdminUserSessions<TData = Awaited<ReturnType<typeof listAdminUserSessions>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
+ userId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminUserSessions>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAdminUserSessions>>,
+          TError,
+          Awaited<ReturnType<typeof listAdminUserSessions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListAdminUserSessions<TData = Awaited<ReturnType<typeof listAdminUserSessions>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
+ userId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminUserSessions>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAdminUserSessions>>,
+          TError,
+          Awaited<ReturnType<typeof listAdminUserSessions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListAdminUserSessions<TData = Awaited<ReturnType<typeof listAdminUserSessions>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
+ userId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminUserSessions>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Các thiết bị đang đăng nhập của một tài khoản
+ */
+
+export function useListAdminUserSessions<TData = Awaited<ReturnType<typeof listAdminUserSessions>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
+ userId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminUserSessions>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListAdminUserSessionsQueryOptions(userId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getEndAdminUserSessionsUrl = (userId: string,) => {
+
+
+
+
+  return `/api/v1/admin/users/${userId}/sessions`
+}
+
+/**
+ * rbac: `user:suspend`. Every family at once — the answer to "my account
+ * is on a laptop I no longer have" that does not also close the account.
+ *
+ * Revoking a family means the device cannot RENEW. An access token
+ * already in its hands works until it expires, at most fifteen minutes;
+ * that is the same fifteen minutes `DELETE /me/sessions/{sessionId}`
+ * documents, and it is stated here because "đăng xuất" sounds
+ * instantaneous and is not. Suspending, above, is what closes the door
+ * now: the next request through `rbac.Loader` fails to resolve a subject.
+ *
+ * **Not the caller's own account** (409 `cannot_end_own_sessions`). Ending
+ * one's own sessions from the console that requires a session to reach is
+ * Đăng xuất, and it is one click away in the bar.
+ *
+ * Audited, with the number of devices ended.
+ * @summary Đăng xuất mọi thiết bị của một tài khoản
+ */
+export const endAdminUserSessions = async (userId: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getEndAdminUserSessionsUrl(userId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getEndAdminUserSessionsMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof endAdminUserSessions>>, TError,{userId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof endAdminUserSessions>>, TError,{userId: string}, TContext> => {
+
+const mutationKey = ['endAdminUserSessions'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof endAdminUserSessions>>, {userId: string}> = (props) => {
+          const {userId} = props ?? {};
+
+          return  endAdminUserSessions(userId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type EndAdminUserSessionsMutationResult = NonNullable<Awaited<ReturnType<typeof endAdminUserSessions>>>
+
+    export type EndAdminUserSessionsMutationError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse
+
+    /**
+ * @summary Đăng xuất mọi thiết bị của một tài khoản
+ */
+export const useEndAdminUserSessions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof endAdminUserSessions>>, TError,{userId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof endAdminUserSessions>>,
+        TError,
+        {userId: string},
+        TContext
+      > => {
+      return useMutation(getEndAdminUserSessionsMutationOptions(options), queryClient);
+    }
+
+export const getListAdminRolesUrl = () => {
+
+
+
+
+  return `/api/v1/admin/roles`
+}
+
+/**
+ * rbac: `user:read`. The `roles` table, so the screen offering a set of
+ * checkboxes reads the codes from the database that will validate them
+ * rather than from a list typed into a client. A role added by a
+ * migration appears in the console without a deploy.
+ * @summary Các vai trò có thể gán
+ */
+export const listAdminRoles = async ( options?: Parameters<typeof apiFetch>[1]): Promise<AdminRoleList> => {
+
+  return apiFetch<AdminRoleList>(getListAdminRolesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAdminRolesQueryKey = () => {
+    return [
+    `/api/v1/admin/roles`
+    ] as const;
+    }
+
+
+export const getListAdminRolesQueryOptions = <TData = Awaited<ReturnType<typeof listAdminRoles>>, TError = UnauthorizedResponse | ForbiddenResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminRoles>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAdminRolesQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminRoles>>> = ({ signal }) => listAdminRoles({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAdminRoles>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListAdminRolesQueryResult = NonNullable<Awaited<ReturnType<typeof listAdminRoles>>>
+export type ListAdminRolesQueryError = UnauthorizedResponse | ForbiddenResponse
+
+
+export function useListAdminRoles<TData = Awaited<ReturnType<typeof listAdminRoles>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminRoles>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAdminRoles>>,
+          TError,
+          Awaited<ReturnType<typeof listAdminRoles>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListAdminRoles<TData = Awaited<ReturnType<typeof listAdminRoles>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminRoles>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAdminRoles>>,
+          TError,
+          Awaited<ReturnType<typeof listAdminRoles>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListAdminRoles<TData = Awaited<ReturnType<typeof listAdminRoles>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminRoles>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Các vai trò có thể gán
+ */
+
+export function useListAdminRoles<TData = Awaited<ReturnType<typeof listAdminRoles>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminRoles>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListAdminRolesQueryOptions(options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -13130,12 +13617,18 @@ export const getGrantUserPlanUrl = (userId: string,) => {
 /**
  * rbac: `billing:manage`. Hands a learner days, stacked after their
  * current end date, with a note saying why. Audited.
+ *
+ * Answers the **plan** rather than the account. What this operation
+ * changed is the plan, and `AdminUser` — which now carries roles, status
+ * and sessions — would have this endpoint reporting on a permission
+ * surface `billing:manage` has nothing to do with. `GET /admin/users`
+ * is where the whole account is read.
  * @summary Tặng ngày Premium
  */
 export const grantUserPlan = async (userId: string,
-    grantPlanRequest: GrantPlanRequest, options?: Parameters<typeof apiFetch>[1]): Promise<AdminUser> => {
+    grantPlanRequest: GrantPlanRequest, options?: Parameters<typeof apiFetch>[1]): Promise<UserPlan> => {
 
-  return apiFetch<AdminUser>(getGrantUserPlanUrl(userId),
+  return apiFetch<UserPlan>(getGrantUserPlanUrl(userId),
   {
     ...options,
     method: 'POST',

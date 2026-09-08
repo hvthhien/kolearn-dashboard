@@ -23,10 +23,14 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { AdminUser } from './adminUser';
+import type { SetUserStatusRequestStatus } from './setUserStatusRequestStatus';
 
-export interface AdminUserList {
-  items: AdminUser[];
-  /** Accounts matching the filters, not the ones on this page. */
-  totalCount: number;
+export interface SetUserStatusRequest {
+  /** `DELETED` is not accepted (422). See `AdminUserStatus`. */
+  status: SetUserStatusRequestStatus;
+  /**
+     * Why, for the audit row.
+     * @maxLength 200
+     */
+  note?: string;
 }

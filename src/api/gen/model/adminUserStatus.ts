@@ -23,10 +23,23 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { AdminUser } from './adminUser';
 
-export interface AdminUserList {
-  items: AdminUser[];
-  /** Accounts matching the filters, not the ones on this page. */
-  totalCount: number;
-}
+/**
+ * `users.status`, the column every read path has honoured since 00002.
+ *
+ * `ACTIVE` is the only one that can sign in: `POST /auth/login` refuses
+ * the other two, and `rbac.Loader` will not resolve a subject for them,
+ * so an access token already issued stops working at the next request.
+ *
+ * `DELETED` is reachable only outside this API. It exists in the enum
+ * because the list has to be able to show an account somebody is asking
+ * about, not because a console can put an account into it.
+ */
+export type AdminUserStatus = typeof AdminUserStatus[keyof typeof AdminUserStatus];
+
+
+export const AdminUserStatus = {
+  ACTIVE: 'ACTIVE',
+  SUSPENDED: 'SUSPENDED',
+  DELETED: 'DELETED',
+} as const;

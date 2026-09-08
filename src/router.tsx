@@ -8,6 +8,7 @@ import {
   redirect,
   useRouterState,
 } from '@tanstack/react-router'
+import type { ReactNode } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
 import { useAuth } from './lib/auth'
 import { queryClient } from './lib/queryClient'
@@ -25,6 +26,7 @@ import { DictationStudioPage } from './routes/DictationStudioPage'
 import { VideoListPage } from './routes/VideoListPage'
 import { VideoStudioPage } from './routes/VideoStudioPage'
 import { BillingPage } from './routes/BillingPage'
+import { UsersPage } from './routes/UsersPage'
 
 interface RouterContext {
   queryClient: QueryClient
@@ -198,8 +200,67 @@ const billingRoute = createRoute({
   component: BillingPage,
 })
 
+/* ── Quản trị người dùng ──────────────────────────────────────────────────
+   Admin only, and unlike every other route here that is said twice: the nav
+   does not offer the link, and the route itself refuses. The difference from
+   /billing above is what a wrong guess costs — a content_editor who reaches
+   Thanh toán sees a list that 403s, while this screen would 403 six times over
+   and read as broken rather than as forbidden.
+
+   `user:role:assign` is the gate because `admin` alone holds it (00003), which
+   is the honest way to say "admin only" in an app whose every other decision
+   is a permission. `user:read` would not do: 00003 gives it to support too, and
+   the point of this screen is the writes. */
+
+const usersRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/users',
+  component: () => (
+    <RequirePermission
+      permission="user:role:assign"
+      title="Màn quản trị người dùng dành cho admin"
+      explanation="Tài khoản của bạn vào được ngân hàng đề nhưng không có quyền cấp vai trò hay đình chỉ tài khoản."
+    >
+      <UsersPage />
+    </RequirePermission>
+  ),
+})
+
+/**
+ * The second gate, for a screen whose whole content is behind one permission.
+ *
+ * Still the courtesy layer. Every operation underneath is gated server-side by
+ * `rbac`, and hiding a route no more protects an endpoint than hiding a button
+ * protects a write.
+ */
+function RequirePermission({
+  permission,
+  title,
+  explanation,
+  children,
+}: {
+  permission: string
+  title: string
+  explanation: string
+  children: ReactNode
+}) {
+  const { user } = useAuth()
+  if (user && !user.permissions.includes(permission)) {
+    return (
+      <PageShell>
+        <PageTitle>{title}</PageTitle>
+        <p className="mt-2 max-w-prose text-sm text-muted">
+          {explanation} Quyền cần có là <code>{permission}</code>.
+        </p>
+      </PageShell>
+    )
+  }
+  return children
+}
+
 export const routeTree = rootRoute.addChildren([
   billingRoute,
+  usersRoute,
   indexRoute,
   loginRoute,
   examsRoute,
