@@ -16,6 +16,7 @@ import {
 import type { AdminDictationSetRow, AdminDictationSetRowStatus } from '../api/gen/model'
 import { userMessage } from '../lib/problem'
 import { useAuth } from '../lib/auth'
+import { useClampPage, usePager } from '../lib/paging'
 import { EditSetDialog } from '../features/dictation/EditSetDialog'
 import { RemoveDialog } from '../features/manage/RemoveDialog'
 import { removalFor, removalLabel } from '../features/manage/removal'
@@ -30,6 +31,7 @@ import {
   FilterChips,
   PageShell,
   PageTitle,
+  Pager,
   Refreshing,
   SkeletonList,
   Table,
@@ -38,6 +40,9 @@ import {
 } from '../components/ui'
 
 type StatusFilter = 'ALL' | AdminDictationSetRowStatus
+
+/* Twenty, the same page every other admin list uses. */
+const PAGE_SIZE = 20
 
 const STATUS_LABEL: Record<AdminDictationSetRowStatus, string> = {
   DRAFT: 'nháp',
@@ -81,9 +86,17 @@ export function DictationSetListPage() {
      and opening the set is a statement about what the product charges for. */
   const canPrice = user?.permissions.includes('billing:manage') ?? false
 
-  const { data, error, isPending, isFetching } = useListAdminDictationSets(
-    status === 'ALL' ? undefined : { status },
-  )
+  const pager = usePager(PAGE_SIZE)
+  const { data, error, isPending, isFetching } = useListAdminDictationSets({
+    status: status === 'ALL' ? undefined : status,
+    limit: pager.pageSize,
+    offset: pager.offset,
+  })
+  /* Removing a set is a row action here, so the last page can empty under
+     somebody — and the empty state below is a `make dictation-import` command,
+     which would be a strange thing to be told about page four of a full
+     shelf. */
+  useClampPage(pager, data?.totalCount)
 
   /* Read here rather than only inside the dialog, so the button can say how
      many shelves there are and be honestly disabled while the list is in
@@ -132,7 +145,10 @@ export function DictationSetListPage() {
         label="Trạng thái"
         className="mt-4"
         value={status}
-        onChange={setStatus}
+        onChange={(next) => {
+          setStatus(next)
+          pager.reset()
+        }}
         choices={[
           { value: 'ALL', label: 'Tất cả' },
           { value: 'DRAFT', label: 'Nháp' },
@@ -280,6 +296,14 @@ export function DictationSetListPage() {
               </tr>
             ))}
           </Table>
+          <Pager
+            page={pager.page}
+            pageSize={pager.pageSize}
+            shown={data.items.length}
+            total={data.totalCount}
+            noun="bộ"
+            onChange={pager.go}
+          />
         </Refreshing>
       )}
 

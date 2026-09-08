@@ -339,6 +339,72 @@ export function Td({ children, className = '' }: { children: ReactNode; classNam
 }
 
 /**
+ * The row under a list: which rows of how many, and one step either way.
+ *
+ * Numbered pages are deliberately absent. Nothing in this console is reached
+ * by remembering that a paper is on page seven — the chips above the list are
+ * how somebody narrows it, and the pager is how the rest of a narrowed list is
+ * reached rather than dropped. Two buttons cannot be off by one; a row of
+ * numbers has to decide what to elide and be re-decided every time a page size
+ * changes.
+ *
+ * The count is stated even when both buttons are dead, because "12 đề" is
+ * information a single-page list still owes the reader — R-13's rule that a
+ * list says what it is holding.
+ *
+ * `shown` is the rows actually rendered rather than the page size: the last
+ * page is short, and a range read off the page size would claim rows that are
+ * not there.
+ */
+export function Pager({
+  page,
+  pageSize,
+  shown,
+  total,
+  noun,
+  onChange,
+}: {
+  page: number
+  pageSize: number
+  shown: number
+  total: number
+  /** What the rows are, for the count: "đề", "bộ", "ngữ liệu", "tài khoản". */
+  noun: string
+  onChange: (page: number) => void
+}) {
+  const from = shown === 0 ? 0 : page * pageSize + 1
+  const to = from + shown - 1
+
+  return (
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-muted">
+      {/* aria-live, because paging replaces the table under a button that keeps
+          focus: without it a screen reader is told nothing at all happened. */}
+      <span aria-live="polite">
+        {shown === 0 ? `0 ${noun}` : `${from}–${to} trong ${total} ${noun}`}
+      </span>
+      <span className="flex gap-2">
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={page === 0}
+          onClick={() => onChange(Math.max(0, page - 1))}
+        >
+          Trang trước
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={(page + 1) * pageSize >= total}
+          onClick={() => onChange(page + 1)}
+        >
+          Trang sau
+        </Button>
+      </span>
+    </div>
+  )
+}
+
+/**
  * A modal, focus moved into it on open and `Escape` closing it.
  *
  * Rendered inline rather than through a portal: nothing in this app stacks a

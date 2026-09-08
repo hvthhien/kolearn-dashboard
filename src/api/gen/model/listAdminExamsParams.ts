@@ -29,4 +29,16 @@ import type { ExamStatus } from './examStatus';
 export type ListAdminExamsParams = {
 status?: ExamStatus;
 level?: ExamLevel;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: number;
+/**
+ * Papers to skip, over the same `code` order the page returns. A code
+ * is unique, so a paper cannot land on two pages at once or fall
+ * between them.
+ * @minimum 0
+ */
+offset?: number;
 };

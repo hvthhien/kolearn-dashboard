@@ -9,6 +9,7 @@ import {
 import type { ExamStatus } from '../api/gen/model'
 import { userMessage } from '../lib/problem'
 import { useAuth } from '../lib/auth'
+import { useClampPage, usePager } from '../lib/paging'
 import { PremiumToggle } from '../features/manage/PremiumToggle'
 import { SECTION_LABEL } from '../features/exam/sectionLabels'
 import {
@@ -18,6 +19,7 @@ import {
   FilterChips,
   PageShell,
   PageTitle,
+  Pager,
   Refreshing,
   SkeletonList,
   Table,
@@ -26,6 +28,11 @@ import {
 } from '../components/ui'
 
 type StatusFilter = ExamStatus | 'ALL'
+
+/* Twenty, the same page every other admin list uses. The bank is the list that
+   grows without an editor deciding to grow it — every import adds papers — so
+   it is also the one that has to be paged rather than scrolled. */
+const PAGE_SIZE = 20
 
 const STATUS_LABEL: Record<ExamStatus, string> = {
   DRAFT: 'Bản nháp',
@@ -42,9 +49,14 @@ export function ExamListPage() {
   const [actionError, setActionError] = useState<unknown>(null)
   const queryClient = useQueryClient()
   const { user } = useAuth()
-  const { data, error, isPending, isFetching } = useListAdminExams(
-    status === 'ALL' ? undefined : { status },
-  )
+
+  const pager = usePager(PAGE_SIZE)
+  const { data, error, isPending, isFetching } = useListAdminExams({
+    status: status === 'ALL' ? undefined : status,
+    limit: pager.pageSize,
+    offset: pager.offset,
+  })
+  useClampPage(pager, data?.totalCount)
 
   /* `billing:manage`, not `exam:write`. Renaming a paper is editorial; saying
      it is free is a statement about what the product charges for, and the
@@ -67,7 +79,10 @@ export function ExamListPage() {
         className="mt-4"
         label="Lọc theo trạng thái"
         value={status}
-        onChange={setStatus}
+        onChange={(next) => {
+          setStatus(next)
+          pager.reset()
+        }}
         choices={[
           { value: 'ALL', label: 'Tất cả' },
           { value: 'DRAFT', label: STATUS_LABEL.DRAFT },
@@ -158,6 +173,14 @@ export function ExamListPage() {
                 </tr>
               ))}
             </Table>
+            <Pager
+              page={pager.page}
+              pageSize={pager.pageSize}
+              shown={items.length}
+              total={data?.totalCount ?? 0}
+              noun="đề"
+              onChange={pager.go}
+            />
           </Refreshing>
         )}
       </div>

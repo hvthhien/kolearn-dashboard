@@ -27,4 +27,16 @@ import type { ShadowVideoStatus } from './shadowVideoStatus';
 
 export type ListAdminShadowVideosParams = {
 status?: ShadowVideoStatus;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: number;
+/**
+ * Videos to skip, over the same newest-first order the page returns.
+ * The order breaks ties on the video id, so a video cannot land on
+ * two pages at once or fall between them.
+ * @minimum 0
+ */
+offset?: number;
 };

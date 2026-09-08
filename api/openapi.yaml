@@ -4380,9 +4380,17 @@ paths:
         - name: status
           in: query
           schema: { type: string, enum: [DRAFT, IN_REVIEW, PUBLISHED, RETIRED] }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - name: offset
+          in: query
+          description: |
+            Sets to skip, over the same newest-first order the page returns.
+            The order breaks ties on the set id, so a set cannot land on two
+            pages at once or fall between them.
+          schema: { type: integer, minimum: 0, default: 0 }
       responses:
         '200':
-          description: Newest first.
+          description: One page, newest first.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/AdminDictationSetList' }
@@ -5109,18 +5117,32 @@ paths:
         - name: level
           in: query
           schema: { $ref: '#/components/schemas/ExamLevel' }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - name: offset
+          in: query
+          description: |
+            Papers to skip, over the same `code` order the page returns. A code
+            is unique, so a paper cannot land on two pages at once or fall
+            between them.
+          schema: { type: integer, minimum: 0, default: 0 }
       responses:
         '200':
-          description: The bank.
+          description: A page of the bank.
           content:
             application/json:
               schema:
                 type: object
-                required: [items]
+                required: [items, totalCount]
                 properties:
                   items:
                     type: array
                     items: { $ref: '#/components/schemas/AdminExamListItem' }
+                  totalCount:
+                    type: integer
+                    description: |
+                      Every paper matching `status` and `level`, not the ones on
+                      this page. A pager that cannot see past its own page
+                      cannot say whether there is a next one.
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
@@ -5567,9 +5589,17 @@ paths:
         - name: status
           in: query
           schema: { $ref: '#/components/schemas/ShadowVideoStatus' }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - name: offset
+          in: query
+          description: |
+            Videos to skip, over the same newest-first order the page returns.
+            The order breaks ties on the video id, so a video cannot land on
+            two pages at once or fall between them.
+          schema: { type: integer, minimum: 0, default: 0 }
       responses:
         '200':
-          description: Newest first.
+          description: One page, newest first.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/AdminShadowVideoList' }
@@ -11040,11 +11070,16 @@ components:
 
     AdminDictationSetList:
       type: object
-      required: [items]
+      required: [items, totalCount]
       properties:
         items:
           type: array
           items: { $ref: '#/components/schemas/AdminDictationSetRow' }
+        totalCount:
+          type: integer
+          description: |
+            Every set matching `status`, not the ones on this page. A pager that
+            cannot see past its own page cannot say whether there is a next one.
 
     AdminDictationSetDetail:
       type: object
@@ -11672,11 +11707,17 @@ components:
 
     AdminShadowVideoList:
       type: object
-      required: [items]
+      required: [items, totalCount]
       properties:
         items:
           type: array
           items: { $ref: '#/components/schemas/AdminShadowVideoRow' }
+        totalCount:
+          type: integer
+          description: |
+            Every video matching `status`, not the ones on this page. A pager
+            that cannot see past its own page cannot say whether there is a
+            next one.
 
     AdminShadowVideoDetail:
       type: object

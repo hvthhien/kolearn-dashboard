@@ -65,6 +65,23 @@ function clone<T>(v: T): T {
   return JSON.parse(JSON.stringify(v)) as T
 }
 
+/**
+ * One page of a list, the way every paged endpoint here answers.
+ *
+ * The clamp is the server's, not a convenience: `limit` out of range falls back
+ * to the default rather than being honoured or refused, so a screen that sends
+ * `limit=500` cannot ship working against the mock and then truncate against
+ * the real API. `totalCount` counts the matched rows and not the window — the
+ * pager reads it to decide whether "Trang sau" is live at all.
+ */
+function page<T>(request: Request, matched: T[]) {
+  const params = new URL(request.url).searchParams
+  const asked = Number(params.get('limit'))
+  const limit = Number.isInteger(asked) && asked > 0 && asked <= 100 ? asked : 20
+  const offset = Math.max(0, Number(params.get('offset')) || 0)
+  return { items: matched.slice(offset, offset + limit), totalCount: matched.length }
+}
+
 let state: State = {
   exams: clone(EXAMS),
   questions: clone(QUESTIONS),
@@ -617,8 +634,6 @@ export const handlers = [
     const q = (url.searchParams.get('q') ?? '').trim().toLowerCase()
     const role = url.searchParams.get('role') ?? ''
     const status = url.searchParams.get('status') ?? ''
-    const limit = Number(url.searchParams.get('limit') ?? '20') || 20
-    const offset = Number(url.searchParams.get('offset') ?? '0') || 0
 
     const matched = billingState.users.filter(
       (u) =>
@@ -628,10 +643,7 @@ export const handlers = [
         (role === '' || u.roles.includes(role)) &&
         (status === '' || u.status === status),
     )
-    return HttpResponse.json({
-      items: matched.slice(offset, offset + limit),
-      totalCount: matched.length,
-    })
+    return HttpResponse.json(page(request, matched))
   }),
   http.get(`${BASE}/admin/roles`, () => HttpResponse.json({ items: ADMIN_ROLES })),
   http.put(`${BASE}/admin/users/:userId/roles`, async ({ params, request }) => {
@@ -769,7 +781,7 @@ export const handlers = [
 
   http.get(`${BASE}/admin/shadowing/videos`, ({ request }) => {
     const status = new URL(request.url).searchParams.get('status')
-    const items = state.videos
+    const matched = state.videos
       .filter((v) => status === null || v.status === status)
       .map((v) => ({
         id: v.id,
@@ -788,7 +800,7 @@ export const handlers = [
         categoryName: v.categoryName,
         tags: v.tags,
       }))
-    return HttpResponse.json({ items })
+    return HttpResponse.json(page(request, matched))
   }),
 
   /* The Gói toggle. Written into the shared fixture rather than answered with
@@ -1132,7 +1144,7 @@ export const handlers = [
 
   http.get(`${BASE}/admin/dictation/sets`, ({ request }) => {
     const wanted = new URL(request.url).searchParams.get('status')
-    const items = Object.values(dictationState.sets)
+    const matched = Object.values(dictationState.sets)
       .filter((set) => !wanted || set.status === wanted)
       .map((set) => ({
         id: set.id,
@@ -1148,7 +1160,7 @@ export const handlers = [
         categoryName: set.categoryName,
         tags: set.tags,
       }))
-    return HttpResponse.json({ items })
+    return HttpResponse.json(page(request, matched))
   }),
 
   http.put(`${BASE}/admin/dictation/sets/:setId/premium`, async ({ params, request }) => {
@@ -1319,10 +1331,10 @@ export const handlers = [
     const url = new URL(request.url)
     const status = url.searchParams.get('status')
     const level = url.searchParams.get('level')
-    const items = state.exams
+    const matched = state.exams
       .filter((e) => !status || e.status === status)
       .filter((e) => !level || e.level === level)
-    return HttpResponse.json({ items })
+    return HttpResponse.json(page(request, matched))
   }),
 
   http.put(`${BASE}/admin/exams/:examId/premium`, async ({ params, request }) => {

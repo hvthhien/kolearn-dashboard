@@ -27,4 +27,9 @@ import type { AdminDictationSetRow } from './adminDictationSetRow';
 
 export interface AdminDictationSetList {
   items: AdminDictationSetRow[];
+  /**
+     * Every set matching `status`, not the ones on this page. A pager that
+     * cannot see past its own page cannot say whether there is a next one.
+     */
+  totalCount: number;
 }

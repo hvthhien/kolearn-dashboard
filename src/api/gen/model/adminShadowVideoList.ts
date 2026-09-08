@@ -27,4 +27,10 @@ import type { AdminShadowVideoRow } from './adminShadowVideoRow';
 
 export interface AdminShadowVideoList {
   items: AdminShadowVideoRow[];
+  /**
+     * Every video matching `status`, not the ones on this page. A pager
+     * that cannot see past its own page cannot say whether there is a
+     * next one.
+     */
+  totalCount: number;
 }

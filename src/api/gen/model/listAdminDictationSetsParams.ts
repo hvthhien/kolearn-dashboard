@@ -27,4 +27,16 @@ import type { ListAdminDictationSetsStatus } from './listAdminDictationSetsStatu
 
 export type ListAdminDictationSetsParams = {
 status?: ListAdminDictationSetsStatus;
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: number;
+/**
+ * Sets to skip, over the same newest-first order the page returns.
+ * The order breaks ties on the set id, so a set cannot land on two
+ * pages at once or fall between them.
+ * @minimum 0
+ */
+offset?: number;
 };

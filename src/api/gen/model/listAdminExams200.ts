@@ -27,4 +27,10 @@ import type { AdminExamListItem } from './adminExamListItem';
 
 export type ListAdminExams200 = {
   items: AdminExamListItem[];
+  /**
+     * Every paper matching `status` and `level`, not the ones on
+     * this page. A pager that cannot see past its own page
+     * cannot say whether there is a next one.
+     */
+  totalCount: number;
 };

@@ -17,6 +17,7 @@ import {
 import type { AdminShadowVideoRow, ShadowVideoStatus } from '../api/gen/model'
 import { userMessage } from '../lib/problem'
 import { useAuth } from '../lib/auth'
+import { useClampPage, usePager } from '../lib/paging'
 import { RemoveDialog } from '../features/manage/RemoveDialog'
 import { removalFor, removalLabel } from '../features/manage/removal'
 import { CategoryManagerDialog, type ManagedCategory } from '../features/lessons/CategoryManagerDialog'
@@ -31,6 +32,7 @@ import {
   FilterChips,
   PageShell,
   PageTitle,
+  Pager,
   Refreshing,
   SkeletonList,
   Table,
@@ -39,6 +41,9 @@ import {
 } from '../components/ui'
 
 type StatusFilter = 'ALL' | ShadowVideoStatus
+
+/* Twenty, the same page every other admin list uses. */
+const PAGE_SIZE = 20
 
 const STATUS_LABEL: Record<ShadowVideoStatus, string> = {
   DRAFT: 'nháp',
@@ -50,11 +55,11 @@ const STATUS_LABEL: Record<ShadowVideoStatus, string> = {
 /**
  * Xưởng ngữ liệu — the list.
  *
- * Unpaginated, following every other admin list in this app. The status chips
- * plus the growth this library will actually see cover it; introducing
- * pagination here alone would make this the only paginated screen while
- * /exams, which will hold hundreds of papers first, stayed as it is. When
- * either list crosses roughly two hundred rows that is one change doing both.
+ * Paged, twenty rows at a time, like every other admin list here. It was
+ * unpaginated on the argument that pagination should arrive for /exams and
+ * this screen together rather than for one of them; that is what happened —
+ * the bank, the dictation shelf and this list took the same pager, the same
+ * page size and the same `limit`/`offset` window in one change.
  *
  * "Sửa" is a link rather than a dialog, and the asymmetry with the dictation
  * list is deliberate: a set's editable surface is four metadata fields, and a
@@ -82,9 +87,16 @@ export function VideoListPage() {
      and opening the video is a statement about what the product charges for. */
   const canPrice = user?.permissions.includes('billing:manage') ?? false
 
-  const { data, error: loadError, isPending, isFetching } = useListAdminShadowVideos(
-    status === 'ALL' ? undefined : { status },
-  )
+  const pager = usePager(PAGE_SIZE)
+  const { data, error: loadError, isPending, isFetching } = useListAdminShadowVideos({
+    status: status === 'ALL' ? undefined : status,
+    limit: pager.pageSize,
+    offset: pager.offset,
+  })
+  /* Removing a video is a row action here, so the last page can empty under
+     somebody — and "Chưa có ngữ liệu nào" is the wrong thing to say about
+     page four of a full bank. */
+  useClampPage(pager, data?.totalCount)
 
   /* Read here rather than only inside the dialog, so the button can say how
      many shelves there are and be honestly disabled while the list is in
@@ -153,7 +165,10 @@ export function VideoListPage() {
         label="Trạng thái"
         className="mt-4"
         value={status}
-        onChange={setStatus}
+        onChange={(next) => {
+          setStatus(next)
+          pager.reset()
+        }}
         choices={[
           { value: 'ALL', label: 'Tất cả' },
           { value: 'DRAFT', label: 'Nháp' },
@@ -283,6 +298,14 @@ export function VideoListPage() {
               </tr>
             ))}
           </Table>
+          <Pager
+            page={pager.page}
+            pageSize={pager.pageSize}
+            shown={data.items.length}
+            total={data.totalCount}
+            noun="ngữ liệu"
+            onChange={pager.go}
+          />
         </Refreshing>
       )}
 

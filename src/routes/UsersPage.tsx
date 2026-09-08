@@ -4,6 +4,7 @@ import { getListAdminUsersQueryKey, useListAdminUsers } from '../api/gen/kolearn
 import type { AdminUser, AdminUserStatus } from '../api/gen/model'
 import { userMessage } from '../lib/problem'
 import { useAuth } from '../lib/auth'
+import { useClampPage, usePager } from '../lib/paging'
 import { RolesDialog } from '../features/users/RolesDialog'
 import { SessionsDialog } from '../features/users/SessionsDialog'
 import { StatusDialog } from '../features/users/StatusDialog'
@@ -16,6 +17,7 @@ import {
   FilterChips,
   PageShell,
   PageTitle,
+  Pager,
   Refreshing,
   Select,
   SkeletonList,
@@ -57,7 +59,7 @@ export function UsersPage() {
   const [q, setQ] = useState('')
   const [status, setStatus] = useState<StatusFilter>('ALL')
   const [role, setRole] = useState('')
-  const [page, setPage] = useState(0)
+  const pager = usePager(PAGE_SIZE)
 
   const [editingRoles, setEditingRoles] = useState<AdminUser | null>(null)
   const [editingStatus, setEditingStatus] = useState<AdminUser | null>(null)
@@ -70,26 +72,21 @@ export function UsersPage() {
     q: q || undefined,
     role: role || undefined,
     status: status === 'ALL' ? undefined : status,
-    limit: PAGE_SIZE,
-    offset: page * PAGE_SIZE,
+    limit: pager.pageSize,
+    offset: pager.offset,
   })
+  useClampPage(pager, data?.totalCount)
 
   /* No params, so every filter and page of the list goes at once: a role
      granted under "Tất cả" must not still read as the old one in the cached
      "Đã đình chỉ". */
   const refresh = () => queryClient.invalidateQueries({ queryKey: getListAdminUsersQueryKey() })
 
-  /* Any change to what is being asked for starts at the first page. Staying on
-     page four of a narrower result set is how a search comes back empty for a
-     reason nobody can see. */
+  /* Why `reset` is here and not in each handler: see usePager. */
   const change = (apply: () => void) => {
     apply()
-    setPage(0)
+    pager.reset()
   }
-
-  const total = data?.totalCount ?? 0
-  const shown = data?.items.length ?? 0
-  const from = total === 0 ? 0 : page * PAGE_SIZE + 1
 
   return (
     <PageShell>
@@ -273,29 +270,14 @@ export function UsersPage() {
               </Refreshing>
             </div>
 
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm text-muted">
-              <span aria-live="polite">
-                {from}–{from + shown - 1} trong {total} tài khoản
-              </span>
-              <span className="flex gap-2">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={page === 0}
-                  onClick={() => setPage((p) => Math.max(0, p - 1))}
-                >
-                  Trang trước
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={(page + 1) * PAGE_SIZE >= total}
-                  onClick={() => setPage((p) => p + 1)}
-                >
-                  Trang sau
-                </Button>
-              </span>
-            </div>
+            <Pager
+              page={pager.page}
+              pageSize={pager.pageSize}
+              shown={data.items.length}
+              total={data.totalCount}
+              noun="tài khoản"
+              onChange={pager.go}
+            />
           </>
         )
       )}
