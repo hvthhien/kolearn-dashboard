@@ -44,6 +44,12 @@ export interface AdminShadowVideoDetail {
   voiceKind: AdminShadowVideoDetailVoiceKind;
   publishedAt?: string;
   /**
+     * Whether gói Cơ bản is shut out of this video — the same field the row
+     * carries. Read-only here: the toggle is on the list, where the shape
+     * of what is being given away can be seen a column at a time.
+     */
+  premium: boolean;
+  /**
      * Absent until real bytes land. A draft reserves a placeholder asset
      * row, and reporting that as present is what would leave the studio
      * showing a broken player instead of an upload panel.

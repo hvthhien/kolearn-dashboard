@@ -57,10 +57,10 @@ export interface ShadowVideoListItem {
      */
   level?: number;
   /**
-     * Whether the caller may open this video: false on Premium and on
-     * gói Cơ bản's two earliest-published videos, true otherwise. The
-     * detail and progress routes refuse a locked video with
-     * `403 premium_required`.
+     * Whether the caller may open this video: false on Premium, and on
+     * gói Cơ bản the video's own `premium` flag, which an operator sets
+     * from the studio list. The detail and progress routes refuse a
+     * locked video with `403 premium_required`.
      */
   locked: boolean;
   /**

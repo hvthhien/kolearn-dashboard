@@ -11,6 +11,9 @@ export const VIDEO_RESTAURANT: AdminShadowVideoDetail = {
   title: 'Đặt bàn nhà hàng',
   level: 2,
   status: 'DRAFT',
+  // The free one, so the list draws both states of the Gói toggle. The three
+  // videos below spread this one, so they inherit it and sv-2 says otherwise.
+  premium: false,
   // A real recording with a real chủ điểm attached — the two fields the list
   // row does NOT carry. A fixture where both were empty would let a re-file
   // from the list wipe them and no test would notice.
@@ -72,6 +75,9 @@ export const VIDEO_EMPTY: AdminShadowVideoDetail = {
   title: 'Ngữ liệu mới',
   level: 2,
   status: 'DRAFT',
+  // Premium until somebody opens it — migration 00056's default, and the state
+  // a draft has to start in for the same reason.
+  premium: true,
   voice: '',
   voiceKind: 'SYNTHETIC',
   topics: [],

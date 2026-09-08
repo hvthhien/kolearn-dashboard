@@ -48,6 +48,19 @@ export interface AdminShadowVideoRow {
   lineCount: number;
   wordCount: number;
   review: ShadowReviewSummary;
+  /**
+     * Whether gói Cơ bản is shut out of this video. Not the learner's
+     * `locked`, which is the same fact seen from the caller's side: a
+     * premium learner reading a premium video gets `locked: false`.
+     *
+     * True on everything migration 00056 found, and true on anything
+     * created since — an item is part of the paid catalogue until an
+     * operator says otherwise, because the other default would open the
+     * corpus by accident every time a row was added.
+     *
+     * Changed by `PUT /admin/shadowing/videos/{videoId}/premium`, under `billing:manage`.
+     */
+  premium: boolean;
   /** Chủ đề. Absent means uncategorised — a warning at the publish gate, never a blocker. */
   categoryId?: string;
   categoryName?: string;

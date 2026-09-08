@@ -48,6 +48,19 @@ export interface AdminExamListItem {
   examReady: boolean;
   missingSections: SectionKind[];
   /**
+     * Whether gói Cơ bản is shut out of this paper. Not the learner's
+     * `locked`, which is the same fact seen from the caller's side: a
+     * premium learner reading a premium paper gets `locked: false`.
+     *
+     * True on everything migration 00056 found, and true on anything
+     * created since — an item is part of the paid catalogue until an
+     * operator says otherwise, because the other default would open the
+     * corpus by accident every time a row was added.
+     *
+     * Changed by `PUT /admin/exams/{examId}/premium`, under `billing:manage`.
+     */
+  premium: boolean;
+  /**
      * The import batch this paper came from. "Free to download" is not
      * "licensed for a paid product", and a whole source has to be
      * withdrawable as a unit.

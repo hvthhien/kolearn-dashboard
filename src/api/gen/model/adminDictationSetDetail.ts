@@ -41,6 +41,12 @@ export interface AdminDictationSetDetail {
   voiceKind: AdminDictationSetDetailVoiceKind;
   status: AdminDictationSetDetailStatus;
   publishedAt?: string;
+  /**
+     * Whether gói Cơ bản is shut out of this set — the same field the row
+     * carries. Read-only here: the toggle is on the list, where the shape
+     * of what is being given away can be seen a column at a time.
+     */
+  premium: boolean;
   /** Chủ đề. Absent means uncategorised — a warning at the publish gate, never a blocker. */
   categoryId?: string;
   categoryName?: string;

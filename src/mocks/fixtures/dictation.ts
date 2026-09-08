@@ -17,6 +17,7 @@ export const DICTATION_SETS: Record<string, AdminDictationSetDetail> = {
     id: 'ds-1',
     title: 'Hội thoại công sở',
     level: 3,
+    premium: true,
     voice: 'Nữ · do máy tạo',
     voiceKind: 'SYNTHETIC',
     status: 'DRAFT',
@@ -98,6 +99,8 @@ export const DICTATION_SETS: Record<string, AdminDictationSetDetail> = {
     id: 'ds-2',
     title: 'Chào hỏi hằng ngày',
     level: 1,
+    // The free one, so the list draws both states of the Gói toggle.
+    premium: false,
     voice: 'Nam',
     voiceKind: 'HUMAN',
     status: 'PUBLISHED',

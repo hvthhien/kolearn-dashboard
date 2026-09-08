@@ -43,10 +43,16 @@ export interface ExamListItem {
   lastAttemptedAt?: string;
   /**
      * Whether the CALLER may sit this paper. False on Premium; on gói
-     * Cơ bản false for the first two papers published at each level
-     * and true for the rest. A guest reads the shelf with the same flag
-     * a basic learner does. `POST /attempts` refuses a locked paper with
+     * Cơ bản it is the paper's own `premium` flag, which an operator sets
+     * from the bank list. A guest reads the shelf with the same flag a
+     * basic learner does. `POST /attempts` refuses a locked paper with
      * `403 premium_required`.
+     *
+     * Never a count the client can make. It used to be "the first two
+     * papers published at each level" and is now a stored decision per
+     * paper; both times the point was the same — the rule is the
+     * server's, and a client that reconstructed it would lock a different
+     * set on every filter and page.
      */
   locked: boolean;
   /**

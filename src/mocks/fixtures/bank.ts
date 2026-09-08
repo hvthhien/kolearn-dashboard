@@ -235,6 +235,8 @@ const EXAM_83: AdminExamDetail = {
   questionCount: 3,
   examReady: true,
   missingSections: [],
+  // Premium, which is what every paper is until somebody opens it.
+  premium: true,
   sourceName: 'Bộ đề luyện tập nội bộ (seed)',
   sourceUrl: '',
   licenseNote: 'Nội dung tự soạn cho môi trường phát triển. KHÔNG phải đề TOPIK thật.',
@@ -264,6 +266,7 @@ const EXAM_84: AdminExamDetail = {
   questionCount: 100,
   examReady: false,
   missingSections: ['WRITING'],
+  premium: true,
   sourceName: 'Bộ đề luyện tập nội bộ (seed)',
   sourceUrl: '',
   licenseNote: '',
@@ -288,6 +291,8 @@ const EXAM_64: AdminExamDetail = {
   questionCount: 70,
   examReady: true,
   missingSections: [],
+  // The free one, so the list screen draws both states of the toggle.
+  premium: false,
   sourceName: 'Bộ đề luyện tập nội bộ (seed)',
   sourceUrl: '',
   licenseNote: '',

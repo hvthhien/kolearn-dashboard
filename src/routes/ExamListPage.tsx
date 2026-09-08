@@ -1,8 +1,15 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { useListAdminExams } from '../api/gen/kolearn'
+import { useQueryClient } from '@tanstack/react-query'
+import {
+  getListAdminExamsQueryKey,
+  setAdminExamPremium,
+  useListAdminExams,
+} from '../api/gen/kolearn'
 import type { ExamStatus } from '../api/gen/model'
 import { userMessage } from '../lib/problem'
+import { useAuth } from '../lib/auth'
+import { PremiumToggle } from '../features/manage/PremiumToggle'
 import { SECTION_LABEL } from '../features/exam/sectionLabels'
 import {
   Badge,
@@ -32,9 +39,23 @@ const STATUS_LABEL: Record<ExamStatus, string> = {
  */
 export function ExamListPage() {
   const [status, setStatus] = useState<StatusFilter>('ALL')
+  const [actionError, setActionError] = useState<unknown>(null)
+  const queryClient = useQueryClient()
+  const { user } = useAuth()
   const { data, error, isPending, isFetching } = useListAdminExams(
     status === 'ALL' ? undefined : { status },
   )
+
+  /* `billing:manage`, not `exam:write`. Renaming a paper is editorial; saying
+     it is free is a statement about what the product charges for, and the
+     server puts those behind different codes for that reason. */
+  const canPrice = user?.permissions.includes('billing:manage') ?? false
+
+  /* No params, so this is the prefix every status filter hangs off — a paper
+     opened under "Tất cả" must not still read Premium in the cached "Đã xuất
+     bản". */
+  const refresh = () =>
+    queryClient.invalidateQueries({ queryKey: getListAdminExamsQueryKey() })
 
   const items = data?.items ?? []
 
@@ -57,6 +78,7 @@ export function ExamListPage() {
 
       <div className="mt-4">
         {error != null && <ErrorNote>{userMessage(error)}</ErrorNote>}
+        {actionError != null && <ErrorNote>{userMessage(actionError)}</ErrorNote>}
 
         {isPending ? (
           <SkeletonList rows={3} label="Đang tải danh sách đề…" />
@@ -85,6 +107,7 @@ export function ExamListPage() {
                   <Th>Cấu hình</Th>
                   <Th className="text-right">Số câu</Th>
                   <Th>Trạng thái</Th>
+                  <Th>Gói</Th>
                 </tr>
               }
             >
@@ -118,6 +141,19 @@ export function ExamListPage() {
                     <Badge tone={exam.status === 'PUBLISHED' ? 'ok' : 'neutral'}>
                       {STATUS_LABEL[exam.status]}
                     </Badge>
+                  </Td>
+                  <Td>
+                    <PremiumToggle
+                      premium={exam.premium}
+                      label={exam.code}
+                      canChange={canPrice}
+                      onError={setActionError}
+                      onChange={async (premium) => {
+                        setActionError(null)
+                        await setAdminExamPremium(exam.id, { premium })
+                        await refresh()
+                      }}
+                    />
                   </Td>
                 </tr>
               ))}

@@ -9,6 +9,7 @@ import {
   deleteAdminDictationCategory,
   listAdminDictationCategories,
   saveAdminDictationCategory,
+  setAdminDictationSetPremium,
   useListAdminDictationSets,
   useListAdminDictationCategories,
 } from '../api/gen/kolearn'
@@ -19,6 +20,7 @@ import { EditSetDialog } from '../features/dictation/EditSetDialog'
 import { RemoveDialog } from '../features/manage/RemoveDialog'
 import { removalFor, removalLabel } from '../features/manage/removal'
 import { CategoryManagerDialog, type ManagedCategory } from '../features/lessons/CategoryManagerDialog'
+import { PremiumToggle } from '../features/manage/PremiumToggle'
 import { InlineCategoryCell } from '../features/lessons/InlineCategoryCell'
 import { refileDictationSet } from '../features/lessons/refile'
 import {
@@ -69,11 +71,15 @@ export function DictationSetListPage() {
   const [editing, setEditing] = useState<AdminDictationSetRow | null>(null)
   const [removing, setRemoving] = useState<AdminDictationSetRow | null>(null)
   const [managingCategories, setManagingCategories] = useState(false)
+  const [actionError, setActionError] = useState<unknown>(null)
   const queryClient = useQueryClient()
   const { user } = useAuth()
 
   const canWrite = user?.permissions.includes('dictation:write') ?? false
   const canPublish = user?.permissions.includes('dictation:publish') ?? false
+  /* `billing:manage`, not dictation's own codes: fixing a title is authoring
+     and opening the set is a statement about what the product charges for. */
+  const canPrice = user?.permissions.includes('billing:manage') ?? false
 
   const { data, error, isPending, isFetching } = useListAdminDictationSets(
     status === 'ALL' ? undefined : { status },
@@ -137,6 +143,7 @@ export function DictationSetListPage() {
       />
 
       {error != null && <ErrorNote>{userMessage(error)}</ErrorNote>}
+      {actionError != null && <ErrorNote>{userMessage(actionError)}</ErrorNote>}
       {isPending && <SkeletonList rows={3} label="Đang tải danh sách bộ…" />}
 
       {data?.items.length === 0 && (
@@ -171,6 +178,7 @@ export function DictationSetListPage() {
                 <Th className="text-right">Câu</Th>
                 <Th className="text-right">Chưa nghe</Th>
                 <Th>Trạng thái</Th>
+                <Th>Gói</Th>
                 <Th className="text-right">Thao tác</Th>
               </tr>
             }
@@ -226,6 +234,19 @@ export function DictationSetListPage() {
                   <Badge tone={set.status === 'PUBLISHED' ? 'ok' : 'neutral'}>
                     {STATUS_LABEL[set.status]}
                   </Badge>
+                </Td>
+                <Td>
+                  <PremiumToggle
+                    premium={set.premium}
+                    label={set.title}
+                    canChange={canPrice}
+                    onError={setActionError}
+                    onChange={async (premium) => {
+                      setActionError(null)
+                      await setAdminDictationSetPremium(set.id, { premium })
+                      await refresh()
+                    }}
+                  />
                 </Td>
                 <Td className="text-right">
                   <div className="flex justify-end gap-1">

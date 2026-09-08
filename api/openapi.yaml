@@ -4476,6 +4476,40 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
 
+  /admin/dictation/sets/{setId}/premium:
+    parameters:
+      - $ref: '#/components/parameters/SetId'
+    put:
+      tags: [admin]
+      operationId: setAdminDictationSetPremium
+      summary: Bộ này có dành cho gói Premium không
+      description: |
+        rbac: `billing:manage` — held by `admin` alone.
+
+        Deliberately NOT the permission that edits the set itself. A
+        content_editor may rename it, retime it, pass its lines; none of those
+        is a statement about money and this one is. Opening the paid catalogue
+        is the same class of act as minting a year of Premium, and 00046 put
+        that behind this code for the same reason.
+
+        Idempotent, and a no-op change writes no audit row: an audit trail that
+        records non-events is one nobody reads.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SetContentPremiumRequest' }
+      responses:
+        '200':
+          description: Where the flag now stands.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContentPremium' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /admin/dictation/sets/{setId}/items/{itemId}/approval:
     parameters:
       - $ref: '#/components/parameters/SetId'
@@ -5144,6 +5178,40 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '422': { $ref: '#/components/responses/Unprocessable' }
 
+  /admin/exams/{examId}/premium:
+    parameters:
+      - $ref: '#/components/parameters/ExamId'
+    put:
+      tags: [admin]
+      operationId: setAdminExamPremium
+      summary: Đề này có dành cho gói Premium không
+      description: |
+        rbac: `billing:manage` — held by `admin` alone.
+
+        Deliberately NOT the permission that edits the paper itself. A
+        content_editor may rename it, retime it, pass its lines; none of those
+        is a statement about money and this one is. Opening the paid catalogue
+        is the same class of act as minting a year of Premium, and 00046 put
+        that behind this code for the same reason.
+
+        Idempotent, and a no-op change writes no audit row: an audit trail that
+        records non-events is one nobody reads.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SetContentPremiumRequest' }
+      responses:
+        '200':
+          description: Where the flag now stands.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContentPremium' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /admin/exams/{examId}/questions:
     parameters:
       - $ref: '#/components/parameters/ExamId'
@@ -5599,6 +5667,40 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+
+  /admin/shadowing/videos/{videoId}/premium:
+    parameters:
+      - $ref: '#/components/parameters/VideoId'
+    put:
+      tags: [admin]
+      operationId: setAdminShadowVideoPremium
+      summary: Video này có dành cho gói Premium không
+      description: |
+        rbac: `billing:manage` — held by `admin` alone.
+
+        Deliberately NOT the permission that edits the video itself. A
+        content_editor may rename it, retime it, pass its lines; none of those
+        is a statement about money and this one is. Opening the paid catalogue
+        is the same class of act as minting a year of Premium, and 00046 put
+        that behind this code for the same reason.
+
+        Idempotent, and a no-op change writes no audit row: an audit trail that
+        records non-events is one nobody reads.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SetContentPremiumRequest' }
+      responses:
+        '200':
+          description: Where the flag now stands.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContentPremium' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
 
   /admin/shadowing/videos/{videoId}/upload-target:
     parameters:
@@ -7173,10 +7275,16 @@ components:
           type: boolean
           description: |
             Whether the CALLER may sit this paper. False on Premium; on gói
-            Cơ bản false for the first two papers published at each level
-            and true for the rest. A guest reads the shelf with the same flag
-            a basic learner does. `POST /attempts` refuses a locked paper with
+            Cơ bản it is the paper's own `premium` flag, which an operator sets
+            from the bank list. A guest reads the shelf with the same flag a
+            basic learner does. `POST /attempts` refuses a locked paper with
             `403 premium_required`.
+
+            Never a count the client can make. It used to be "the first two
+            papers published at each level" and is now a stored decision per
+            paper; both times the point was the same — the rule is the
+            server's, and a client that reconstructed it would lock a different
+            set on every filter and page.
         hasWordbook:
           type: boolean
           description: |
@@ -9753,9 +9861,33 @@ components:
           type: integer
           description: How many questions actually exist in this section so far.
 
+    SetContentPremiumRequest:
+      type: object
+      required: [premium]
+      properties:
+        premium:
+          type: boolean
+          description: |
+            True shuts gói Cơ bản out; false opens the item to everybody.
+
+            A plain boolean rather than a nullable one: the field is the whole
+            statement, so "absent" could only ever be a second spelling of
+            false. The server reads a missing key as false, which is the
+            direction that closes nothing it should not — it opens an item, and
+            an item opened by a malformed request is visible in the list the
+            request came from.
+
+    ContentPremium:
+      type: object
+      required: [id, premium]
+      description: The item and where its flag now stands.
+      properties:
+        id: { type: string, format: uuid }
+        premium: { type: boolean }
+
     AdminExamListItem:
       type: object
-      required: [id, code, title, level, status, origin, blueprintVersion, questionCount, examReady, missingSections]
+      required: [id, code, title, level, status, origin, blueprintVersion, questionCount, examReady, missingSections, premium]
       properties:
         id: { type: string, format: uuid }
         code: { type: string }
@@ -9776,6 +9908,19 @@ components:
         missingSections:
           type: array
           items: { $ref: '#/components/schemas/SectionKind' }
+        premium:
+          type: boolean
+          description: |
+            Whether gói Cơ bản is shut out of this paper. Not the learner's
+            `locked`, which is the same fact seen from the caller's side: a
+            premium learner reading a premium paper gets `locked: false`.
+
+            True on everything migration 00056 found, and true on anything
+            created since — an item is part of the paid catalogue until an
+            operator says otherwise, because the other default would open the
+            corpus by accident every time a row was added.
+
+            Changed by `PUT /admin/exams/{examId}/premium`, under `billing:manage`.
         sourceName:
           type: string
           description: |
@@ -10199,10 +10344,10 @@ components:
         locked:
           type: boolean
           description: |
-            Whether the caller may open this video: false on Premium and on
-            gói Cơ bản's two earliest-published videos, true otherwise. The
-            detail and progress routes refuse a locked video with
-            `403 premium_required`.
+            Whether the caller may open this video: false on Premium, and on
+            gói Cơ bản the video's own `premium` flag, which an operator sets
+            from the studio list. The detail and progress routes refuse a
+            locked video with `403 premium_required`.
         thumbnailUrl:
           type: string
           description: |
@@ -10260,10 +10405,10 @@ components:
         locked:
           type: boolean
           description: |
-            Whether the caller may open this set: false on Premium and on gói
-            Cơ bản's two earliest-published sets, true otherwise. The detail,
-            attempt and skip routes refuse a locked set with
-            `403 premium_required`.
+            Whether the caller may open this set: false on Premium, and on gói
+            Cơ bản the set's own `premium` flag, which an operator sets from
+            the studio list. The detail, attempt and skip routes refuse a
+            locked set with `403 premium_required`.
         correctCount:
           type: integer
           description: |
@@ -10682,9 +10827,10 @@ components:
           type: boolean
           description: |
             Whether the caller may open this lesson, decided by the SHADOWING
-            catalogue: gói Cơ bản's two free lessons are free to type as well
+            catalogue: a lesson an operator has opened is free to type as well
             as to repeat, and every other one is refused with
-            `403 premium_required` on both screens.
+            `403 premium_required` on both screens. One flag, one lesson — the
+            two screens cannot disagree about it.
         thumbnailUrl:
           type: string
           description: The lesson's poster, as on `ShadowVideoListItem`.
@@ -10859,7 +11005,7 @@ components:
 
     AdminDictationSetRow:
       type: object
-      required: [id, title, level, voice, voiceKind, status, review, tags]
+      required: [id, title, level, voice, voiceKind, status, review, tags, premium]
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
@@ -10869,6 +11015,19 @@ components:
         status: { type: string, enum: [DRAFT, IN_REVIEW, PUBLISHED, RETIRED] }
         publishedAt: { type: string, format: date-time }
         review: { $ref: '#/components/schemas/AdminDictationReviewSummary' }
+        premium:
+          type: boolean
+          description: |
+            Whether gói Cơ bản is shut out of this set. Not the learner's
+            `locked`, which is the same fact seen from the caller's side: a
+            premium learner reading a premium set gets `locked: false`.
+
+            True on everything migration 00056 found, and true on anything
+            created since — an item is part of the paid catalogue until an
+            operator says otherwise, because the other default would open the
+            corpus by accident every time a row was added.
+
+            Changed by `PUT /admin/dictation/sets/{setId}/premium`, under `billing:manage`.
         categoryId:
           type: string
           format: uuid
@@ -10889,7 +11048,7 @@ components:
 
     AdminDictationSetDetail:
       type: object
-      required: [id, title, level, voice, voiceKind, status, items, glossary, review, tags]
+      required: [id, title, level, voice, voiceKind, status, items, glossary, review, tags, premium]
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
@@ -10898,6 +11057,12 @@ components:
         voiceKind: { type: string, enum: [HUMAN, SYNTHETIC] }
         status: { type: string, enum: [DRAFT, IN_REVIEW, PUBLISHED, RETIRED] }
         publishedAt: { type: string, format: date-time }
+        premium:
+          type: boolean
+          description: |
+            Whether gói Cơ bản is shut out of this set — the same field the row
+            carries. Read-only here: the toggle is on the list, where the shape
+            of what is being given away can be seen a column at a time.
         categoryId:
           type: string
           format: uuid
@@ -11462,7 +11627,7 @@ components:
 
     AdminShadowVideoRow:
       type: object
-      required: [id, title, level, status, lineCount, wordCount, review, tags]
+      required: [id, title, level, status, lineCount, wordCount, review, tags, premium]
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
@@ -11482,6 +11647,19 @@ components:
         lineCount: { type: integer }
         wordCount: { type: integer }
         review: { $ref: '#/components/schemas/ShadowReviewSummary' }
+        premium:
+          type: boolean
+          description: |
+            Whether gói Cơ bản is shut out of this video. Not the learner's
+            `locked`, which is the same fact seen from the caller's side: a
+            premium learner reading a premium video gets `locked: false`.
+
+            True on everything migration 00056 found, and true on anything
+            created since — an item is part of the paid catalogue until an
+            operator says otherwise, because the other default would open the
+            corpus by accident every time a row was added.
+
+            Changed by `PUT /admin/shadowing/videos/{videoId}/premium`, under `billing:manage`.
         categoryId:
           type: string
           format: uuid
@@ -11502,7 +11680,7 @@ components:
 
     AdminShadowVideoDetail:
       type: object
-      required: [id, title, level, status, voice, voiceKind, topics, lines, glossary, review, tags]
+      required: [id, title, level, status, voice, voiceKind, topics, lines, glossary, review, tags, premium]
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
@@ -11511,6 +11689,12 @@ components:
         voice: { type: string }
         voiceKind: { type: string, enum: [HUMAN, SYNTHETIC] }
         publishedAt: { type: string, format: date-time }
+        premium:
+          type: boolean
+          description: |
+            Whether gói Cơ bản is shut out of this video — the same field the row
+            carries. Read-only here: the toggle is on the list, where the shape
+            of what is being given away can be seen a column at a time.
         asset:
           allOf: [{ $ref: '#/components/schemas/AdminShadowAsset' }]
           description: |

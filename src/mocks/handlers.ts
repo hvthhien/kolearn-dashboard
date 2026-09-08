@@ -783,11 +783,23 @@ export const handlers = [
         lineCount: v.lines.length,
         wordCount: v.glossary.length,
         review: v.review,
+        premium: v.premium,
         categoryId: v.categoryId,
         categoryName: v.categoryName,
         tags: v.tags,
       }))
     return HttpResponse.json({ items })
+  }),
+
+  /* The Gói toggle. Written into the shared fixture rather than answered with
+     a canned 200: the point of the control is that the list reads differently
+     afterwards, and a mock that forgets the write cannot show that. */
+  http.put(`${BASE}/admin/shadowing/videos/:videoId/premium`, async ({ params, request }) => {
+    const video = state.videos.find((v) => v.id === params.videoId)
+    if (!video) return notFound('Không tìm thấy nội dung này.')
+    const { premium } = (await request.json()) as { premium: boolean }
+    video.premium = premium
+    return HttpResponse.json({ id: video.id, premium })
   }),
 
   http.post(`${BASE}/admin/shadowing/videos`, async ({ request }) => {
@@ -797,6 +809,9 @@ export const handlers = [
       title: body.title,
       level: body.level,
       status: 'DRAFT',
+      // Premium until somebody opens it — migration 00056's default, and the
+      // state a draft created here has to start in for the same reason.
+      premium: true,
       voice: '',
       voiceKind: 'SYNTHETIC',
       topics: [],
@@ -1128,11 +1143,20 @@ export const handlers = [
         status: set.status,
         publishedAt: set.publishedAt,
         review: summariseDictation(set),
+        premium: set.premium,
         categoryId: set.categoryId,
         categoryName: set.categoryName,
         tags: set.tags,
       }))
     return HttpResponse.json({ items })
+  }),
+
+  http.put(`${BASE}/admin/dictation/sets/:setId/premium`, async ({ params, request }) => {
+    const set = dictationState.sets[params.setId as string]
+    if (!set) return notFound('Không tìm thấy nội dung này.')
+    const { premium } = (await request.json()) as { premium: boolean }
+    set.premium = premium
+    return HttpResponse.json({ id: set.id, premium })
   }),
 
   http.get(`${BASE}/admin/dictation/sets/:setId`, ({ params }) => {
@@ -1299,6 +1323,14 @@ export const handlers = [
       .filter((e) => !status || e.status === status)
       .filter((e) => !level || e.level === level)
     return HttpResponse.json({ items })
+  }),
+
+  http.put(`${BASE}/admin/exams/:examId/premium`, async ({ params, request }) => {
+    const exam = state.exams.find((e) => e.id === params.examId)
+    if (!exam) return notFound('Không tìm thấy nội dung này.')
+    const { premium } = (await request.json()) as { premium: boolean }
+    exam.premium = premium
+    return HttpResponse.json({ id: exam.id, premium })
   }),
 
   http.get(`${BASE}/admin/exams/:examId`, ({ params }) => {

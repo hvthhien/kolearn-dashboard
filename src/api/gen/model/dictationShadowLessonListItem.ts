@@ -51,9 +51,10 @@ export interface DictationShadowLessonListItem {
   correctCount: number;
   /**
      * Whether the caller may open this lesson, decided by the SHADOWING
-     * catalogue: gói Cơ bản's two free lessons are free to type as well
+     * catalogue: a lesson an operator has opened is free to type as well
      * as to repeat, and every other one is refused with
-     * `403 premium_required` on both screens.
+     * `403 premium_required` on both screens. One flag, one lesson — the
+     * two screens cannot disagree about it.
      */
   locked: boolean;
   /** The lesson's poster, as on `ShadowVideoListItem`. */

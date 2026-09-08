@@ -10,6 +10,7 @@ import {
   deleteAdminShadowCategory,
   listAdminShadowCategories,
   saveAdminShadowCategory,
+  setAdminShadowVideoPremium,
   useListAdminShadowVideos,
   useListAdminShadowCategories,
 } from '../api/gen/kolearn'
@@ -21,6 +22,7 @@ import { removalFor, removalLabel } from '../features/manage/removal'
 import { CategoryManagerDialog, type ManagedCategory } from '../features/lessons/CategoryManagerDialog'
 import { InlineCategoryCell } from '../features/lessons/InlineCategoryCell'
 import { refileShadowVideo } from '../features/lessons/refile'
+import { PremiumToggle } from '../features/manage/PremiumToggle'
 import {
   Badge,
   Button,
@@ -76,6 +78,9 @@ export function VideoListPage() {
 
   const canWrite = user?.permissions.includes('shadowing:write') ?? false
   const canPublish = user?.permissions.includes('shadowing:publish') ?? false
+  /* `billing:manage`, not shadowing's own codes: retiming a line is authoring
+     and opening the video is a statement about what the product charges for. */
+  const canPrice = user?.permissions.includes('billing:manage') ?? false
 
   const { data, error: loadError, isPending, isFetching } = useListAdminShadowVideos(
     status === 'ALL' ? undefined : { status },
@@ -187,6 +192,7 @@ export function VideoListPage() {
                 <Th>Số câu</Th>
                 <Th>Duyệt</Th>
                 <Th>Trạng thái</Th>
+                <Th>Gói</Th>
                 <Th className="text-right">Thao tác</Th>
               </tr>
             }
@@ -234,6 +240,19 @@ export function VideoListPage() {
                   <Badge tone={v.status === 'PUBLISHED' ? 'ok' : undefined}>
                     {STATUS_LABEL[v.status]}
                   </Badge>
+                </Td>
+                <Td>
+                  <PremiumToggle
+                    premium={v.premium}
+                    label={v.title}
+                    canChange={canPrice}
+                    onError={setError}
+                    onChange={async (premium) => {
+                      setError(null)
+                      await setAdminShadowVideoPremium(v.id, { premium })
+                      await refresh()
+                    }}
+                  />
                 </Td>
                 <Td className="text-right">
                   <div className="flex justify-end gap-1">

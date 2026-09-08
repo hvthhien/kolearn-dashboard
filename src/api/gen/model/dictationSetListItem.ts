@@ -33,10 +33,10 @@ export interface DictationSetListItem {
   /** Entries in this set's own dictionary. */
   wordCount: number;
   /**
-     * Whether the caller may open this set: false on Premium and on gói
-     * Cơ bản's two earliest-published sets, true otherwise. The detail,
-     * attempt and skip routes refuse a locked set with
-     * `403 premium_required`.
+     * Whether the caller may open this set: false on Premium, and on gói
+     * Cơ bản the set's own `premium` flag, which an operator sets from
+     * the studio list. The detail, attempt and skip routes refuse a
+     * locked set with `403 premium_required`.
      */
   locked: boolean;
   /**

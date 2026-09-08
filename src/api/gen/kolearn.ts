@@ -91,6 +91,7 @@ import type {
   ConfirmPaymentOrderRequest,
   ConfirmShadowUploadRequest,
   ConflictResponse,
+  ContentPremium,
   CreateCardGroupBody,
   CreateCardRequest,
   CreateCardsBatchBody,
@@ -193,6 +194,7 @@ import type {
   SetCardGroupBatchBody,
   SetCardGroupBody,
   SetCardStateBody,
+  SetContentPremiumRequest,
   SetLevelRequest,
   SetQuestionTopicsBody,
   SetShadowLineApprovalRequest,
@@ -12024,6 +12026,88 @@ export const useDeleteAdminDictationSet = <TError = UnauthorizedResponse | Forbi
       return useMutation(getDeleteAdminDictationSetMutationOptions(options), queryClient);
     }
 
+export const getSetAdminDictationSetPremiumUrl = (setId: string,) => {
+
+
+
+
+  return `/api/v1/admin/dictation/sets/${setId}/premium`
+}
+
+/**
+ * rbac: `billing:manage` — held by `admin` alone.
+ *
+ * Deliberately NOT the permission that edits the set itself. A
+ * content_editor may rename it, retime it, pass its lines; none of those
+ * is a statement about money and this one is. Opening the paid catalogue
+ * is the same class of act as minting a year of Premium, and 00046 put
+ * that behind this code for the same reason.
+ *
+ * Idempotent, and a no-op change writes no audit row: an audit trail that
+ * records non-events is one nobody reads.
+ * @summary Bộ này có dành cho gói Premium không
+ */
+export const setAdminDictationSetPremium = async (setId: string,
+    setContentPremiumRequest: SetContentPremiumRequest, options?: Parameters<typeof apiFetch>[1]): Promise<ContentPremium> => {
+
+  return apiFetch<ContentPremium>(getSetAdminDictationSetPremiumUrl(setId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(setContentPremiumRequest)
+  }
+);}
+
+
+
+
+
+export const getSetAdminDictationSetPremiumMutationOptions = <TError = BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setAdminDictationSetPremium>>, TError,{setId: string;data: SetContentPremiumRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setAdminDictationSetPremium>>, TError,{setId: string;data: SetContentPremiumRequest}, TContext> => {
+
+const mutationKey = ['setAdminDictationSetPremium'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setAdminDictationSetPremium>>, {setId: string;data: SetContentPremiumRequest}> = (props) => {
+          const {setId,data} = props ?? {};
+
+          return  setAdminDictationSetPremium(setId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetAdminDictationSetPremiumMutationResult = NonNullable<Awaited<ReturnType<typeof setAdminDictationSetPremium>>>
+    export type SetAdminDictationSetPremiumMutationBody = SetContentPremiumRequest
+    export type SetAdminDictationSetPremiumMutationError = BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse
+
+    /**
+ * @summary Bộ này có dành cho gói Premium không
+ */
+export const useSetAdminDictationSetPremium = <TError = BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setAdminDictationSetPremium>>, TError,{setId: string;data: SetContentPremiumRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof setAdminDictationSetPremium>>,
+        TError,
+        {setId: string;data: SetContentPremiumRequest},
+        TContext
+      > => {
+      return useMutation(getSetAdminDictationSetPremiumMutationOptions(options), queryClient);
+    }
+
 export const getSetAdminDictationApprovalUrl = (setId: string,
     itemId: string,) => {
 
@@ -13987,6 +14071,88 @@ export const useUpdateAdminExam = <TError = BadRequestResponse | UnauthorizedRes
       return useMutation(getUpdateAdminExamMutationOptions(options), queryClient);
     }
 
+export const getSetAdminExamPremiumUrl = (examId: string,) => {
+
+
+
+
+  return `/api/v1/admin/exams/${examId}/premium`
+}
+
+/**
+ * rbac: `billing:manage` — held by `admin` alone.
+ *
+ * Deliberately NOT the permission that edits the paper itself. A
+ * content_editor may rename it, retime it, pass its lines; none of those
+ * is a statement about money and this one is. Opening the paid catalogue
+ * is the same class of act as minting a year of Premium, and 00046 put
+ * that behind this code for the same reason.
+ *
+ * Idempotent, and a no-op change writes no audit row: an audit trail that
+ * records non-events is one nobody reads.
+ * @summary Đề này có dành cho gói Premium không
+ */
+export const setAdminExamPremium = async (examId: string,
+    setContentPremiumRequest: SetContentPremiumRequest, options?: Parameters<typeof apiFetch>[1]): Promise<ContentPremium> => {
+
+  return apiFetch<ContentPremium>(getSetAdminExamPremiumUrl(examId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(setContentPremiumRequest)
+  }
+);}
+
+
+
+
+
+export const getSetAdminExamPremiumMutationOptions = <TError = BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setAdminExamPremium>>, TError,{examId: string;data: SetContentPremiumRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setAdminExamPremium>>, TError,{examId: string;data: SetContentPremiumRequest}, TContext> => {
+
+const mutationKey = ['setAdminExamPremium'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setAdminExamPremium>>, {examId: string;data: SetContentPremiumRequest}> = (props) => {
+          const {examId,data} = props ?? {};
+
+          return  setAdminExamPremium(examId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetAdminExamPremiumMutationResult = NonNullable<Awaited<ReturnType<typeof setAdminExamPremium>>>
+    export type SetAdminExamPremiumMutationBody = SetContentPremiumRequest
+    export type SetAdminExamPremiumMutationError = BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse
+
+    /**
+ * @summary Đề này có dành cho gói Premium không
+ */
+export const useSetAdminExamPremium = <TError = BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setAdminExamPremium>>, TError,{examId: string;data: SetContentPremiumRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof setAdminExamPremium>>,
+        TError,
+        {examId: string;data: SetContentPremiumRequest},
+        TContext
+      > => {
+      return useMutation(getSetAdminExamPremiumMutationOptions(options), queryClient);
+    }
+
 export const getListAdminQuestionsUrl = (examId: string,) => {
 
 
@@ -15577,6 +15743,88 @@ export const useDeleteAdminShadowVideo = <TError = UnauthorizedResponse | Forbid
         TContext
       > => {
       return useMutation(getDeleteAdminShadowVideoMutationOptions(options), queryClient);
+    }
+
+export const getSetAdminShadowVideoPremiumUrl = (videoId: string,) => {
+
+
+
+
+  return `/api/v1/admin/shadowing/videos/${videoId}/premium`
+}
+
+/**
+ * rbac: `billing:manage` — held by `admin` alone.
+ *
+ * Deliberately NOT the permission that edits the video itself. A
+ * content_editor may rename it, retime it, pass its lines; none of those
+ * is a statement about money and this one is. Opening the paid catalogue
+ * is the same class of act as minting a year of Premium, and 00046 put
+ * that behind this code for the same reason.
+ *
+ * Idempotent, and a no-op change writes no audit row: an audit trail that
+ * records non-events is one nobody reads.
+ * @summary Video này có dành cho gói Premium không
+ */
+export const setAdminShadowVideoPremium = async (videoId: string,
+    setContentPremiumRequest: SetContentPremiumRequest, options?: Parameters<typeof apiFetch>[1]): Promise<ContentPremium> => {
+
+  return apiFetch<ContentPremium>(getSetAdminShadowVideoPremiumUrl(videoId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(setContentPremiumRequest)
+  }
+);}
+
+
+
+
+
+export const getSetAdminShadowVideoPremiumMutationOptions = <TError = BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setAdminShadowVideoPremium>>, TError,{videoId: string;data: SetContentPremiumRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setAdminShadowVideoPremium>>, TError,{videoId: string;data: SetContentPremiumRequest}, TContext> => {
+
+const mutationKey = ['setAdminShadowVideoPremium'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setAdminShadowVideoPremium>>, {videoId: string;data: SetContentPremiumRequest}> = (props) => {
+          const {videoId,data} = props ?? {};
+
+          return  setAdminShadowVideoPremium(videoId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetAdminShadowVideoPremiumMutationResult = NonNullable<Awaited<ReturnType<typeof setAdminShadowVideoPremium>>>
+    export type SetAdminShadowVideoPremiumMutationBody = SetContentPremiumRequest
+    export type SetAdminShadowVideoPremiumMutationError = BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse
+
+    /**
+ * @summary Video này có dành cho gói Premium không
+ */
+export const useSetAdminShadowVideoPremium = <TError = BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setAdminShadowVideoPremium>>, TError,{videoId: string;data: SetContentPremiumRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof setAdminShadowVideoPremium>>,
+        TError,
+        {videoId: string;data: SetContentPremiumRequest},
+        TContext
+      > => {
+      return useMutation(getSetAdminShadowVideoPremiumMutationOptions(options), queryClient);
     }
 
 export const getCreateShadowUploadTargetUrl = (videoId: string,) => {
