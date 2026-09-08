@@ -48,6 +48,31 @@ export interface MyCard {
      * which is R-07 constraint 3's rule applied to a card.
      */
   back?: string;
+  /**
+     * Phiên âm — how to read `front`, on the back of the card beside what
+     * it means.
+     *
+     * Absent when the card has none, for the reason `back` is absent when
+     * it has no meaning: most cards have none, forever, and that is an
+     * ordinary state rather than a missing field. The client renders no
+     * reading rather than a dash (TCCN-109-5).
+     *
+     * **This card's own, and it outranks `wordbookEntry.readingLatin`
+     * where both are present.** The two are not the same claim. That one
+     * is the bank's reading for a *word*, matched onto this card by
+     * normalized key — which homographs can falsify, since 배 is pear,
+     * boat and stomach on one key — while this was written for this card
+     * and can be corrected on it with `PATCH /cards/{cardId}`. A joined
+     * row silently winning over a reading the learner just fixed would
+     * make the edit look broken.
+     *
+     * Where it comes from: `POST /cards` and `POST /cards:batch` may send
+     * one, which is how a word the trợ lý taught arrives with a reading
+     * (`AssistantVocabItem.transcription`). Nothing derives it from the
+     * Hangul — romanisation is not a function of the spelling, and a wrong
+     * reading aid is worse than none because the learner practises it.
+     */
+  transcription?: string;
   deckId: string;
   deckName: string;
   state: CardState;

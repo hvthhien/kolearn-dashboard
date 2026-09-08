@@ -24,8 +24,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type ResetPasswordBody = {
-  ticket: string;
-  /** @minLength 10 */
-  password: string;
+export type VerifyPasswordResetCodeBody = {
+  email: string;
+  code: string;
 };

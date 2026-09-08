@@ -25,15 +25,37 @@
  */
 
 /**
- * Carries no level, deliberately. The list is ordered by level on the
- * server and the screen never shows one; a field on the wire is one
- * refactor away from a screen, and this is the screen TCCN-345-3's "không
- * khoá nội dung" is about.
+ * Carries the lesson's level, which reverses what this schema said
+ * before: that a band on the wire was "one refactor away from a screen"
+ * and so had no business being sent. The screen is now the point — a
+ * badge in the corner of every poster — so the field is here on purpose
+ * rather than having leaked.
+ *
+ * TCCN-345-3 survives the reversal intact, because it is a prohibition on
+ * GATING and not on saying. A level the learner was assigned must not
+ * decide what they are allowed to reach: the shelf is still ORDERED by
+ * distance from their band and never filtered by it, every lesson at
+ * every band is still open to every learner, and `locked` — which is
+ * about the gói and nothing else — is still the only field that closes
+ * one. A label saying how hard a thing is does not close it.
  */
 export interface ShadowVideoListItem {
   id: string;
   title: string;
   durationMs: number;
+  /**
+     * TOPIK band — the same scale `LessonLevelCount.level` and the
+     * cấp độ chips above the shelf speak, so the badge on a row and the
+     * chip that filtered to it are the same number.
+     *
+     * Optional, and a row without it draws no badge at all, which is the
+     * fallback `thumbnailUrl` already has on this schema. Nothing on the
+     * row is composed from it: the title, the pill and the meta line all
+     * read the same whether it is there or not.
+     * @minimum 1
+     * @maximum 6
+     */
+  level?: number;
   /**
      * Whether the caller may open this video: false on Premium and on
      * gói Cơ bản's two earliest-published videos, true otherwise. The

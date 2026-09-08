@@ -24,8 +24,26 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type ResetPasswordBody = {
-  ticket: string;
-  /** @minLength 10 */
-  password: string;
-};
+/**
+ * The learner's own relationship to one lesson, on the two shelves that
+ * have one — nhại theo and chép chính tả.
+ *
+ * Derived rather than stored, from the two numbers the row already
+ * carries: `NOT_STARTED` is a progress count of zero, `COMPLETED` is the
+ * count having reached the total, `IN_PROGRESS` is everything between. That
+ * is deliberately the same reading the row's own pill makes ("chưa
+ * luyện" · "3 / 24 câu" · a full pill), so the chip a learner presses and
+ * the pill they were looking at cannot disagree.
+ *
+ * A signed-out visitor has no progress, so every row is `NOT_STARTED` for
+ * them and the other two chips read zero. That is true rather than
+ * broken: it is the shelf a learner who has practised nothing also sees.
+ */
+export type LessonStatus = typeof LessonStatus[keyof typeof LessonStatus];
+
+
+export const LessonStatus = {
+  NOT_STARTED: 'NOT_STARTED',
+  IN_PROGRESS: 'IN_PROGRESS',
+  COMPLETED: 'COMPLETED',
+} as const;

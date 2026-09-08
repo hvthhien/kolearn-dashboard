@@ -23,6 +23,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { LessonStatus } from './lessonStatus';
 
 export type ListShadowVideosParams = {
 /**
@@ -55,4 +56,66 @@ topicId?: string;
  * something the caller asked for and neither is a suggestion.
  */
 categoryId?: string;
+/**
+ * Tìm kiếm, over the whole corpus rather than over the page — which
+ * is the only place it can live. This list is paged at twelve, so a
+ * box that narrowed the response would answer `병원` with nothing
+ * while the lesson sits on page three.
+ *
+ * Matches, case-insensitively, as a substring: the title, the chủ đề
+ * name, any nhãn on the lesson, **and the transcript itself** — both
+ * the Korean of a line and its Vietnamese gloss. The transcript is
+ * what makes the box worth having: a learner remembers a sentence
+ * they practised far more often than the title of the lesson it was
+ * in.
+ *
+ * Searching the transcript is safe HERE and is not safe on
+ * `/dictation/sets`, and the difference is the exercise. A shadowing
+ * line is on screen while the learner repeats it, so matching it
+ * reveals nothing they are not already reading. A dictation sentence
+ * has to be typed from the audio before it is shown (TCCN-421-1), and
+ * a box that matched it would confirm a guessed spelling without the
+ * learner ever typing it into the exercise — so that one searches
+ * labels only.
+ *
+ * Trimmed, and blank is absent: `?q=%20%20` is the unfiltered shelf
+ * rather than a search for two spaces.
+ * @maxLength 80
+ */
+q?: string;
+/**
+ * TOPIK band, from a tapped chip.
+ *
+ * This is the one parameter on this endpoint that needs its reason
+ * written down, because the description above says level never
+ * filters. Both statements are true and they are about different
+ * actors. TCCN-345-3 is a prohibition on the SYSTEM: a level the
+ * learner was assigned must not decide what they are allowed to
+ * reach, which is why the ordering below measures distance from it
+ * rather than cutting at it. This is the LEARNER narrowing their own
+ * shelf, one tap, reversible, with the count of what they are hiding
+ * on the chip beside it — the same control `GET /exams` has had all
+ * along.
+ *
+ * The row now carries its own `level` and the card wears it as a
+ * badge, which it did not when this paragraph was first written. The
+ * two are the same number and are meant to be read together: the
+ * chip is the question the learner asked, the badge is the answer on
+ * each row it returned. Neither closes anything — see
+ * `ShadowVideoListItem.description` for why labelling and gating
+ * came apart here.
+ * @minimum 1
+ * @maximum 6
+ */
+level?: number;
+/**
+ * The learner's own progress on each lesson. Absent is every status.
+ *
+ * Answered from the same two numbers the row's pill is drawn from, so
+ * a lesson under `COMPLETED` is exactly a lesson showing a full pill.
+ * A signed-out visitor has no progress: `NOT_STARTED` gives them the
+ * whole shelf and the other two give them nothing, which is the
+ * honest answer rather than an error.
+ */
+status?: LessonStatus;
 };

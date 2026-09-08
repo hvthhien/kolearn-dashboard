@@ -24,9 +24,18 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { DictationSetListItem } from './dictationSetListItem';
+import type { LessonLevelCount } from './lessonLevelCount';
+import type { LessonStatusCounts } from './lessonStatusCounts';
 
 export interface DictationSetList {
   items: DictationSetListItem[];
+  /**
+     * The number on each cấp độ chip, ascending by band and always six
+     * entries. Narrowed by every other filter and never by `level` — see
+     * `LessonStatusCounts`.
+     */
+  levelCounts: LessonLevelCount[];
+  statusCounts: LessonStatusCounts;
   /**
      * Every set the filters match, not the ones on this page — what sizes
      * the pager, and the only number that can say whether a next page

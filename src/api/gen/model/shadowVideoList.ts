@@ -23,10 +23,24 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { LessonLevelCount } from './lessonLevelCount';
+import type { LessonStatusCounts } from './lessonStatusCounts';
 import type { ShadowVideoListItem } from './shadowVideoListItem';
 
 export interface ShadowVideoList {
   items: ShadowVideoListItem[];
+  /**
+     * The number on each cấp độ chip, ascending by band and always six
+     * entries.
+     *
+     * Narrowed by `q`, `categoryId`, `topicId` and `status` — everything
+     * the learner has already asked for — and never by `level` itself.
+     * See `LessonStatusCounts` for the argument; it is the same one, and
+     * the two rows above this list have to make it the same way or one of
+     * them is lying.
+     */
+  levelCounts: LessonLevelCount[];
+  statusCounts: LessonStatusCounts;
   /**
      * Every video the filters match, not the ones on this page — the same
      * contract `GET /me/attempts` states, and for the same reason: a pager

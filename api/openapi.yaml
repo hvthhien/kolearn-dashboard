@@ -57,17 +57,29 @@ paths:
       operationId: register
       security: []
       summary: Create an account
+      description: |
+        Creates the account and posts a six-digit code to the address. It does
+        **not** sign anybody in, and answers 202 rather than 201 for exactly
+        that reason: the account exists, and the thing the caller wanted — a
+        usable session — happens at `POST /auth/verify-email` when the code
+        comes back.
+
+        `POST /auth/login` refuses an address that has never been verified
+        (403 `email_not_verified`), so this is a gate rather than a suggestion.
+        Accounts created before the gate existed are exempt and stay signed in.
       requestBody:
         required: true
         content:
           application/json:
             schema: { $ref: '#/components/schemas/RegisterRequest' }
       responses:
-        '201':
-          description: Created. A verification email is sent; in dev it is logged to stdout.
+        '202':
+          description: |
+            Created, and a code is on its way. In dev (`MAIL_PROVIDER=log`) it
+            is printed to the API's stdout instead of sent.
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/AuthTokens' }
+              schema: { $ref: '#/components/schemas/VerificationChallenge' }
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/Unprocessable' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
@@ -89,6 +101,19 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/AuthTokens' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: |
+            `email_not_verified` — the password was right and the address has
+            never been confirmed. A 403 rather than a 401 because the
+            credentials were not the problem: the client should send the
+            learner to the code screen with this address, not back to the form.
+
+            This is the one login answer that admits an address is registered.
+            Reaching it requires the correct password, so it tells the caller
+            nothing they did not already know.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /auth/refresh:
@@ -203,33 +228,85 @@ paths:
         '302': { description: 'Redirect into the app, or back to /login with an error code.' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  # ── the six-digit code ────────────────────────────────────────────────────
+  #
+  # Four endpoints over one mechanism. The code is bound to one account and one
+  # purpose, lives for minutes, and dies after five wrong guesses — so a
+  # verification code cannot reset a password, one learner's code is inert on
+  # another's account, and a million-guess sweep gets five tries.
+  #
+  # Two of the four answer the SAME 202 whatever happened, INCLUDING when they
+  # sent nothing at all: an unregistered address, an already-verified account
+  # and a request inside the 30-second cooldown are indistinguishable from a
+  # successful send. That is what stops either one being used to ask whether an
+  # address has an account. A client must not read the 202 as "mail was sent".
+
   /auth/verify-email:
     post:
       tags: [auth]
       operationId: verifyEmail
       security: []
+      summary: Redeem a verification code and sign in
+      description: |
+        The other half of `POST /auth/register`. On success this is an ordinary
+        sign-in response — access token in the body, refresh token in the
+        httpOnly cookie — because the session registration withheld is issued
+        here.
+
+        Safe to call again after a success: a second redemption of a spent code
+        answers 400 like any other dead code.
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [token]
+              required: [email, code]
               properties:
-                token: { type: string }
+                email: { type: string, format: email }
+                code:
+                  type: string
+                  description: |
+                    The six digits from the email. Non-digits are stripped
+                    before comparison, so `123 456` and `123-456` are the same
+                    code — people paste what their mail client rendered.
       responses:
-        '204': { description: Verified. }
-        '400': { $ref: '#/components/responses/BadRequest' }
+        '200':
+          description: Verified and signed in. The refresh token is set as an httpOnly cookie.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthTokens' }
+        '400':
+          description: |
+            `code_invalid` — wrong, expired, superseded by a resend, or already
+            spent. The four are deliberately not told apart: distinguishing
+            them would let a caller ask whether a live code exists for an
+            address.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429':
+          description: |
+            `code_attempts_exceeded` — five wrong guesses, and the code is now
+            dead. Unlike the 400 this is not "try again": the client must send
+            the learner to the resend button, because no further entry of that
+            code can succeed.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
 
-  /auth/password/forgot:
+  /auth/verify-email/resend:
     post:
       tags: [auth]
-      operationId: forgotPassword
+      operationId: resendVerificationCode
       security: []
+      summary: Post a fresh verification code
       description: |
-        Always returns 204, whether or not the address is registered. Reporting
-        which addresses exist would turn this into an account-enumeration
-        oracle.
+        Retires whatever code was outstanding and sends a new one, unless the
+        previous one is less than `resendAfter` seconds old — in which case it
+        sends nothing and the code already in the learner's inbox stays valid.
+        Either way the answer is the same 202.
       requestBody:
         required: true
         content:
@@ -240,27 +317,135 @@ paths:
               properties:
                 email: { type: string, format: email }
       responses:
-        '204': { description: Accepted. }
-        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '202':
+          description: Accepted. Says nothing about whether mail was sent.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VerificationChallenge' }
 
-  /auth/password/reset:
+  /auth/password/forgot:
     post:
       tags: [auth]
-      operationId: resetPassword
+      operationId: forgotPassword
       security: []
+      summary: Post a password-reset code
+      description: |
+        Always returns 202 with the same body, whether or not the address is
+        registered, whether or not the account signs in with a password at all,
+        and whether or not the cooldown suppressed the send. Reporting any of
+        those would turn this into an account-enumeration oracle that needs no
+        credential.
+
+        A Google-only account gets nothing: there is no password to reset, and
+        mailing a code would mint a way past the sign-in method the learner
+        chose.
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [token, password]
+              required: [email]
               properties:
-                token: { type: string }
+                email: { type: string, format: email }
+      responses:
+        '202':
+          description: Accepted. Says nothing about whether mail was sent.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VerificationChallenge' }
+
+  /auth/password/verify-code:
+    post:
+      tags: [auth]
+      operationId: verifyPasswordResetCode
+      security: []
+      summary: Step one of a reset — prove the code
+      description: |
+        Spends the code and answers a **ticket** for
+        `POST /auth/password/reset`.
+
+        Spending it here rather than passing it on is the point of the split.
+        A code that had been confirmed and not yet consumed would sit in a
+        browser for as long as the learner takes to think of a password, on a
+        screen that has already announced it works — so the code dies at this
+        call and what crosses to step two is 256 bits from `crypto/rand`,
+        single use, dead in ten minutes.
+
+        **The ticket is a bearer credential.** Hold it in memory for the life
+        of the screen. It must never reach a URL: a query parameter is browser
+        history, a `Referer` header, and every access log between here and the
+        client.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, code]
+              properties:
+                email: { type: string, format: email }
+                code: { type: string }
+      responses:
+        '200':
+          description: The code was right and is now spent. Answered `no-store`.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PasswordResetTicket' }
+        '400':
+          description: |
+            `code_invalid` — wrong, expired, superseded or already spent. Also
+            what an address with no account gets, so that this cannot be used
+            to ask which addresses are registered.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429':
+          description: '`code_attempts_exceeded` — the code is dead; ask for a new one.'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /auth/password/reset:
+    post:
+      tags: [auth]
+      operationId: resetPassword
+      security: []
+      summary: Step two of a reset — set the password
+      description: |
+        Takes the ticket from `POST /auth/password/verify-code`, not the code.
+
+        No email: the ticket names the account on its own, and asking for the
+        address alongside it would add a way for the two to disagree without
+        adding anything that has to be proved.
+
+        Revokes every session on the account, including the caller's — whoever
+        prompted the reset may be holding one. Deliberately does not sign the
+        learner in; the login screen is where the new password gets typed once,
+        which is how a learner still has it tomorrow.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ticket, password]
+              properties:
+                ticket: { type: string }
                 password: { type: string, minLength: 10 }
       responses:
         '204': { description: Reset; all sessions revoked. }
-        '400': { $ref: '#/components/responses/BadRequest' }
+        '400':
+          description: |
+            `reset_ticket_invalid` — expired while the learner was choosing a
+            password, already spent, or never issued. A different code from
+            `code_invalid` because the remedy differs: the code is gone too, so
+            there is nothing to retype and the way back is a new code.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '422': { $ref: '#/components/responses/Unprocessable' }
 
   /me:
@@ -3134,6 +3319,68 @@ paths:
             AND-ed with `topicId` when both are present, because each names
             something the caller asked for and neither is a suggestion.
           schema: { type: string, format: uuid }
+        - name: q
+          in: query
+          description: |
+            Tìm kiếm, over the whole corpus rather than over the page — which
+            is the only place it can live. This list is paged at twelve, so a
+            box that narrowed the response would answer `병원` with nothing
+            while the lesson sits on page three.
+
+            Matches, case-insensitively, as a substring: the title, the chủ đề
+            name, any nhãn on the lesson, **and the transcript itself** — both
+            the Korean of a line and its Vietnamese gloss. The transcript is
+            what makes the box worth having: a learner remembers a sentence
+            they practised far more often than the title of the lesson it was
+            in.
+
+            Searching the transcript is safe HERE and is not safe on
+            `/dictation/sets`, and the difference is the exercise. A shadowing
+            line is on screen while the learner repeats it, so matching it
+            reveals nothing they are not already reading. A dictation sentence
+            has to be typed from the audio before it is shown (TCCN-421-1), and
+            a box that matched it would confirm a guessed spelling without the
+            learner ever typing it into the exercise — so that one searches
+            labels only.
+
+            Trimmed, and blank is absent: `?q=%20%20` is the unfiltered shelf
+            rather than a search for two spaces.
+          schema: { type: string, maxLength: 80 }
+        - name: level
+          in: query
+          description: |
+            TOPIK band, from a tapped chip.
+
+            This is the one parameter on this endpoint that needs its reason
+            written down, because the description above says level never
+            filters. Both statements are true and they are about different
+            actors. TCCN-345-3 is a prohibition on the SYSTEM: a level the
+            learner was assigned must not decide what they are allowed to
+            reach, which is why the ordering below measures distance from it
+            rather than cutting at it. This is the LEARNER narrowing their own
+            shelf, one tap, reversible, with the count of what they are hiding
+            on the chip beside it — the same control `GET /exams` has had all
+            along.
+
+            The row now carries its own `level` and the card wears it as a
+            badge, which it did not when this paragraph was first written. The
+            two are the same number and are meant to be read together: the
+            chip is the question the learner asked, the badge is the answer on
+            each row it returned. Neither closes anything — see
+            `ShadowVideoListItem.description` for why labelling and gating
+            came apart here.
+          schema: { type: integer, minimum: 1, maximum: 6 }
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/LessonStatus' }
+          description: |
+            The learner's own progress on each lesson. Absent is every status.
+
+            Answered from the same two numbers the row's pill is drawn from, so
+            a lesson under `COMPLETED` is exactly a lesson showing a full pill.
+            A signed-out visitor has no progress: `NOT_STARTED` gives them the
+            whole shelf and the other two give them nothing, which is the
+            honest answer rather than an error.
       responses:
         '200':
           description: Newest first within a level band. `[]` when empty (R-13).
@@ -3268,6 +3515,48 @@ paths:
             asked for this shelf. Absent is "Tất cả", which includes
             uncategorised sets.
           schema: { type: string, format: uuid }
+        - name: q
+          in: query
+          description: |
+            Tìm kiếm, over the whole corpus rather than over the page — the
+            list is paged at twelve, so a box that narrowed the response would
+            find nothing on a shelf that has it two pages down.
+
+            Matches, case-insensitively, as a substring: the set's title, its
+            chủ đề name, and its nhãn. **Not the sentences.** That is the one
+            place this parameter differs from `q` on `/shadowing/videos`, and
+            it is TCCN-421-1 rather than an omission: "màn hình không hiện lời
+            thoại của câu đó ở BẤT CỨ ĐÂU". A box matching `text_ko` would not
+            display a sentence, but it would answer one — type a guessed
+            spelling, and a set appearing or not appearing confirms it before
+            the learner has typed a character into the exercise. The whole
+            feature is hearing the sentence, so an oracle beside the shelf
+            costs more than the search saves.
+
+            The placeholder on the client says what this searches, for the
+            reason a box that quietly covers less than a learner assumes is
+            worse than a narrower box that says so.
+
+            Trimmed, and blank is absent.
+          schema: { type: string, maxLength: 80 }
+        - name: level
+          in: query
+          description: |
+            TOPIK band, from a tapped chip. The learner narrowing their own
+            shelf, which is a different actor from the one TCCN-345-3
+            prohibits — see the same parameter on `/shadowing/videos` for the
+            argument in full. The row still carries no level.
+          schema: { type: integer, minimum: 1, maximum: 6 }
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/LessonStatus' }
+          description: |
+            The learner's own progress on each set. Absent is every status.
+
+            Read from `correctCount` against `itemCount`, which is what the
+            row's own pill is drawn from — so `COMPLETED` is exactly a set
+            showing a full pill, and a gần đúng counts towards it for the
+            reason `correctCount` gives (TCCN-427-1).
       responses:
         '200':
           description: '`[]` when empty (R-13).'
@@ -3362,6 +3651,170 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/DictationSkipResult' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ── chép chính tả từ bài nhại theo ────────────────────────────────────────
+  #
+  # R-36's first idea, arriving second: the material borrowed whole from R-19.
+  # A shadowing lesson is one audio track and a set of [startMs, endMs) line
+  # windows on it, each with a sentence a native speaker has passed — which is
+  # everything dictation needs and nothing authored twice. The player seeks to
+  # a window and stops at its end; the grader compares against the line.
+  #
+  # The one rule above holds unchanged. `GET /shadowing/videos/{videoId}` carries
+  # every line's Korean because that screen shows it; these routes read the
+  # same rows and carry none of it. What is shared is the AttemptResult, the
+  # SkipResult and the progress pair, by schema — one screen renders both
+  # sources.
+
+  /dictation/shadowing:
+    get:
+      tags: [dictation]
+      operationId: listShadowDictationLessons
+      summary: Bài nhại theo có thể chép chính tả
+      security: []
+      description: |
+        Readable without a session, as `/dictation/sets` is and for the same
+        reason.
+
+        The same rows `/shadowing/videos` lists — published, with at least
+        one line — with the numbers on each row read from the learner's
+        DICTATION results rather than their shadowing progress. Having
+        repeated a line says nothing about having typed it, so the two shelves
+        can show the same lesson with two different pills, and both are true.
+
+        The chip row above this shelf is `/shadowing/categories`: these are
+        shadowing lessons, filed under the shadowing vocabulary.
+
+        Ordered by distance from the learner's own level, never filtered by
+        it, as everywhere else (TCCN-345-3).
+      parameters:
+        - name: limit
+          in: query
+          description: Clamped rather than refused, as everywhere else here.
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - name: offset
+          in: query
+          description: Lessons to skip, over the same total order the page returns. Clamped like `limit`.
+          schema: { type: integer, minimum: 0, default: 0 }
+        - name: categoryId
+          in: query
+          description: A `ShadowCategory` id, from a tapped chip. Absent is "Tất cả".
+          schema: { type: string, format: uuid }
+        - name: q
+          in: query
+          description: |
+            Tìm kiếm over the lesson's title, its chủ đề name and its nhãn.
+            **Not the transcript** — and this is where this list deliberately
+            stops short of `/shadowing/videos`, whose `q` does reach the lines.
+            On that screen the line is on screen while the learner repeats it;
+            on this one it has to be typed from the audio first (TCCN-421-1),
+            and a box that matched it would answer a guessed spelling before
+            the learner had typed a character into the exercise.
+
+            Trimmed, and blank is absent.
+          schema: { type: string, maxLength: 80 }
+        - name: level
+          in: query
+          description: TOPIK band, from a tapped chip — the learner narrowing their own shelf.
+          schema: { type: integer, minimum: 1, maximum: 6 }
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/LessonStatus' }
+          description: |
+            The learner's own DICTATION progress on each lesson, read from
+            `correctCount` against `itemCount` the way the row's pill is.
+      responses:
+        '200':
+          description: '`[]` when empty (R-13).'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DictationShadowLessonList' }
+
+  /dictation/shadowing/{videoId}:
+    parameters:
+      - $ref: '#/components/parameters/VideoId'
+    get:
+      tags: [dictation]
+      operationId: getShadowDictationLesson
+      summary: Everything the screen renders before anyone types, over a shadowing lesson
+      description: |
+        The lesson's one track, the line windows in it, and how the learner
+        has done on each.
+
+        **No Korean, no translation, no dictionary, no phiên âm** — the same
+        omissions `GET /dictation/sets/{setId}` makes, over rows that DO carry
+        all of them on `GET /shadowing/videos/{videoId}`. The transcript
+        arrives from the attempt endpoint and nowhere else on this surface.
+
+        Gated by the SHADOWING catalogue: a lesson gói Cơ bản may not shadow
+        is one it may not type either, and the refusal is the same
+        `403 premium_required`. A draft lesson answers 404, exactly as a
+        nonexistent one does.
+      responses:
+        '200':
+          description: Line windows in order, with the resume point.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DictationShadowLessonDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /dictation/shadowing/{videoId}/lines/{lineId}/attempt:
+    parameters:
+      - $ref: '#/components/parameters/VideoId'
+      - $ref: '#/components/parameters/LineId'
+    post:
+      tags: [dictation]
+      operationId: submitShadowDictationAttempt
+      summary: Chấm một câu đã gõ, từ bài nhại theo
+      description: |
+        `POST /dictation/sets/{setId}/items/{itemId}/attempt` over a shadowing
+        line: the same three-level grade, the same deterministic comparison,
+        the same best-result rule (TCCN-425-2), and the same 422 on an empty
+        box. The result is the same schema, so one screen renders both. Card
+        suggestions come from the lesson's own dictionary
+        (`ShadowGlossaryEntry`), anchored on the line.
+
+        A line belonging to another lesson is a 404 — not because it does not
+        exist, but because it does not exist *here*.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DictationAttemptRequest' }
+      responses:
+        '200':
+          description: The grade, the transcript, and where the two differ.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DictationAttemptResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /dictation/shadowing/{videoId}/lines/{lineId}/skip:
+    parameters:
+      - $ref: '#/components/parameters/VideoId'
+      - $ref: '#/components/parameters/LineId'
+    post:
+      tags: [dictation]
+      operationId: skipShadowDictationLine
+      summary: Bỏ qua một câu, từ bài nhại theo (TCCN-425-1)
+      description: |
+        Moves the bookmark to the next line and **records nothing**, as
+        `POST /dictation/sets/{setId}/items/{itemId}/skip` does. `resumeItemId`
+        is a line id.
+      responses:
+        '200':
+          description: Progress, and the line the learner lands on.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DictationSkipResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
   # ── studio: chép chính tả ─────────────────────────────────────────────────
@@ -5399,6 +5852,55 @@ components:
             Whether this deployment holds Google OAuth credentials. False means
             `/auth/google/start` is not mounted and the button must not be shown.
 
+    PasswordResetTicket:
+      type: object
+      required: [ticket, expiresIn]
+      description: |
+        Authority to set a new password, carried from step one of a reset to
+        step two. Issued once, spendable once.
+      properties:
+        ticket:
+          type: string
+          description: |
+            Opaque. Hold it in memory for the life of the screen — never in a
+            URL, never in storage that outlives the tab.
+        expiresIn:
+          type: integer
+          description: |
+            Seconds until it stops working. The learner is choosing a password
+            during this window, so a screen that wants to warn before it lapses
+            has the number to do it with.
+
+    VerificationChallenge:
+      type: object
+      required: [email, expiresIn, resendAfter]
+      description: |
+        What an endpoint that has just posted a six-digit code answers with.
+
+        It carries no secret — the code is in the learner's inbox and nowhere
+        else — only the two numbers the screen needs to draw itself. And it is
+        built from constants, so it is IDENTICAL for a send that happened and
+        one that was suppressed. That is deliberate: a body that varied would
+        be an account-enumeration oracle on `/auth/password/forgot`.
+      properties:
+        email:
+          type: string
+          format: email
+          description: |
+            The normalised address the code went to — casefolded and trimmed,
+            which is not always what was typed. The client shows this on the
+            code screen so a learner who mistyped can see it and go back.
+        expiresIn:
+          type: integer
+          description: Seconds until the code stops working.
+        resendAfter:
+          type: integer
+          description: |
+            Seconds before a resend will actually send anything. The client
+            disables its resend button for this long; the server enforces the
+            same wait regardless of what the client does, so a caller that
+            ignores this simply gets 202s that send nothing.
+
     AuthTokens:
       type: object
       required: [accessToken, expiresIn, user]
@@ -5626,7 +6128,9 @@ components:
         accountName: { type: string }
         memo:
           type: string
-          description: '`XAMI` and six characters. Must appear in the transfer''s content, as is.'
+          description: |
+            `SEVQR` — SePay's marker — followed by the order's `XAMI` and six
+            characters. Must appear in the transfer's content, as is.
         qrImageUrl: { type: string, format: uri }
 
     PaymentOrder:
@@ -7047,6 +7551,18 @@ components:
           enum: [VOCAB, GRAMMAR, STRUCTURE_TEMPLATE]
         front: { type: string, minLength: 1 }
         back: { type: string }
+        transcription:
+          type: string
+          description: |
+            Phiên âm for `front` — how to read it. Optional, and empty is the
+            ordinary case rather than a gap.
+
+            Written ONLY onto a card this request actually inserts, exactly like
+            `groupId` above and for the same reason: a front already in the deck
+            comes back untouched (TCCN-109-10), and that has to include this.
+            Someone saving a word again from another screen has not asked to
+            overwrite a reading they corrected on the card they have been
+            working through. Fixing one is `PATCH /cards/{cardId}`.
         sourceQuestionId:
           type: string
           format: uuid
@@ -7180,7 +7696,7 @@ components:
         meaning they had written. Sending neither field is 422 rather than a
         silent no-op.
 
-        Only these two. Not `state` — that is `PUT /cards/{cardId}/state`, and
+        Only these three. Not `state` — that is `PUT /cards/{cardId}/state`, and
         keeping them apart is what stops an edit from quietly re-marking a card
         the learner has been working through. Not `topics`, which a card
         inherits once from the question that made it. And none of R-15's three
@@ -7211,6 +7727,20 @@ components:
             The meaning the learner saved. Free to edit on any card, including
             one from a corpus — the dictionary material lives in
             `wordbookEntry` and is never written from here.
+        transcription:
+          type: string
+          description: |
+            The phiên âm on the card's back, and `""` clears it — the same
+            two-way expressibility `back` has, because a learner removing a
+            reading they no longer trust is an ordinary thing to want.
+
+            Free to edit on any card, for `back`'s reasons and one more. Nothing
+            dedupes on it, no other screen finds a card by it, and the bank's
+            own `wordbookEntry.readingLatin` is never written from here. The one
+            extra reason is that this field is what makes a model-written
+            reading safe to store at all: a wrong reading aid is worse than none
+            because the learner practises it and cannot tell — which is only
+            true while they cannot correct it.
 
     CardFrontTakenProblem:
       allOf:
@@ -7289,6 +7819,31 @@ components:
             Absent when the learner saved no meaning, rather than an empty
             string — the client renders nothing instead of a blank second line,
             which is R-07 constraint 3's rule applied to a card.
+        transcription:
+          type: string
+          description: |
+            Phiên âm — how to read `front`, on the back of the card beside what
+            it means.
+
+            Absent when the card has none, for the reason `back` is absent when
+            it has no meaning: most cards have none, forever, and that is an
+            ordinary state rather than a missing field. The client renders no
+            reading rather than a dash (TCCN-109-5).
+
+            **This card's own, and it outranks `wordbookEntry.readingLatin`
+            where both are present.** The two are not the same claim. That one
+            is the bank's reading for a *word*, matched onto this card by
+            normalized key — which homographs can falsify, since 배 is pear,
+            boat and stomach on one key — while this was written for this card
+            and can be corrected on it with `PATCH /cards/{cardId}`. A joined
+            row silently winning over a reading the learner just fixed would
+            make the edit look broken.
+
+            Where it comes from: `POST /cards` and `POST /cards:batch` may send
+            one, which is how a word the trợ lý taught arrives with a reading
+            (`AssistantVocabItem.transcription`). Nothing derives it from the
+            Hangul — romanisation is not a function of the spelling, and a wrong
+            reading aid is worse than none because the learner practises it.
         deckId: { type: string, format: uuid }
         deckName: { type: string }
         state: { $ref: '#/components/schemas/CardState' }
@@ -7735,7 +8290,8 @@ components:
       required: [kind, word, meaning]
       description: |
         One term, in the shape `POST /cards` takes: `word` is the front,
-        `meaning` and `example` are the back, and `kind` is the card type.
+        `meaning`, `transcription` and `example` are the back, and `kind` is the
+        card type.
 
         No id of any sort. A thẻ made from an answer has no source row to point
         at — unlike one saved from a bảng từ vựng, a shadowing line or a
@@ -7761,6 +8317,25 @@ components:
         meaning:
           type: string
           description: The Vietnamese, and the first line of the back. Never empty.
+        transcription:
+          type: string
+          description: |
+            Phiên âm — how `word` is SAID, in Revised Romanisation with syllables
+            joined by hyphens (접수 → `jeop-su`, 좋아요 → `jo-a-yo`). It becomes
+            the card's own `transcription`.
+
+            Absent when the model is not sure, which the prompt asks for by name
+            and is a real answer: the card then shows no reading, and that costs
+            the learner nothing. A guessed one costs them a great deal — it sits
+            on the back of a card they may be shown every morning for weeks,
+            they have no way to tell it is wrong, and what they practise is the
+            wrong pronunciation. `PATCH /cards/{cardId}` is how a reading gets
+            fixed once a learner spots it.
+
+            Asked of the model rather than derived here because romanisation is
+            not a function of the spelling: 좋아요 is `joh-a-yo` letter by letter
+            and `jo-a-yo` out loud, 신라 is `sil-la`. The cards that need a
+            reading most are exactly the ones no corpus in this app describes.
         example:
           type: string
           description: |
@@ -9221,14 +9796,36 @@ components:
       type: object
       required: [id, title, durationMs, lineCount, wordCount, practisedCount, tags, locked]
       description: |
-        Carries no level, deliberately. The list is ordered by level on the
-        server and the screen never shows one; a field on the wire is one
-        refactor away from a screen, and this is the screen TCCN-345-3's "không
-        khoá nội dung" is about.
+        Carries the lesson's level, which reverses what this schema said
+        before: that a band on the wire was "one refactor away from a screen"
+        and so had no business being sent. The screen is now the point — a
+        badge in the corner of every poster — so the field is here on purpose
+        rather than having leaked.
+
+        TCCN-345-3 survives the reversal intact, because it is a prohibition on
+        GATING and not on saying. A level the learner was assigned must not
+        decide what they are allowed to reach: the shelf is still ORDERED by
+        distance from their band and never filtered by it, every lesson at
+        every band is still open to every learner, and `locked` — which is
+        about the gói and nothing else — is still the only field that closes
+        one. A label saying how hard a thing is does not close it.
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
         durationMs: { type: integer }
+        level:
+          type: integer
+          minimum: 1
+          maximum: 6
+          description: |
+            TOPIK band — the same scale `LessonLevelCount.level` and the
+            cấp độ chips above the shelf speak, so the badge on a row and the
+            chip that filtered to it are the same number.
+
+            Optional, and a row without it draws no badge at all, which is the
+            fallback `thumbnailUrl` already has on this schema. Nothing on the
+            row is composed from it: the title, the pill and the meta line all
+            read the same whether it is there or not.
         locked:
           type: boolean
           description: |
@@ -9332,11 +9929,19 @@ components:
 
     DictationSetList:
       type: object
-      required: [items, totalCount]
+      required: [items, totalCount, levelCounts, statusCounts]
       properties:
         items:
           type: array
           items: { $ref: '#/components/schemas/DictationSetListItem' }
+        levelCounts:
+          type: array
+          items: { $ref: '#/components/schemas/LessonLevelCount' }
+          description: |
+            The number on each cấp độ chip, ascending by band and always six
+            entries. Narrowed by every other filter and never by `level` — see
+            `LessonStatusCounts`.
+        statusCounts: { $ref: '#/components/schemas/LessonStatusCounts' }
         totalCount:
           type: integer
           description: |
@@ -9668,6 +10273,143 @@ components:
           format: uuid
           description: The sentence the learner lands on, so a reload agrees with the screen.
 
+    # ── chép chính tả từ bài nhại theo ────────────────────────────────────
+    #
+    # The set schemas' rule — no field that puts the sentence on screen
+    # before it has been typed — holds over these four, and
+    # internal/api/contract/leak_test.go walks them with the same matcher.
+
+    DictationShadowLessonListItem:
+      type: object
+      required: [id, title, durationMs, itemCount, wordCount, correctCount, tags, locked]
+      description: |
+        One shadowing lesson, as a row on the "từ bài nhại theo" shelf. The
+        same fields as `DictationSetListItem` under the same names, so one row
+        component draws both shelves; `thumbnailUrl` is the one addition.
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        durationMs:
+          type: integer
+          description: |
+            The line windows added up, not the track's length — what the
+            learner will actually hear, with the silence between lines left
+            out.
+        itemCount:
+          type: integer
+          description: Lines. Called `itemCount` because to the learner both shelves count "câu".
+        wordCount:
+          type: integer
+          description: Entries in the lesson's own dictionary.
+        correctCount:
+          type: integer
+          description: |
+            TCCN-427-1's numerator over the learner's DICTATION results on this
+            lesson — not `practisedCount`, which is what the shadowing shelf
+            shows for the same rows. A gần đúng counts; a skipped line has no
+            row.
+        locked:
+          type: boolean
+          description: |
+            Whether the caller may open this lesson, decided by the SHADOWING
+            catalogue: gói Cơ bản's two free lessons are free to type as well
+            as to repeat, and every other one is refused with
+            `403 premium_required` on both screens.
+        thumbnailUrl:
+          type: string
+          description: The lesson's poster, as on `ShadowVideoListItem`.
+        level:
+          type: integer
+          minimum: 1
+          maximum: 6
+          description: |
+            The band, as on `ShadowVideoListItem` and read off the same
+            SHADOWING catalogue row — so a lesson badged `Cấp 3` on the nhại
+            theo shelf is badged `Cấp 3` here. Optional, with the same
+            no-badge fallback.
+        categoryId:
+          type: string
+          format: uuid
+          description: A `ShadowCategory` id. Absent means uncategorised.
+        categoryName: { type: string }
+        tags:
+          type: array
+          description: Nhãn. Never null; `[]` on a lesson nobody has tagged (R-13).
+          items: { type: string }
+
+    DictationShadowLessonList:
+      type: object
+      required: [items, totalCount, levelCounts, statusCounts]
+      description: The same shape as `DictationSetList`, over the other shelf.
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/DictationShadowLessonListItem' }
+        levelCounts:
+          type: array
+          items: { $ref: '#/components/schemas/LessonLevelCount' }
+        statusCounts: { $ref: '#/components/schemas/LessonStatusCounts' }
+        totalCount: { type: integer }
+
+    DictationShadowItem:
+      type: object
+      required: [id, ordinal, startMs, endMs]
+      description: |
+        One line to type. **Note what is not here**, exactly as on
+        `DictationItem`: no `textKo`, no `textVi`, no `transcription`, no
+        `speaker`, no `terms`, no `chunks` — every one of which the same line
+        carries on `ShadowLine`, for that screen.
+
+        `startMs` and `endMs` replace `audioUrl`: the audio is the lesson's one
+        track (`DictationShadowLessonDetail.playbackUrl`) and this is the
+        window in it. The player seeks to `startMs` and stops at `endMs`, which
+        is the loop the shadowing player already runs.
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: The line's id — what the attempt and skip routes take as `lineId`.
+        ordinal: { type: integer, minimum: 1 }
+        startMs: { type: integer, minimum: 0 }
+        endMs: { type: integer, minimum: 1 }
+        bestGrade:
+          $ref: '#/components/schemas/DictationGrade'
+          description: Absent means chưa làm. Present is the BEST result (TCCN-425-2).
+
+    DictationShadowLessonDetail:
+      type: object
+      required: [id, title, playbackUrl, items, progress, tags]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        playbackUrl:
+          type: string
+          description: |
+            The lesson's one audio track — the same public CDN URL
+            `ShadowVideoDetail.playbackUrl` carries, so a browser that has
+            shadowed this lesson already has it cached. Read by an `<audio>`
+            element directly; seeking and `playbackRate` are native.
+        thumbnailUrl: { type: string }
+        categoryId:
+          type: string
+          format: uuid
+          description: A `ShadowCategory` id. Absent means uncategorised.
+        categoryName: { type: string }
+        tags:
+          type: array
+          items: { type: string }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/DictationShadowItem' }
+        progress: { $ref: '#/components/schemas/DictationProgress' }
+        resumeItemId:
+          type: string
+          format: uuid
+          description: |
+            Where the learner left off (TCCN-425-3), as a line id. Absent on a
+            lesson nobody has typed, which the client reads as "start at the
+            first line".
+
     # ── studio: chép chính tả ──────────────────────────────────────────────
 
     AdminDictationApproval:
@@ -9847,13 +10589,94 @@ components:
           type: array
           items: { type: string }
 
+    LessonStatus:
+      type: string
+      enum: [NOT_STARTED, IN_PROGRESS, COMPLETED]
+      description: |
+        The learner's own relationship to one lesson, on the two shelves that
+        have one — nhại theo and chép chính tả.
+
+        Derived rather than stored, from the two numbers the row already
+        carries: `NOT_STARTED` is a progress count of zero, `COMPLETED` is the
+        count having reached the total, `IN_PROGRESS` is everything between. That
+        is deliberately the same reading the row's own pill makes ("chưa
+        luyện" · "3 / 24 câu" · a full pill), so the chip a learner presses and
+        the pill they were looking at cannot disagree.
+
+        A signed-out visitor has no progress, so every row is `NOT_STARTED` for
+        them and the other two chips read zero. That is true rather than
+        broken: it is the shelf a learner who has practised nothing also sees.
+
+    LessonStatusCounts:
+      type: object
+      required: [NOT_STARTED, IN_PROGRESS, COMPLETED]
+      description: |
+        How many lessons sit under each status chip.
+
+        **Narrowed by every filter except `status` itself** — the guarantee
+        `ExamLevelCounts` carries, for the reason written there: a chip must
+        say how many rows are under it whichever chip is currently pressed, and
+        counts taken from an already-filtered response read zero everywhere but
+        the active one. So `q` and `categoryId` and `level` all shrink these
+        three numbers, because a learner who has typed a word is asking about
+        their search rather than about the corpus; `status` does not, because
+        it is the axis these numbers ARE.
+
+        Keyed by the `LessonStatus` value, so a client indexes it with the
+        chip's own value rather than keeping a second table mapping one to the
+        other.
+
+        No "Tất cả" key. Every row has exactly one of these three, so the sum
+        is that number and a fourth field would be one more thing that can
+        disagree with the other three.
+      properties:
+        NOT_STARTED: { type: integer }
+        IN_PROGRESS: { type: integer }
+        COMPLETED: { type: integer }
+
+    LessonLevelCount:
+      type: object
+      required: [level, count]
+      description: |
+        One level chip and its number.
+
+        An array of these rather than an object keyed `"1"`-`"6"`, which is the
+        shape `ExamLevelCounts` uses and the shape that stops working here: its
+        two keys are enum NAMES, and TOPIK bands are integers. A JSON object
+        keyed by digits generates field names no language is happy with, and
+        loses the order the chips are drawn in.
+
+        A band with nothing published under it is still here, at zero. A row
+        whose chips appear and disappear as a learner types is a row they
+        cannot aim at.
+      properties:
+        level:
+          type: integer
+          minimum: 1
+          maximum: 6
+          description: TOPIK band, the scale `user_levels.level` speaks.
+        count: { type: integer }
+
     ShadowVideoList:
       type: object
-      required: [items, totalCount]
+      required: [items, totalCount, levelCounts, statusCounts]
       properties:
         items:
           type: array
           items: { $ref: '#/components/schemas/ShadowVideoListItem' }
+        levelCounts:
+          type: array
+          items: { $ref: '#/components/schemas/LessonLevelCount' }
+          description: |
+            The number on each cấp độ chip, ascending by band and always six
+            entries.
+
+            Narrowed by `q`, `categoryId`, `topicId` and `status` — everything
+            the learner has already asked for — and never by `level` itself.
+            See `LessonStatusCounts` for the argument; it is the same one, and
+            the two rows above this list have to make it the same way or one of
+            them is lying.
+        statusCounts: { $ref: '#/components/schemas/LessonStatusCounts' }
         totalCount:
           type: integer
           description: |

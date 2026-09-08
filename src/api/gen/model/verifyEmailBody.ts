@@ -25,5 +25,11 @@
  */
 
 export type VerifyEmailBody = {
-  token: string;
+  email: string;
+  /**
+     * The six digits from the email. Non-digits are stripped
+     * before comparison, so `123 456` and `123-456` are the same
+     * code — people paste what their mail client rendered.
+     */
+  code: string;
 };

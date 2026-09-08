@@ -23,9 +23,28 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { DictationGrade } from './dictationGrade';
 
-export type ResetPasswordBody = {
-  ticket: string;
-  /** @minLength 10 */
-  password: string;
-};
+/**
+ * One line to type. **Note what is not here**, exactly as on
+ * `DictationItem`: no `textKo`, no `textVi`, no `transcription`, no
+ * `speaker`, no `terms`, no `chunks` — every one of which the same line
+ * carries on `ShadowLine`, for that screen.
+ *
+ * `startMs` and `endMs` replace `audioUrl`: the audio is the lesson's one
+ * track (`DictationShadowLessonDetail.playbackUrl`) and this is the
+ * window in it. The player seeks to `startMs` and stops at `endMs`, which
+ * is the loop the shadowing player already runs.
+ */
+export interface DictationShadowItem {
+  /** The line's id — what the attempt and skip routes take as `lineId`. */
+  id: string;
+  /** @minimum 1 */
+  ordinal: number;
+  /** @minimum 0 */
+  startMs: number;
+  /** @minimum 1 */
+  endMs: number;
+  /** Absent means chưa làm. Present is the BEST result (TCCN-425-2). */
+  bestGrade?: DictationGrade;
+}

@@ -34,7 +34,10 @@ export interface TransferInstructions {
   bankName: string;
   accountNo: string;
   accountName: string;
-  /** `XAMI` and six characters. Must appear in the transfer's content, as is. */
+  /**
+     * `SEVQR` — SePay's marker — followed by the order's `XAMI` and six
+     * characters. Must appear in the transfer's content, as is.
+     */
   memo: string;
   qrImageUrl: string;
 }

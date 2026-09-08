@@ -23,9 +23,30 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { DictationProgress } from './dictationProgress';
+import type { DictationShadowItem } from './dictationShadowItem';
 
-export type ResetPasswordBody = {
-  ticket: string;
-  /** @minLength 10 */
-  password: string;
-};
+export interface DictationShadowLessonDetail {
+  id: string;
+  title: string;
+  /**
+     * The lesson's one audio track — the same public CDN URL
+     * `ShadowVideoDetail.playbackUrl` carries, so a browser that has
+     * shadowed this lesson already has it cached. Read by an `<audio>`
+     * element directly; seeking and `playbackRate` are native.
+     */
+  playbackUrl: string;
+  thumbnailUrl?: string;
+  /** A `ShadowCategory` id. Absent means uncategorised. */
+  categoryId?: string;
+  categoryName?: string;
+  tags: string[];
+  items: DictationShadowItem[];
+  progress: DictationProgress;
+  /**
+     * Where the learner left off (TCCN-425-3), as a line id. Absent on a
+     * lesson nobody has typed, which the client reads as "start at the
+     * first line".
+     */
+  resumeItemId?: string;
+}

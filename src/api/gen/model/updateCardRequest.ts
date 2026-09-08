@@ -31,7 +31,7 @@
  * meaning they had written. Sending neither field is 422 rather than a
  * silent no-op.
  *
- * Only these two. Not `state` — that is `PUT /cards/{cardId}/state`, and
+ * Only these three. Not `state` — that is `PUT /cards/{cardId}/state`, and
  * keeping them apart is what stops an edit from quietly re-marking a card
  * the learner has been working through. Not `topics`, which a card
  * inherits once from the question that made it. And none of R-15's three
@@ -63,4 +63,18 @@ export interface UpdateCardRequest {
      * `wordbookEntry` and is never written from here.
      */
   back?: string;
+  /**
+     * The phiên âm on the card's back, and `""` clears it — the same
+     * two-way expressibility `back` has, because a learner removing a
+     * reading they no longer trust is an ordinary thing to want.
+     *
+     * Free to edit on any card, for `back`'s reasons and one more. Nothing
+     * dedupes on it, no other screen finds a card by it, and the bank's
+     * own `wordbookEntry.readingLatin` is never written from here. The one
+     * extra reason is that this field is what makes a model-written
+     * reading safe to store at all: a wrong reading aid is worse than none
+     * because the learner practises it and cannot tell — which is only
+     * true while they cannot correct it.
+     */
+  transcription?: string;
 }

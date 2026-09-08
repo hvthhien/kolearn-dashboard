@@ -104,6 +104,8 @@ import type {
   DictationCategoryList,
   DictationSetDetail,
   DictationSetList,
+  DictationShadowLessonDetail,
+  DictationShadowLessonList,
   DictationSkipResult,
   ExamDetail,
   FindUsersParams,
@@ -136,6 +138,7 @@ import type {
   ListMyCards200,
   ListMyCardsParams,
   ListRedeemCodesParams,
+  ListShadowDictationLessonsParams,
   ListShadowVideosParams,
   ListStudyCards200,
   ListStudyCardsParams,
@@ -149,6 +152,7 @@ import type {
   MyPlacement,
   NotFoundResponse,
   NotModifiedResponse,
+  PasswordResetTicket,
   PaymentOrder,
   PaymentOrderList,
   PlacementAnswerRequest,
@@ -170,6 +174,7 @@ import type {
   RedeemCodeResult,
   RegisterRequest,
   RenameCardGroupBody,
+  ResendVerificationCodeBody,
   ResetPasswordBody,
   ReviewAttempt200,
   ReviewAttemptParams,
@@ -215,7 +220,9 @@ import type {
   UpdateExamRequest,
   UpdateProfile,
   UserTimezone,
+  VerificationChallenge,
   VerifyEmailBody,
+  VerifyPasswordResetCodeBody,
   WeaknessPreference,
   WeaknessRetakeSummary,
   Wordbook,
@@ -257,11 +264,20 @@ export const getRegisterUrl = () => {
 }
 
 /**
+ * Creates the account and posts a six-digit code to the address. It does
+ * **not** sign anybody in, and answers 202 rather than 201 for exactly
+ * that reason: the account exists, and the thing the caller wanted — a
+ * usable session — happens at `POST /auth/verify-email` when the code
+ * comes back.
+ *
+ * `POST /auth/login` refuses an address that has never been verified
+ * (403 `email_not_verified`), so this is a gate rather than a suggestion.
+ * Accounts created before the gate existed are exempt and stay signed in.
  * @summary Create an account
  */
-export const register = async (registerRequest: RegisterRequest, options?: Parameters<typeof apiFetch>[1]): Promise<AuthTokens> => {
+export const register = async (registerRequest: RegisterRequest, options?: Parameters<typeof apiFetch>[1]): Promise<VerificationChallenge> => {
 
-  return apiFetch<AuthTokens>(getRegisterUrl(),
+  return apiFetch<VerificationChallenge>(getRegisterUrl(),
   {
     ...options,
     method: 'POST',
@@ -342,7 +358,7 @@ export const login = async (loginRequest: LoginRequest, options?: Parameters<typ
 
 
 
-export const getLoginMutationOptions = <TError = UnauthorizedResponse | TooManyRequestsResponse,
+export const getLoginMutationOptions = <TError = UnauthorizedResponse | Problem | TooManyRequestsResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof login>>, TError,{data: LoginRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof login>>, TError,{data: LoginRequest}, TContext> => {
 
@@ -371,9 +387,9 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type LoginMutationResult = NonNullable<Awaited<ReturnType<typeof login>>>
     export type LoginMutationBody = LoginRequest
-    export type LoginMutationError = UnauthorizedResponse | TooManyRequestsResponse
+    export type LoginMutationError = UnauthorizedResponse | Problem | TooManyRequestsResponse
 
-    export const useLogin = <TError = UnauthorizedResponse | TooManyRequestsResponse,
+    export const useLogin = <TError = UnauthorizedResponse | Problem | TooManyRequestsResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof login>>, TError,{data: LoginRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof login>>,
@@ -874,9 +890,19 @@ export const getVerifyEmailUrl = () => {
   return `/api/v1/auth/verify-email`
 }
 
-export const verifyEmail = async (verifyEmailBody: VerifyEmailBody, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+/**
+ * The other half of `POST /auth/register`. On success this is an ordinary
+ * sign-in response — access token in the body, refresh token in the
+ * httpOnly cookie — because the session registration withheld is issued
+ * here.
+ *
+ * Safe to call again after a success: a second redemption of a spent code
+ * answers 400 like any other dead code.
+ * @summary Redeem a verification code and sign in
+ */
+export const verifyEmail = async (verifyEmailBody: VerifyEmailBody, options?: Parameters<typeof apiFetch>[1]): Promise<AuthTokens> => {
 
-  return apiFetch<void>(getVerifyEmailUrl(),
+  return apiFetch<AuthTokens>(getVerifyEmailUrl(),
   {
     ...options,
     method: 'POST',
@@ -889,7 +915,7 @@ export const verifyEmail = async (verifyEmailBody: VerifyEmailBody, options?: Pa
 
 
 
-export const getVerifyEmailMutationOptions = <TError = BadRequestResponse,
+export const getVerifyEmailMutationOptions = <TError = Problem | ForbiddenResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyEmail>>, TError,{data: VerifyEmailBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof verifyEmail>>, TError,{data: VerifyEmailBody}, TContext> => {
 
@@ -918,9 +944,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type VerifyEmailMutationResult = NonNullable<Awaited<ReturnType<typeof verifyEmail>>>
     export type VerifyEmailMutationBody = VerifyEmailBody
-    export type VerifyEmailMutationError = BadRequestResponse
+    export type VerifyEmailMutationError = Problem | ForbiddenResponse
 
-    export const useVerifyEmail = <TError = BadRequestResponse,
+    /**
+ * @summary Redeem a verification code and sign in
+ */
+export const useVerifyEmail = <TError = Problem | ForbiddenResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyEmail>>, TError,{data: VerifyEmailBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof verifyEmail>>,
@@ -929,6 +958,81 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
         TContext
       > => {
       return useMutation(getVerifyEmailMutationOptions(options), queryClient);
+    }
+
+export const getResendVerificationCodeUrl = () => {
+
+
+
+
+  return `/api/v1/auth/verify-email/resend`
+}
+
+/**
+ * Retires whatever code was outstanding and sends a new one, unless the
+ * previous one is less than `resendAfter` seconds old — in which case it
+ * sends nothing and the code already in the learner's inbox stays valid.
+ * Either way the answer is the same 202.
+ * @summary Post a fresh verification code
+ */
+export const resendVerificationCode = async (resendVerificationCodeBody: ResendVerificationCodeBody, options?: Parameters<typeof apiFetch>[1]): Promise<VerificationChallenge> => {
+
+  return apiFetch<VerificationChallenge>(getResendVerificationCodeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(resendVerificationCodeBody)
+  }
+);}
+
+
+
+
+
+export const getResendVerificationCodeMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resendVerificationCode>>, TError,{data: ResendVerificationCodeBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resendVerificationCode>>, TError,{data: ResendVerificationCodeBody}, TContext> => {
+
+const mutationKey = ['resendVerificationCode'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resendVerificationCode>>, {data: ResendVerificationCodeBody}> = (props) => {
+          const {data} = props ?? {};
+
+          return  resendVerificationCode(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResendVerificationCodeMutationResult = NonNullable<Awaited<ReturnType<typeof resendVerificationCode>>>
+    export type ResendVerificationCodeMutationBody = ResendVerificationCodeBody
+    export type ResendVerificationCodeMutationError = unknown
+
+    /**
+ * @summary Post a fresh verification code
+ */
+export const useResendVerificationCode = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resendVerificationCode>>, TError,{data: ResendVerificationCodeBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof resendVerificationCode>>,
+        TError,
+        {data: ResendVerificationCodeBody},
+        TContext
+      > => {
+      return useMutation(getResendVerificationCodeMutationOptions(options), queryClient);
     }
 
 export const getForgotPasswordUrl = () => {
@@ -940,13 +1044,20 @@ export const getForgotPasswordUrl = () => {
 }
 
 /**
- * Always returns 204, whether or not the address is registered. Reporting
- * which addresses exist would turn this into an account-enumeration
- * oracle.
+ * Always returns 202 with the same body, whether or not the address is
+ * registered, whether or not the account signs in with a password at all,
+ * and whether or not the cooldown suppressed the send. Reporting any of
+ * those would turn this into an account-enumeration oracle that needs no
+ * credential.
+ *
+ * A Google-only account gets nothing: there is no password to reset, and
+ * mailing a code would mint a way past the sign-in method the learner
+ * chose.
+ * @summary Post a password-reset code
  */
-export const forgotPassword = async (forgotPasswordBody: ForgotPasswordBody, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+export const forgotPassword = async (forgotPasswordBody: ForgotPasswordBody, options?: Parameters<typeof apiFetch>[1]): Promise<VerificationChallenge> => {
 
-  return apiFetch<void>(getForgotPasswordUrl(),
+  return apiFetch<VerificationChallenge>(getForgotPasswordUrl(),
   {
     ...options,
     method: 'POST',
@@ -959,7 +1070,7 @@ export const forgotPassword = async (forgotPasswordBody: ForgotPasswordBody, opt
 
 
 
-export const getForgotPasswordMutationOptions = <TError = TooManyRequestsResponse,
+export const getForgotPasswordMutationOptions = <TError = unknown,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof forgotPassword>>, TError,{data: ForgotPasswordBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof forgotPassword>>, TError,{data: ForgotPasswordBody}, TContext> => {
 
@@ -988,9 +1099,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type ForgotPasswordMutationResult = NonNullable<Awaited<ReturnType<typeof forgotPassword>>>
     export type ForgotPasswordMutationBody = ForgotPasswordBody
-    export type ForgotPasswordMutationError = TooManyRequestsResponse
+    export type ForgotPasswordMutationError = unknown
 
-    export const useForgotPassword = <TError = TooManyRequestsResponse,
+    /**
+ * @summary Post a password-reset code
+ */
+export const useForgotPassword = <TError = unknown,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof forgotPassword>>, TError,{data: ForgotPasswordBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof forgotPassword>>,
@@ -1001,6 +1115,91 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       return useMutation(getForgotPasswordMutationOptions(options), queryClient);
     }
 
+export const getVerifyPasswordResetCodeUrl = () => {
+
+
+
+
+  return `/api/v1/auth/password/verify-code`
+}
+
+/**
+ * Spends the code and answers a **ticket** for
+ * `POST /auth/password/reset`.
+ *
+ * Spending it here rather than passing it on is the point of the split.
+ * A code that had been confirmed and not yet consumed would sit in a
+ * browser for as long as the learner takes to think of a password, on a
+ * screen that has already announced it works — so the code dies at this
+ * call and what crosses to step two is 256 bits from `crypto/rand`,
+ * single use, dead in ten minutes.
+ *
+ * **The ticket is a bearer credential.** Hold it in memory for the life
+ * of the screen. It must never reach a URL: a query parameter is browser
+ * history, a `Referer` header, and every access log between here and the
+ * client.
+ * @summary Step one of a reset — prove the code
+ */
+export const verifyPasswordResetCode = async (verifyPasswordResetCodeBody: VerifyPasswordResetCodeBody, options?: Parameters<typeof apiFetch>[1]): Promise<PasswordResetTicket> => {
+
+  return apiFetch<PasswordResetTicket>(getVerifyPasswordResetCodeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(verifyPasswordResetCodeBody)
+  }
+);}
+
+
+
+
+
+export const getVerifyPasswordResetCodeMutationOptions = <TError = Problem | ForbiddenResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyPasswordResetCode>>, TError,{data: VerifyPasswordResetCodeBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof verifyPasswordResetCode>>, TError,{data: VerifyPasswordResetCodeBody}, TContext> => {
+
+const mutationKey = ['verifyPasswordResetCode'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof verifyPasswordResetCode>>, {data: VerifyPasswordResetCodeBody}> = (props) => {
+          const {data} = props ?? {};
+
+          return  verifyPasswordResetCode(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type VerifyPasswordResetCodeMutationResult = NonNullable<Awaited<ReturnType<typeof verifyPasswordResetCode>>>
+    export type VerifyPasswordResetCodeMutationBody = VerifyPasswordResetCodeBody
+    export type VerifyPasswordResetCodeMutationError = Problem | ForbiddenResponse
+
+    /**
+ * @summary Step one of a reset — prove the code
+ */
+export const useVerifyPasswordResetCode = <TError = Problem | ForbiddenResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof verifyPasswordResetCode>>, TError,{data: VerifyPasswordResetCodeBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof verifyPasswordResetCode>>,
+        TError,
+        {data: VerifyPasswordResetCodeBody},
+        TContext
+      > => {
+      return useMutation(getVerifyPasswordResetCodeMutationOptions(options), queryClient);
+    }
+
 export const getResetPasswordUrl = () => {
 
 
@@ -1009,6 +1208,19 @@ export const getResetPasswordUrl = () => {
   return `/api/v1/auth/password/reset`
 }
 
+/**
+ * Takes the ticket from `POST /auth/password/verify-code`, not the code.
+ *
+ * No email: the ticket names the account on its own, and asking for the
+ * address alongside it would add a way for the two to disagree without
+ * adding anything that has to be proved.
+ *
+ * Revokes every session on the account, including the caller's — whoever
+ * prompted the reset may be holding one. Deliberately does not sign the
+ * learner in; the login screen is where the new password gets typed once,
+ * which is how a learner still has it tomorrow.
+ * @summary Step two of a reset — set the password
+ */
 export const resetPassword = async (resetPasswordBody: ResetPasswordBody, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
 
   return apiFetch<void>(getResetPasswordUrl(),
@@ -1024,7 +1236,7 @@ export const resetPassword = async (resetPasswordBody: ResetPasswordBody, option
 
 
 
-export const getResetPasswordMutationOptions = <TError = BadRequestResponse | UnprocessableResponse,
+export const getResetPasswordMutationOptions = <TError = Problem | ForbiddenResponse | UnprocessableResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetPassword>>, TError,{data: ResetPasswordBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof resetPassword>>, TError,{data: ResetPasswordBody}, TContext> => {
 
@@ -1053,9 +1265,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type ResetPasswordMutationResult = NonNullable<Awaited<ReturnType<typeof resetPassword>>>
     export type ResetPasswordMutationBody = ResetPasswordBody
-    export type ResetPasswordMutationError = BadRequestResponse | UnprocessableResponse
+    export type ResetPasswordMutationError = Problem | ForbiddenResponse | UnprocessableResponse
 
-    export const useResetPassword = <TError = BadRequestResponse | UnprocessableResponse,
+    /**
+ * @summary Step two of a reset — set the password
+ */
+export const useResetPassword = <TError = Problem | ForbiddenResponse | UnprocessableResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resetPassword>>, TError,{data: ResetPasswordBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof resetPassword>>,
@@ -9622,6 +9837,400 @@ export const useSkipDictationItem = <TError = UnauthorizedResponse | NotFoundRes
         TContext
       > => {
       return useMutation(getSkipDictationItemMutationOptions(options), queryClient);
+    }
+
+export const getListShadowDictationLessonsUrl = (params?: ListShadowDictationLessonsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/dictation/shadowing?${stringifiedParams}` : `/api/v1/dictation/shadowing`
+}
+
+/**
+ * Readable without a session, as `/dictation/sets` is and for the same
+ * reason.
+ *
+ * The same rows `/shadowing/videos` lists — published, with at least
+ * one line — with the numbers on each row read from the learner's
+ * DICTATION results rather than their shadowing progress. Having
+ * repeated a line says nothing about having typed it, so the two shelves
+ * can show the same lesson with two different pills, and both are true.
+ *
+ * The chip row above this shelf is `/shadowing/categories`: these are
+ * shadowing lessons, filed under the shadowing vocabulary.
+ *
+ * Ordered by distance from the learner's own level, never filtered by
+ * it, as everywhere else (TCCN-345-3).
+ * @summary Bài nhại theo có thể chép chính tả
+ */
+export const listShadowDictationLessons = async (params?: ListShadowDictationLessonsParams, options?: Parameters<typeof apiFetch>[1]): Promise<DictationShadowLessonList> => {
+
+  return apiFetch<DictationShadowLessonList>(getListShadowDictationLessonsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListShadowDictationLessonsQueryKey = (params?: ListShadowDictationLessonsParams,) => {
+    return [
+    `/api/v1/dictation/shadowing`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListShadowDictationLessonsQueryOptions = <TData = Awaited<ReturnType<typeof listShadowDictationLessons>>, TError = unknown>(params?: ListShadowDictationLessonsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowDictationLessons>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListShadowDictationLessonsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listShadowDictationLessons>>> = ({ signal }) => listShadowDictationLessons(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listShadowDictationLessons>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListShadowDictationLessonsQueryResult = NonNullable<Awaited<ReturnType<typeof listShadowDictationLessons>>>
+export type ListShadowDictationLessonsQueryError = unknown
+
+
+export function useListShadowDictationLessons<TData = Awaited<ReturnType<typeof listShadowDictationLessons>>, TError = unknown>(
+ params: undefined |  ListShadowDictationLessonsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowDictationLessons>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listShadowDictationLessons>>,
+          TError,
+          Awaited<ReturnType<typeof listShadowDictationLessons>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListShadowDictationLessons<TData = Awaited<ReturnType<typeof listShadowDictationLessons>>, TError = unknown>(
+ params?: ListShadowDictationLessonsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowDictationLessons>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listShadowDictationLessons>>,
+          TError,
+          Awaited<ReturnType<typeof listShadowDictationLessons>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListShadowDictationLessons<TData = Awaited<ReturnType<typeof listShadowDictationLessons>>, TError = unknown>(
+ params?: ListShadowDictationLessonsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowDictationLessons>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Bài nhại theo có thể chép chính tả
+ */
+
+export function useListShadowDictationLessons<TData = Awaited<ReturnType<typeof listShadowDictationLessons>>, TError = unknown>(
+ params?: ListShadowDictationLessonsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listShadowDictationLessons>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListShadowDictationLessonsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetShadowDictationLessonUrl = (videoId: string,) => {
+
+
+
+
+  return `/api/v1/dictation/shadowing/${videoId}`
+}
+
+/**
+ * The lesson's one track, the line windows in it, and how the learner
+ * has done on each.
+ *
+ * **No Korean, no translation, no dictionary, no phiên âm** — the same
+ * omissions `GET /dictation/sets/{setId}` makes, over rows that DO carry
+ * all of them on `GET /shadowing/videos/{videoId}`. The transcript
+ * arrives from the attempt endpoint and nowhere else on this surface.
+ *
+ * Gated by the SHADOWING catalogue: a lesson gói Cơ bản may not shadow
+ * is one it may not type either, and the refusal is the same
+ * `403 premium_required`. A draft lesson answers 404, exactly as a
+ * nonexistent one does.
+ * @summary Everything the screen renders before anyone types, over a shadowing lesson
+ */
+export const getShadowDictationLesson = async (videoId: string, options?: Parameters<typeof apiFetch>[1]): Promise<DictationShadowLessonDetail> => {
+
+  return apiFetch<DictationShadowLessonDetail>(getGetShadowDictationLessonUrl(videoId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetShadowDictationLessonQueryKey = (videoId: string,) => {
+    return [
+    `/api/v1/dictation/shadowing/${videoId}`
+    ] as const;
+    }
+
+
+export const getGetShadowDictationLessonQueryOptions = <TData = Awaited<ReturnType<typeof getShadowDictationLesson>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(videoId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getShadowDictationLesson>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetShadowDictationLessonQueryKey(videoId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getShadowDictationLesson>>> = ({ signal }) => getShadowDictationLesson(videoId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: videoId !== null && videoId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getShadowDictationLesson>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetShadowDictationLessonQueryResult = NonNullable<Awaited<ReturnType<typeof getShadowDictationLesson>>>
+export type GetShadowDictationLessonQueryError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse
+
+
+export function useGetShadowDictationLesson<TData = Awaited<ReturnType<typeof getShadowDictationLesson>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
+ videoId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getShadowDictationLesson>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getShadowDictationLesson>>,
+          TError,
+          Awaited<ReturnType<typeof getShadowDictationLesson>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetShadowDictationLesson<TData = Awaited<ReturnType<typeof getShadowDictationLesson>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
+ videoId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getShadowDictationLesson>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getShadowDictationLesson>>,
+          TError,
+          Awaited<ReturnType<typeof getShadowDictationLesson>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetShadowDictationLesson<TData = Awaited<ReturnType<typeof getShadowDictationLesson>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
+ videoId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getShadowDictationLesson>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Everything the screen renders before anyone types, over a shadowing lesson
+ */
+
+export function useGetShadowDictationLesson<TData = Awaited<ReturnType<typeof getShadowDictationLesson>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
+ videoId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getShadowDictationLesson>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetShadowDictationLessonQueryOptions(videoId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getSubmitShadowDictationAttemptUrl = (videoId: string,
+    lineId: string,) => {
+
+
+
+
+  return `/api/v1/dictation/shadowing/${videoId}/lines/${lineId}/attempt`
+}
+
+/**
+ * `POST /dictation/sets/{setId}/items/{itemId}/attempt` over a shadowing
+ * line: the same three-level grade, the same deterministic comparison,
+ * the same best-result rule (TCCN-425-2), and the same 422 on an empty
+ * box. The result is the same schema, so one screen renders both. Card
+ * suggestions come from the lesson's own dictionary
+ * (`ShadowGlossaryEntry`), anchored on the line.
+ *
+ * A line belonging to another lesson is a 404 — not because it does not
+ * exist, but because it does not exist *here*.
+ * @summary Chấm một câu đã gõ, từ bài nhại theo
+ */
+export const submitShadowDictationAttempt = async (videoId: string,
+    lineId: string,
+    dictationAttemptRequest: DictationAttemptRequest, options?: Parameters<typeof apiFetch>[1]): Promise<DictationAttemptResult> => {
+
+  return apiFetch<DictationAttemptResult>(getSubmitShadowDictationAttemptUrl(videoId,lineId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(dictationAttemptRequest)
+  }
+);}
+
+
+
+
+
+export const getSubmitShadowDictationAttemptMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitShadowDictationAttempt>>, TError,{videoId: string;lineId: string;data: DictationAttemptRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitShadowDictationAttempt>>, TError,{videoId: string;lineId: string;data: DictationAttemptRequest}, TContext> => {
+
+const mutationKey = ['submitShadowDictationAttempt'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitShadowDictationAttempt>>, {videoId: string;lineId: string;data: DictationAttemptRequest}> = (props) => {
+          const {videoId,lineId,data} = props ?? {};
+
+          return  submitShadowDictationAttempt(videoId,lineId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitShadowDictationAttemptMutationResult = NonNullable<Awaited<ReturnType<typeof submitShadowDictationAttempt>>>
+    export type SubmitShadowDictationAttemptMutationBody = DictationAttemptRequest
+    export type SubmitShadowDictationAttemptMutationError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | UnprocessableResponse
+
+    /**
+ * @summary Chấm một câu đã gõ, từ bài nhại theo
+ */
+export const useSubmitShadowDictationAttempt = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitShadowDictationAttempt>>, TError,{videoId: string;lineId: string;data: DictationAttemptRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof submitShadowDictationAttempt>>,
+        TError,
+        {videoId: string;lineId: string;data: DictationAttemptRequest},
+        TContext
+      > => {
+      return useMutation(getSubmitShadowDictationAttemptMutationOptions(options), queryClient);
+    }
+
+export const getSkipShadowDictationLineUrl = (videoId: string,
+    lineId: string,) => {
+
+
+
+
+  return `/api/v1/dictation/shadowing/${videoId}/lines/${lineId}/skip`
+}
+
+/**
+ * Moves the bookmark to the next line and **records nothing**, as
+ * `POST /dictation/sets/{setId}/items/{itemId}/skip` does. `resumeItemId`
+ * is a line id.
+ * @summary Bỏ qua một câu, từ bài nhại theo (TCCN-425-1)
+ */
+export const skipShadowDictationLine = async (videoId: string,
+    lineId: string, options?: Parameters<typeof apiFetch>[1]): Promise<DictationSkipResult> => {
+
+  return apiFetch<DictationSkipResult>(getSkipShadowDictationLineUrl(videoId,lineId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getSkipShadowDictationLineMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof skipShadowDictationLine>>, TError,{videoId: string;lineId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof skipShadowDictationLine>>, TError,{videoId: string;lineId: string}, TContext> => {
+
+const mutationKey = ['skipShadowDictationLine'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof skipShadowDictationLine>>, {videoId: string;lineId: string}> = (props) => {
+          const {videoId,lineId} = props ?? {};
+
+          return  skipShadowDictationLine(videoId,lineId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SkipShadowDictationLineMutationResult = NonNullable<Awaited<ReturnType<typeof skipShadowDictationLine>>>
+
+    export type SkipShadowDictationLineMutationError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse
+
+    /**
+ * @summary Bỏ qua một câu, từ bài nhại theo (TCCN-425-1)
+ */
+export const useSkipShadowDictationLine = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof skipShadowDictationLine>>, TError,{videoId: string;lineId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof skipShadowDictationLine>>,
+        TError,
+        {videoId: string;lineId: string},
+        TContext
+      > => {
+      return useMutation(getSkipShadowDictationLineMutationOptions(options), queryClient);
     }
 
 export const getGetExamWordbookUrl = (examId: string,) => {

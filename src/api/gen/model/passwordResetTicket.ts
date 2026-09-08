@@ -24,8 +24,20 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type ResetPasswordBody = {
+/**
+ * Authority to set a new password, carried from step one of a reset to
+ * step two. Issued once, spendable once.
+ */
+export interface PasswordResetTicket {
+  /**
+     * Opaque. Hold it in memory for the life of the screen — never in a
+     * URL, never in storage that outlives the tab.
+     */
   ticket: string;
-  /** @minLength 10 */
-  password: string;
-};
+  /**
+     * Seconds until it stops working. The learner is choosing a password
+     * during this window, so a screen that wants to warn before it lapses
+     * has the number to do it with.
+     */
+  expiresIn: number;
+}

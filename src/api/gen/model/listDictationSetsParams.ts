@@ -23,6 +23,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { LessonStatus } from './lessonStatus';
 
 export type ListDictationSetsParams = {
 /**
@@ -46,4 +47,46 @@ offset?: number;
  * uncategorised sets.
  */
 categoryId?: string;
+/**
+ * Tìm kiếm, over the whole corpus rather than over the page — the
+ * list is paged at twelve, so a box that narrowed the response would
+ * find nothing on a shelf that has it two pages down.
+ *
+ * Matches, case-insensitively, as a substring: the set's title, its
+ * chủ đề name, and its nhãn. **Not the sentences.** That is the one
+ * place this parameter differs from `q` on `/shadowing/videos`, and
+ * it is TCCN-421-1 rather than an omission: "màn hình không hiện lời
+ * thoại của câu đó ở BẤT CỨ ĐÂU". A box matching `text_ko` would not
+ * display a sentence, but it would answer one — type a guessed
+ * spelling, and a set appearing or not appearing confirms it before
+ * the learner has typed a character into the exercise. The whole
+ * feature is hearing the sentence, so an oracle beside the shelf
+ * costs more than the search saves.
+ *
+ * The placeholder on the client says what this searches, for the
+ * reason a box that quietly covers less than a learner assumes is
+ * worse than a narrower box that says so.
+ *
+ * Trimmed, and blank is absent.
+ * @maxLength 80
+ */
+q?: string;
+/**
+ * TOPIK band, from a tapped chip. The learner narrowing their own
+ * shelf, which is a different actor from the one TCCN-345-3
+ * prohibits — see the same parameter on `/shadowing/videos` for the
+ * argument in full. The row still carries no level.
+ * @minimum 1
+ * @maximum 6
+ */
+level?: number;
+/**
+ * The learner's own progress on each set. Absent is every status.
+ *
+ * Read from `correctCount` against `itemCount`, which is what the
+ * row's own pill is drawn from — so `COMPLETED` is exactly a set
+ * showing a full pill, and a gần đúng counts towards it for the
+ * reason `correctCount` gives (TCCN-427-1).
+ */
+status?: LessonStatus;
 };

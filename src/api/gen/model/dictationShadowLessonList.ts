@@ -23,9 +23,16 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { DictationShadowLessonListItem } from './dictationShadowLessonListItem';
+import type { LessonLevelCount } from './lessonLevelCount';
+import type { LessonStatusCounts } from './lessonStatusCounts';
 
-export type ResetPasswordBody = {
-  ticket: string;
-  /** @minLength 10 */
-  password: string;
-};
+/**
+ * The same shape as `DictationSetList`, over the other shelf.
+ */
+export interface DictationShadowLessonList {
+  items: DictationShadowLessonListItem[];
+  levelCounts: LessonLevelCount[];
+  statusCounts: LessonStatusCounts;
+  totalCount: number;
+}

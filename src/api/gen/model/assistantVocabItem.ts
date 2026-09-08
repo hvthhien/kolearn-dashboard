@@ -27,7 +27,8 @@ import type { AssistantVocabItemKind } from './assistantVocabItemKind';
 
 /**
  * One term, in the shape `POST /cards` takes: `word` is the front,
- * `meaning` and `example` are the back, and `kind` is the card type.
+ * `meaning`, `transcription` and `example` are the back, and `kind` is the
+ * card type.
  *
  * No id of any sort. A thẻ made from an answer has no source row to point
  * at — unlike one saved from a bảng từ vựng, a shadowing line or a
@@ -52,6 +53,25 @@ export interface AssistantVocabItem {
   word: string;
   /** The Vietnamese, and the first line of the back. Never empty. */
   meaning: string;
+  /**
+     * Phiên âm — how `word` is SAID, in Revised Romanisation with syllables
+     * joined by hyphens (접수 → `jeop-su`, 좋아요 → `jo-a-yo`). It becomes
+     * the card's own `transcription`.
+     *
+     * Absent when the model is not sure, which the prompt asks for by name
+     * and is a real answer: the card then shows no reading, and that costs
+     * the learner nothing. A guessed one costs them a great deal — it sits
+     * on the back of a card they may be shown every morning for weeks,
+     * they have no way to tell it is wrong, and what they practise is the
+     * wrong pronunciation. `PATCH /cards/{cardId}` is how a reading gets
+     * fixed once a learner spots it.
+     *
+     * Asked of the model rather than derived here because romanisation is
+     * not a function of the spelling: 좋아요 is `joh-a-yo` letter by letter
+     * and `jo-a-yo` out loud, 신라 is `sil-la`. The cards that need a
+     * reading most are exactly the ones no corpus in this app describes.
+     */
+  transcription?: string;
   /**
      * One Korean sentence using it, or absent. Optional because it
      * genuinely is — a pattern explained in prose often has no single

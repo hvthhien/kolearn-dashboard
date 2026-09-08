@@ -42,6 +42,18 @@ export interface CreateCardRequest {
   /** @minLength 1 */
   front: string;
   back?: string;
+  /**
+     * Phiên âm for `front` — how to read it. Optional, and empty is the
+     * ordinary case rather than a gap.
+     *
+     * Written ONLY onto a card this request actually inserts, exactly like
+     * `groupId` above and for the same reason: a front already in the deck
+     * comes back untouched (TCCN-109-10), and that has to include this.
+     * Someone saving a word again from another screen has not asked to
+     * overwrite a reading they corrected on the card they have been
+     * working through. Fixing one is `PATCH /cards/{cardId}`.
+     */
+  transcription?: string;
   /** The question the card was made from (TCCN-109-1). */
   sourceQuestionId?: string;
   /**

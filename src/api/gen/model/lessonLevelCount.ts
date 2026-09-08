@@ -24,8 +24,25 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type ResetPasswordBody = {
-  ticket: string;
-  /** @minLength 10 */
-  password: string;
-};
+/**
+ * One level chip and its number.
+ *
+ * An array of these rather than an object keyed `"1"`-`"6"`, which is the
+ * shape `ExamLevelCounts` uses and the shape that stops working here: its
+ * two keys are enum NAMES, and TOPIK bands are integers. A JSON object
+ * keyed by digits generates field names no language is happy with, and
+ * loses the order the chips are drawn in.
+ *
+ * A band with nothing published under it is still here, at zero. A row
+ * whose chips appear and disappear as a learner types is a row they
+ * cannot aim at.
+ */
+export interface LessonLevelCount {
+  /**
+     * TOPIK band, the scale `user_levels.level` speaks.
+     * @minimum 1
+     * @maximum 6
+     */
+  level: number;
+  count: number;
+}
