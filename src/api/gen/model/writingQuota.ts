@@ -26,6 +26,26 @@
 
 export interface WritingQuota {
   bucket: string;
+  /**
+     * No ceiling at all this month — gói Premium's essay marking (00057).
+     *
+     * Read this BEFORE `remaining` and `limit`, both of which are `0`
+     * when it is true and mean nothing there. Zero rather than a large
+     * sentinel because a sentinel renders: "còn 999.994 lượt" is not a
+     * sentence to print, and zero is the case every client already had to
+     * handle. A client that shows the count without checking this shows
+     * "hết lượt" to the learner who is paying for the opposite.
+     */
+  unlimited: boolean;
+  /**
+     * Lượt chấm left this month. One lượt is one LƯỢT THI, not one essay
+     * (00057): a paper's four writing tasks are marked on the single
+     * credit its attempt was charged, so this counts papers the learner
+     * can still send — which is what makes it worth showing beside Nộp.
+     *
+     * Never negative. A month whose allowance was lowered under way
+     * settles at zero rather than below it.
+     */
   remaining: number;
   limit: number;
   resetsAt: string;
