@@ -36,4 +36,19 @@ export interface AssistantAnchor {
   entryId?: string;
   attemptId?: string;
   questionId?: string;
+  /**
+     * The bài viết on screen, for `WRITING_RESULT`.
+     *
+     * Its own field rather than a reuse of `questionId`, and the
+     * difference is not cosmetic. R-10 keeps every rewrite of an essay as
+     * a separate submission against the same question, so a question id
+     * names the TASK and cannot name the version the learner is reading.
+     * It is also what the marking hangs off: the three criterion scores
+     * and the marked errors are per submission.
+     *
+     * `attemptId` travels with it, because the paper around the essay is
+     * context too — but the two are read separately, and an anchor
+     * carrying only the attempt is the màn Kết quả rather than this one.
+     */
+  submissionId?: string;
 }

@@ -31,6 +31,7 @@ export const AssistantAnchorScreen = {
   EXAM_WORDBOOK: 'EXAM_WORDBOOK',
   REVIEW: 'REVIEW',
   TEST_RESULT: 'TEST_RESULT',
+  WRITING_RESULT: 'WRITING_RESULT',
   WEAKNESS: 'WEAKNESS',
   DECK: 'DECK',
 } as const;

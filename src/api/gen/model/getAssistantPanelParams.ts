@@ -31,4 +31,5 @@ examId?: string;
 entryId?: string;
 attemptId?: string;
 questionId?: string;
+submissionId?: string;
 };
