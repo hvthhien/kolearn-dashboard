@@ -23,6 +23,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { CustomExamHistoryCounts } from './customExamHistoryCounts';
 import type { CustomExamSectionOptions } from './customExamSectionOptions';
 import type { ExamLevel } from './examLevel';
 
@@ -38,5 +39,6 @@ export interface CustomExamLevelOptions {
      * beside it.
      */
   canSimulate: boolean;
+  history: CustomExamHistoryCounts;
   sections: CustomExamSectionOptions[];
 }

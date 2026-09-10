@@ -24,11 +24,42 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Carries the set's level, for the reason `ShadowVideoListItem` gives at
+ * length: the band stopped being a thing the server only sorts by and
+ * became a thing the card says, so the field is here on purpose rather
+ * than having leaked.
+ *
+ * TCCN-345-3 is untouched by that, because it prohibits GATING and not
+ * saying. The shelf is still ordered by distance from the learner's own
+ * band and never cut at it, every set at every band stays open, and
+ * `locked` — about the gói and nothing else — is still the only field
+ * that closes a row.
+ *
+ * Not a copy of the shadowing catalogue's number. A set is filed at its
+ * own band on its own row (`dictation_sets.level`), which is why this is
+ * spelled here rather than borrowed the way
+ * `DictationShadowLessonListItem.level` is.
+ */
 export interface DictationSetListItem {
   id: string;
   title: string;
   /** Every sentence's audio added up, for "3:20" on the card. */
   durationMs: number;
+  /**
+     * TOPIK band — the same scale `LessonLevelCount.level` and the cấp độ
+     * chips above the shelf speak, so the badge on a card and the chip
+     * that filtered to it are the same number.
+     *
+     * Optional on the wire though the column behind it is not, for the
+     * reason `ShadowVideoListItem.level` is: a card without one draws no
+     * badge rather than an empty pill, which is what keeps a client
+     * generated from this spec working against a server that has not
+     * sent the field yet.
+     * @minimum 1
+     * @maximum 6
+     */
+  level?: number;
   itemCount: number;
   /** Entries in this set's own dictionary. */
   wordCount: number;

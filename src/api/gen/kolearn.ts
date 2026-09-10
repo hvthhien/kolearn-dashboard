@@ -6925,6 +6925,17 @@ export const getGetCustomExamOptionsUrl = () => {
  * learner flips between TOPIK I and TOPIK II to compare what each would
  * give them, and a refetch per flip would blank the counts being
  * compared.
+ *
+ * **Not premium-gated, where the start below is.** What comes back is the
+ * shape of the offer — which levels have a blueprint, how many câu each
+ * part could hold, and how many of them this learner has already met, got
+ * wrong or left blank — and none of it is content. A gói Cơ bản learner
+ * reading it is reading what they would be buying; the refusal belongs on
+ * the one request that assembles a paper, and the client puts the offer
+ * on the button before it gets there.
+ *
+ * Still authenticated, and it has to be: every number under `history` is
+ * counted against one learner's own attempts.
  * @summary Đề tự tạo — what each level and part can offer
  */
 export const getCustomExamOptions = async ( options?: Parameters<typeof apiFetch>[1]): Promise<CustomExamOptions> => {
@@ -7048,6 +7059,20 @@ export const getStartCustomExamUrl = () => {
  * adjacent: a listening clip is rationed to one play (R-01), so half a
  * group would spend the only listen on a question the clip half-answers.
  *
+ * `prioritizeHistory` decides the ORDER the bank is drawn in and nothing
+ * else — never the length, the mix or which parts a paper has. It sorts
+ * into two tiers and not four: câu từng sai, câu bỏ dở and câu chưa gặp
+ * are drawn as equals, and only câu đã làm đúng sits behind them. It is a
+ * preference and not a filter, for the reason difficulty is one
+ * (TCCN-541-4): with one paper published at a level, a hard filter would
+ * have nothing left for the learner asking for another go, who is exactly
+ * the learner this feature is for.
+ *
+ * **Premium only.** Both shapes draw on every paper in the bank, so gói
+ * Cơ bản's free papers cannot bound them; a basic learner gets `403
+ * premium_required` here, having been able to read `GET
+ * /custom-exams/options` freely.
+ *
  * Neither shape creates an `exams` row. A paper one learner assembled has
  * no place in the catalogue everyone else reads, so both hang off a
  * `practice_sets` row — GĐ-3's exception for a generated set drawing on
@@ -7073,7 +7098,7 @@ export const startCustomExam = async (startCustomExamBody: StartCustomExamBody, 
 
 
 
-export const getStartCustomExamMutationOptions = <TError = UnauthorizedResponse | AttemptInProgressProblem | UnprocessableResponse,
+export const getStartCustomExamMutationOptions = <TError = UnauthorizedResponse | Problem | AttemptInProgressProblem | UnprocessableResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startCustomExam>>, TError,{data: StartCustomExamBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof startCustomExam>>, TError,{data: StartCustomExamBody}, TContext> => {
 
@@ -7102,12 +7127,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type StartCustomExamMutationResult = NonNullable<Awaited<ReturnType<typeof startCustomExam>>>
     export type StartCustomExamMutationBody = StartCustomExamBody
-    export type StartCustomExamMutationError = UnauthorizedResponse | AttemptInProgressProblem | UnprocessableResponse
+    export type StartCustomExamMutationError = UnauthorizedResponse | Problem | AttemptInProgressProblem | UnprocessableResponse
 
     /**
  * @summary Build a paper out of the bank and open it
  */
-export const useStartCustomExam = <TError = UnauthorizedResponse | AttemptInProgressProblem | UnprocessableResponse,
+export const useStartCustomExam = <TError = UnauthorizedResponse | Problem | AttemptInProgressProblem | UnprocessableResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof startCustomExam>>, TError,{data: StartCustomExamBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof startCustomExam>>,

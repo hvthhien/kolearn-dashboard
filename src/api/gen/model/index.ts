@@ -149,6 +149,7 @@ export * from './createShadowUploadTargetRequest';
 export * from './createShadowVideoRequest';
 export * from './createTopicBody';
 export * from './currentUser';
+export * from './customExamHistoryCounts';
 export * from './customExamLevelOptions';
 export * from './customExamOptions';
 export * from './customExamSectionChoice';

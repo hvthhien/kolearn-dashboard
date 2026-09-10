@@ -2621,6 +2621,17 @@ paths:
         learner flips between TOPIK I and TOPIK II to compare what each would
         give them, and a refetch per flip would blank the counts being
         compared.
+
+        **Not premium-gated, where the start below is.** What comes back is the
+        shape of the offer — which levels have a blueprint, how many câu each
+        part could hold, and how many of them this learner has already met, got
+        wrong or left blank — and none of it is content. A gói Cơ bản learner
+        reading it is reading what they would be buying; the refusal belongs on
+        the one request that assembles a paper, and the client puts the offer
+        on the button before it gets there.
+
+        Still authenticated, and it has to be: every number under `history` is
+        counted against one learner's own attempts.
       responses:
         '200':
           description: Both levels, and the one the screen should open on.
@@ -2657,6 +2668,20 @@ paths:
         adjacent: a listening clip is rationed to one play (R-01), so half a
         group would spend the only listen on a question the clip half-answers.
 
+        `prioritizeHistory` decides the ORDER the bank is drawn in and nothing
+        else — never the length, the mix or which parts a paper has. It sorts
+        into two tiers and not four: câu từng sai, câu bỏ dở and câu chưa gặp
+        are drawn as equals, and only câu đã làm đúng sits behind them. It is a
+        preference and not a filter, for the reason difficulty is one
+        (TCCN-541-4): with one paper published at a level, a hard filter would
+        have nothing left for the learner asking for another go, who is exactly
+        the learner this feature is for.
+
+        **Premium only.** Both shapes draw on every paper in the bank, so gói
+        Cơ bản's free papers cannot bound them; a basic learner gets `403
+        premium_required` here, having been able to read `GET
+        /custom-exams/options` freely.
+
         Neither shape creates an `exams` row. A paper one learner assembled has
         no place in the catalogue everyone else reads, so both hang off a
         `practice_sets` row — GĐ-3's exception for a generated set drawing on
@@ -2677,6 +2702,13 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/AttemptRunner' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: |
+            `premium_required` — đề tự tạo is built out of the whole bank, so
+            gói Cơ bản cannot start one. The options above stay readable.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
         '409':
           description: |
             Another attempt is already in progress, or the bank does not hold
@@ -3545,7 +3577,13 @@ paths:
             TOPIK band, from a tapped chip. The learner narrowing their own
             shelf, which is a different actor from the one TCCN-345-3
             prohibits — see the same parameter on `/shadowing/videos` for the
-            argument in full. The row still carries no level.
+            argument in full.
+
+            The row now carries its own `level` and the card wears it as a
+            badge, which it did not when this paragraph was first written —
+            the sentence that said so is gone rather than left to contradict
+            the schema. The chip is the question the learner asked; the badge
+            is the answer on each card it returned.
           schema: { type: integer, minimum: 1, maximum: 6 }
         - name: status
           in: query
@@ -9399,9 +9437,57 @@ components:
         maxScore:
           type: integer
 
+    CustomExamHistoryCounts:
+      type: object
+      description: |
+        How many of one level's published questions fall into each of the three
+        buckets `prioritizeHistory` draws first — how much material the setting
+        actually has to work with for this learner.
+
+        Three numbers for what the draw treats as ONE tier: `prioritizeHistory`
+        ranks all three equally, so a client wanting "how many câu would be
+        preferred" adds them, while one wanting to say WHY still has the three
+        reasons apart.
+
+        Counted from the exact pool `POST /custom-exams/attempts` draws from,
+        not estimated beside it (R-35).
+
+        Whole-level totals, not per section: the setting is one control over
+        the whole draw, and three numbers per part would be nine figures behind
+        one tick box.
+
+        Đã làm đúng is deliberately absent — it is the tier nobody turns this
+        feature on for, and it is derivable: every question at the level, less
+        these three.
+
+        No client renders these today; kolearn-web showed them under the
+        checkbox for a while and dropped the line.
+      required: [wrong, unfinished, unseen]
+      properties:
+        wrong:
+          type: integer
+          description: |
+            Answered, and answered with the wrong choice, at least once. MCQ
+            only — a phần Viết task has no choice to be wrong against.
+        unfinished:
+          type: integer
+          description: |
+            Served and left blank at least once, whether the paper was
+            submitted with it skipped or abandoned before it was reached. MCQ
+            only, for the same reason as `wrong`: an essay the learner actually
+            wrote has no `attempt_answers` row and would otherwise read as bỏ
+            dở for ever.
+
+            Never overlaps `wrong`: a question that is both is counted once,
+            under `wrong`. A tie-break for the tally only — the draw ranks the
+            two the same.
+        unseen:
+          type: integer
+          description: Never served to this learner, in any attempt.
+
     CustomExamLevelOptions:
       type: object
-      required: [level, blueprintVersion, totalScore, canSimulate, sections]
+      required: [level, blueprintVersion, totalScore, canSimulate, history, sections]
       properties:
         level: { $ref: '#/components/schemas/ExamLevel' }
         blueprintVersion: { type: string }
@@ -9415,6 +9501,7 @@ components:
             means the đề mô phỏng choice must not be offered at this level —
             an offer that 409s on press is worse than an absence with a reason
             beside it.
+        history: { $ref: '#/components/schemas/CustomExamHistoryCounts' }
         sections:
           type: array
           items: { $ref: '#/components/schemas/CustomExamSectionOptions' }
@@ -9469,6 +9556,41 @@ components:
           description: |
             Defaults to `PRACTICE`. `EXAM` is accepted for `SIMULATED` only —
             on a `CUSTOM` paper it is a 422, not a silent downgrade.
+        prioritizeHistory:
+          type: boolean
+          default: true
+          description: |
+            "Ưu tiên câu hợp với bạn". `true` splits the level's pool in two and
+            draws the first half first: câu từng làm sai, câu bỏ dở and câu
+            chưa gặp together — **all three ranked equally**, shuffled as one
+            group, so a câu chưa gặp can land ahead of a câu từng sai — and câu
+            đã làm đúng behind them. `false` shuffles the whole pool as one, so
+            every published question has the same chance.
+
+            Three reasons in one tier rather than three ranked against each
+            other: they are three different ways a question is still worth
+            asking, and ordering them would mean a learner with a long list of
+            mistakes never meets anything new — the bank holds more câu chưa
+            gặp than câu từng sai at every level, so a strict order would fill
+            most papers before reaching the rest.
+
+            Applies to both shapes. A `SIMULATED` paper is still the
+            blueprint's own length and độ khó mix either way: this decides
+            WHICH of the bank's questions fill that shape, never how many or
+            how hard.
+
+            Ordering only, never filtering — see the ladder note on this
+            operation.
+
+            **Absent means `true`**, which is what this feature did before the
+            field existed. A client written against the older spec keeps the
+            behaviour it was written against rather than being switched to an
+            even draw by an omission.
+
+            Questions sharing one stimulus move as a whole, and a group drops
+            to the lower tier only when every one of its questions was answered
+            correctly — one câu sai, bỏ dở or chưa gặp anywhere in it keeps the
+            whole group in the first.
         sections:
           type: array
           description: |
@@ -10442,12 +10564,42 @@ components:
     DictationSetListItem:
       type: object
       required: [id, title, durationMs, itemCount, wordCount, correctCount, tags, locked]
+      description: |
+        Carries the set's level, for the reason `ShadowVideoListItem` gives at
+        length: the band stopped being a thing the server only sorts by and
+        became a thing the card says, so the field is here on purpose rather
+        than having leaked.
+
+        TCCN-345-3 is untouched by that, because it prohibits GATING and not
+        saying. The shelf is still ordered by distance from the learner's own
+        band and never cut at it, every set at every band stays open, and
+        `locked` — about the gói and nothing else — is still the only field
+        that closes a row.
+
+        Not a copy of the shadowing catalogue's number. A set is filed at its
+        own band on its own row (`dictation_sets.level`), which is why this is
+        spelled here rather than borrowed the way
+        `DictationShadowLessonListItem.level` is.
       properties:
         id: { type: string, format: uuid }
         title: { type: string }
         durationMs:
           type: integer
           description: Every sentence's audio added up, for "3:20" on the card.
+        level:
+          type: integer
+          minimum: 1
+          maximum: 6
+          description: |
+            TOPIK band — the same scale `LessonLevelCount.level` and the cấp độ
+            chips above the shelf speak, so the badge on a card and the chip
+            that filtered to it are the same number.
+
+            Optional on the wire though the column behind it is not, for the
+            reason `ShadowVideoListItem.level` is: a card without one draws no
+            badge rather than an empty pill, which is what keeps a client
+            generated from this spec working against a server that has not
+            sent the field yet.
         itemCount: { type: integer }
         wordCount:
           type: integer

@@ -75,7 +75,13 @@ q?: string;
  * TOPIK band, from a tapped chip. The learner narrowing their own
  * shelf, which is a different actor from the one TCCN-345-3
  * prohibits — see the same parameter on `/shadowing/videos` for the
- * argument in full. The row still carries no level.
+ * argument in full.
+ *
+ * The row now carries its own `level` and the card wears it as a
+ * badge, which it did not when this paragraph was first written —
+ * the sentence that said so is gone rather than left to contradict
+ * the schema. The chip is the question the learner asked; the badge
+ * is the answer on each card it returned.
  * @minimum 1
  * @maximum 6
  */

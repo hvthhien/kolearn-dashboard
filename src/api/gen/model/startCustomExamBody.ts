@@ -37,6 +37,40 @@ export interface StartCustomExamBody {
      */
   mode?: AttemptMode;
   /**
+     * "Ưu tiên câu hợp với bạn". `true` splits the level's pool in two and
+     * draws the first half first: câu từng làm sai, câu bỏ dở and câu
+     * chưa gặp together — **all three ranked equally**, shuffled as one
+     * group, so a câu chưa gặp can land ahead of a câu từng sai — and câu
+     * đã làm đúng behind them. `false` shuffles the whole pool as one, so
+     * every published question has the same chance.
+     *
+     * Three reasons in one tier rather than three ranked against each
+     * other: they are three different ways a question is still worth
+     * asking, and ordering them would mean a learner with a long list of
+     * mistakes never meets anything new — the bank holds more câu chưa
+     * gặp than câu từng sai at every level, so a strict order would fill
+     * most papers before reaching the rest.
+     *
+     * Applies to both shapes. A `SIMULATED` paper is still the
+     * blueprint's own length and độ khó mix either way: this decides
+     * WHICH of the bank's questions fill that shape, never how many or
+     * how hard.
+     *
+     * Ordering only, never filtering — see the ladder note on this
+     * operation.
+     *
+     * **Absent means `true`**, which is what this feature did before the
+     * field existed. A client written against the older spec keeps the
+     * behaviour it was written against rather than being switched to an
+     * even draw by an omission.
+     *
+     * Questions sharing one stimulus move as a whole, and a group drops
+     * to the lower tier only when every one of its questions was answered
+     * correctly — one câu sai, bỏ dở or chưa gặp anywhere in it keeps the
+     * whole group in the first.
+     */
+  prioritizeHistory?: boolean;
+  /**
      * `CUSTOM` only, and required there: at least one part with a
      * positive `questionCount`, no duplicates, and no part the level does
      * not have. Ignored for `SIMULATED`, which takes the blueprint's own
