@@ -350,6 +350,27 @@ export const getLoginUrl = () => {
   return `/api/v1/auth/login`
 }
 
+/**
+ * **Signing in may sign another device out.** One account may hold a
+ * limited number of devices at once — one on gói Cơ bản, three on gói
+ * Premium — and a sign-in that would exceed it ends the learner's OLDEST
+ * devices first, oldest by when each one signed in rather than by when it
+ * was last used. It is the same fact `GET /me/sessions` leads each row
+ * with, so the rule can be checked against the list the learner already
+ * sees.
+ *
+ * Nothing about that changes this response: the sign-in succeeds, 200,
+ * with no field naming what was ended. The learner's own devices are what
+ * `GET /me/sessions` answers, and the evicted device finds out the way any
+ * revoked session does — its next refresh is a 401.
+ *
+ * The number lives in `quota_policies.max_devices` (server migration
+ * 00060), one row per plan, so an operator moves it by migration rather
+ * than by deploy. An account sitting ABOVE its ceiling — a premium period
+ * that lapsed, or a limit somebody lowered — is trimmed all the way down
+ * by the next single sign-in, not one device per login.
+ * @summary Đăng nhập
+ */
 export const login = async (loginRequest: LoginRequest, options?: Parameters<typeof apiFetch>[1]): Promise<AuthTokens> => {
 
   return apiFetch<AuthTokens>(getLoginUrl(),
@@ -396,7 +417,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type LoginMutationBody = LoginRequest
     export type LoginMutationError = UnauthorizedResponse | Problem | TooManyRequestsResponse
 
-    export const useLogin = <TError = UnauthorizedResponse | Problem | TooManyRequestsResponse,
+    /**
+ * @summary Đăng nhập
+ */
+export const useLogin = <TError = UnauthorizedResponse | Problem | TooManyRequestsResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof login>>, TError,{data: LoginRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof login>>,
@@ -420,6 +444,13 @@ export const getRefreshSessionUrl = () => {
  * means it leaked, so the entire token family is revoked and this returns
  * 401 — the legitimate holder is signed out too, which is the intended
  * outcome when a session is known to be compromised.
+ *
+ * **The device ceiling is not enforced here**, deliberately. A refresh
+ * continues a device rather than adding one, so there is nothing to count;
+ * and a learner whose Premium lapsed while three devices were signed in
+ * would otherwise have two of them ended in the background, with no action
+ * of their own to attach the explanation to. `POST /auth/login` is where
+ * the ceiling bites, and it trims the whole way down in one sign-in.
  * @summary Exchange the refresh cookie for a new access token
  */
 export const refreshSession = async ( options?: Parameters<typeof apiFetch>[1]): Promise<AuthTokens> => {
@@ -1592,6 +1623,13 @@ export const getListMySessionsUrl = () => {
  * A device is listed while it still holds a token it could present: not
  * revoked, not already rotated away, not expired. Everything else is over
  * and is not something the learner can act on.
+ *
+ * **A device can leave this list without the learner ending it.** A plan
+ * allows a fixed number at once — one on gói Cơ bản, three on gói Premium
+ * — and `POST /auth/login` ends the oldest to make room. A row that has
+ * gone since the last read was signed out by that, by a password change,
+ * or by its own expiry; this endpoint does not distinguish them, because
+ * the list is what IS signed in rather than a history of what was.
  *
  * `current` is the device asking. It comes from the caller's own `fid`
  * claim, so it is false on every row for a token minted before that claim
