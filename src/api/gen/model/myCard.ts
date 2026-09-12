@@ -157,4 +157,32 @@ export interface MyCard {
      * chevron to a dead end is worse than no row.
      */
   dictationSource?: MyCardDictationSource;
+  /**
+     * Where this card's word can be **heard** — `GET
+     * /cards/{cardId}/speech` — for R-15's "Âm thanh phát âm · nghe lại
+     * không giới hạn" on a card no paper describes.
+     *
+     * **Root-relative, always**, unlike `wordbookEntry.audioUrl`, which is
+     * a CDN address wherever a public bucket is configured. The bytes are
+     * synthesised by the first request that asks for them, so until
+     * somebody has pressed play there is no object for a public URL to
+     * name. The client fetches this with its credential and holds the
+     * result for the session; see `getCardSpeech`.
+     *
+     * **Absent is the ordinary case**, and it means one thing to a client:
+     * there is nothing to synthesise here, so draw no button — absent
+     * rather than disabled, which is TCCN-109-5. Three reasons collapse
+     * into it and none is worth distinguishing on screen:
+     *
+     * - the card already has a clip somebody paid for, which is exactly
+     *   when `wordbookEntry` is present;
+     * - this deployment cannot speak a card (`CARD_SPEECH=false`, or no
+     *   speech credential);
+     * - `front` is empty or far longer than a headword.
+     *
+     * Never present at the same time as `wordbookEntry`. Two buttons for
+     * one sound would be one too many, and the synthesised one is the one
+     * with a bill attached.
+     */
+  speechUrl?: string;
 }

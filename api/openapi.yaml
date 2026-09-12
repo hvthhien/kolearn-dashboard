@@ -2208,6 +2208,69 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '422': { $ref: '#/components/responses/Unprocessable' }
 
+  /cards/{cardId}/speech:
+    parameters:
+      - $ref: '#/components/parameters/CardId'
+    get:
+      tags: [cards]
+      operationId: getCardSpeech
+      summary: Hear a card's word read aloud (R-15)
+      description: |
+        The clip behind `MyCard.speechUrl`, and only ever reached for a card
+        that carries one. R-15 puts "Âm thanh phát âm" on the back of a card;
+        until this route existed the row was there only for the words a paper's
+        bảng từ vựng happens to describe, and most of a deck is words saved
+        from a video, a dictation sentence or a wrong answer, which no import
+        has ever voiced.
+
+        ⚠ **This synthesises speech, which YC-502 argues against** — "gọi mỗi
+        lần người học bấm nghe là biến phí theo đầu người". What that rule is
+        about is the *marginal* cost of a play, and this route is built so a
+        play is not a call:
+
+        - The clip is stored under a key derived from the text, the voice and
+          the model, so a given Korean word is synthesised **once for the whole
+          product**: every later learner who meets it, in any deck, on any
+          device, is a read from the store. What stays variable is one call per
+          distinct headword in the corpus.
+        - The response carries `ETag` and `Cache-Control: private,
+          max-age=3600`, so a reload revalidates into a `304` with no body, and
+          the client holds the bytes for the session — R-15's "nghe lại không
+          giới hạn" honoured in the browser rather than billed a hundred times.
+
+        It rations nothing, unlike the exam-audio routes: the only thing
+        enforced is that the card belongs to the caller. A stranger's card id
+        answers `404`, which is both the usual refusal to confirm that an id
+        exists and what keeps somebody else's deck from being a way to spend
+        this deployment's speech budget on text they chose.
+      responses:
+        '200':
+          description: |
+            The clip, with `Accept-Ranges: bytes` and an `ETag`. `audio/mpeg`
+            in every deployment — the format is what the synthesiser is asked
+            for, not what it happened to return.
+          content:
+            audio/mpeg:
+              schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: |
+            No such card, not the caller's, or a `front` that is not a
+            headword. One answer for all three, for the reason `setCardState`
+            gives.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+        '503':
+          description: |
+            This deployment cannot speak a card. Not a fault: no speech
+            credential, or `CARD_SPEECH=false`. Such a deployment sends no
+            `speechUrl` on any card, so reaching this means a stale payload or
+            a guessed URL.
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
   /me/cards:
     get:
       tags: [cards]
@@ -8549,6 +8612,34 @@ components:
             `shadowSource` is: this row is a link on the collection screen, the
             learner API answers 404 for a set that is not published, and a
             chevron to a dead end is worse than no row.
+        speechUrl:
+          type: string
+          description: |
+            Where this card's word can be **heard** — `GET
+            /cards/{cardId}/speech` — for R-15's "Âm thanh phát âm · nghe lại
+            không giới hạn" on a card no paper describes.
+
+            **Root-relative, always**, unlike `wordbookEntry.audioUrl`, which is
+            a CDN address wherever a public bucket is configured. The bytes are
+            synthesised by the first request that asks for them, so until
+            somebody has pressed play there is no object for a public URL to
+            name. The client fetches this with its credential and holds the
+            result for the session; see `getCardSpeech`.
+
+            **Absent is the ordinary case**, and it means one thing to a client:
+            there is nothing to synthesise here, so draw no button — absent
+            rather than disabled, which is TCCN-109-5. Three reasons collapse
+            into it and none is worth distinguishing on screen:
+
+            - the card already has a clip somebody paid for, which is exactly
+              when `wordbookEntry` is present;
+            - this deployment cannot speak a card (`CARD_SPEECH=false`, or no
+              speech credential);
+            - `front` is empty or far longer than a headword.
+
+            Never present at the same time as `wordbookEntry`. Two buttons for
+            one sound would be one too many, and the synthesised one is the one
+            with a bill attached.
 
     MyCardSource:
       type: object

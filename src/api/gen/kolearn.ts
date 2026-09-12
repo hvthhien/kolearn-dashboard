@@ -6059,6 +6059,134 @@ export const useSetCardState = <TError = UnauthorizedResponse | NotFoundResponse
       return useMutation(getSetCardStateMutationOptions(options), queryClient);
     }
 
+export const getGetCardSpeechUrl = (cardId: string,) => {
+
+
+
+
+  return `/api/v1/cards/${cardId}/speech`
+}
+
+/**
+ * The clip behind `MyCard.speechUrl`, and only ever reached for a card
+ * that carries one. R-15 puts "Âm thanh phát âm" on the back of a card;
+ * until this route existed the row was there only for the words a paper's
+ * bảng từ vựng happens to describe, and most of a deck is words saved
+ * from a video, a dictation sentence or a wrong answer, which no import
+ * has ever voiced.
+ *
+ * ⚠ **This synthesises speech, which YC-502 argues against** — "gọi mỗi
+ * lần người học bấm nghe là biến phí theo đầu người". What that rule is
+ * about is the *marginal* cost of a play, and this route is built so a
+ * play is not a call:
+ *
+ * - The clip is stored under a key derived from the text, the voice and
+ *   the model, so a given Korean word is synthesised **once for the whole
+ *   product**: every later learner who meets it, in any deck, on any
+ *   device, is a read from the store. What stays variable is one call per
+ *   distinct headword in the corpus.
+ * - The response carries `ETag` and `Cache-Control: private,
+ *   max-age=3600`, so a reload revalidates into a `304` with no body, and
+ *   the client holds the bytes for the session — R-15's "nghe lại không
+ *   giới hạn" honoured in the browser rather than billed a hundred times.
+ *
+ * It rations nothing, unlike the exam-audio routes: the only thing
+ * enforced is that the card belongs to the caller. A stranger's card id
+ * answers `404`, which is both the usual refusal to confirm that an id
+ * exists and what keeps somebody else's deck from being a way to spend
+ * this deployment's speech budget on text they chose.
+ * @summary Hear a card's word read aloud (R-15)
+ */
+export const getCardSpeech = async (cardId: string, options?: Parameters<typeof apiFetch>[1]): Promise<Blob> => {
+
+  return apiFetch<Blob>(getGetCardSpeechUrl(cardId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetCardSpeechQueryKey = (cardId: string,) => {
+    return [
+    `/api/v1/cards/${cardId}/speech`
+    ] as const;
+    }
+
+
+export const getGetCardSpeechQueryOptions = <TData = Awaited<ReturnType<typeof getCardSpeech>>, TError = UnauthorizedResponse | Problem>(cardId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCardSpeech>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetCardSpeechQueryKey(cardId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getCardSpeech>>> = ({ signal }) => getCardSpeech(cardId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: cardId !== null && cardId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getCardSpeech>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetCardSpeechQueryResult = NonNullable<Awaited<ReturnType<typeof getCardSpeech>>>
+export type GetCardSpeechQueryError = UnauthorizedResponse | Problem
+
+
+export function useGetCardSpeech<TData = Awaited<ReturnType<typeof getCardSpeech>>, TError = UnauthorizedResponse | Problem>(
+ cardId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCardSpeech>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCardSpeech>>,
+          TError,
+          Awaited<ReturnType<typeof getCardSpeech>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCardSpeech<TData = Awaited<ReturnType<typeof getCardSpeech>>, TError = UnauthorizedResponse | Problem>(
+ cardId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCardSpeech>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCardSpeech>>,
+          TError,
+          Awaited<ReturnType<typeof getCardSpeech>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetCardSpeech<TData = Awaited<ReturnType<typeof getCardSpeech>>, TError = UnauthorizedResponse | Problem>(
+ cardId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCardSpeech>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Hear a card's word read aloud (R-15)
+ */
+
+export function useGetCardSpeech<TData = Awaited<ReturnType<typeof getCardSpeech>>, TError = UnauthorizedResponse | Problem>(
+ cardId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getCardSpeech>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetCardSpeechQueryOptions(cardId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getListMyCardsUrl = (params?: ListMyCardsParams,) => {
   const normalizedParams = new URLSearchParams();
 
