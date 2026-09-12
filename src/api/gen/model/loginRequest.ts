@@ -27,4 +27,21 @@
 export interface LoginRequest {
   email: string;
   password: string;
+  /**
+     * "Ghi nhớ đăng nhập" — whether this session should survive the
+     * browser closing.
+     *
+     * True gives the full refresh lifetime (`AUTH_REFRESH_TTL`, 30 days by
+     * default) in a cookie carrying an expiry. False gives a short one
+     * (`AUTH_REFRESH_TTL_SHORT`, 12 hours) in a session cookie, for a
+     * learner signing in on a machine that is not theirs.
+     *
+     * The choice is fixed when the session begins and is NOT re-read at
+     * `/auth/refresh`: rotation inherits it, so a short session stays
+     * short for its whole life however often it refreshes.
+     *
+     * Absent means true, which is what every client written before this
+     * field existed already receives.
+     */
+  remember?: boolean;
 }
