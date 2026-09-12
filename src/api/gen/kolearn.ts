@@ -9063,8 +9063,8 @@ export const getListShadowVideosUrl = (params?: ListShadowVideosParams,) => {
 /**
  * Readable without a session. A visitor gets the same rows with
  * `practisedCount` at 0 and no level to measure distance from, so the
- * order falls back to newest-first — exactly what a learner who has
- * practised nothing and holds no level already gets. Opening a video
+ * shelf is simply the corpus oldest first — exactly what a learner who
+ * has practised nothing and holds no level already gets. Opening a video
  * (`GET /shadowing/videos/{videoId}`) still needs an account.
  *
  * Published videos **that have at least one line**. A video with no
@@ -9077,7 +9077,9 @@ export const getListShadowVideosUrl = (params?: ListShadowVideosParams,) => {
  * away, and "Video 8" over seven rows is a number nobody can trust.
  *
  * Ordered by distance from the learner's own level, never filtered by it
- * — a level orders content and does not gate it (TCCN-345-3).
+ * — a level orders content and does not gate it (TCCN-345-3). Within a
+ * band the shelf runs OLDEST first: a cấp độ is a course, so bài 1 is
+ * where it starts.
  * @summary Ngữ liệu nhại theo (R-19)
  */
 export const listShadowVideos = async (params?: ListShadowVideosParams, options?: Parameters<typeof apiFetch>[1]): Promise<ShadowVideoList> => {
@@ -9490,13 +9492,16 @@ export const getListDictationSetsUrl = (params?: ListDictationSetsParams,) => {
 
 /**
  * Readable without a session. A visitor gets the same rows with
- * `correctCount` at 0 and newest-first order, as a learner with no
- * results and no level does. Opening a set still needs an account.
+ * `correctCount` at 0 and no level to measure distance from, so the shelf
+ * is simply the corpus oldest first, as it is for a learner with no
+ * results and no level. Opening a set still needs an account.
  *
  * Published sets that have at least one sentence.
  *
  * Ordered by distance from the learner's own level, never filtered by it
- * — a level orders content and does not gate it (TCCN-345-3).
+ * — a level orders content and does not gate it (TCCN-345-3). Within a
+ * band the shelf runs OLDEST first, on when the set was written: a cấp độ
+ * is a course, so bộ 1 is where it starts.
  *
  * `correctCount` counts sentences whose BEST result was đúng or gần
  * đúng. A gần đúng counts because the learner heard every character
@@ -9900,7 +9905,9 @@ export const getListShadowDictationLessonsUrl = (params?: ListShadowDictationLes
  * shadowing lessons, filed under the shadowing vocabulary.
  *
  * Ordered by distance from the learner's own level, never filtered by
- * it, as everywhere else (TCCN-345-3).
+ * it, as everywhere else (TCCN-345-3) — and oldest first within a band,
+ * so this shelf and the one beside it run the same way under one pair of
+ * tabs.
  * @summary Bài nhại theo có thể chép chính tả
  */
 export const listShadowDictationLessons = async (params?: ListShadowDictationLessonsParams, options?: Parameters<typeof apiFetch>[1]): Promise<DictationShadowLessonList> => {
