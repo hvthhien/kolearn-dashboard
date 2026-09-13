@@ -523,6 +523,44 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '422': { $ref: '#/components/responses/Unprocessable' }
 
+  /me/learning-language:
+    put:
+      tags: [auth]
+      operationId: setMyLearningLanguage
+      summary: Ngôn ngữ đang học
+      description: |
+        Which language the learner is learning. Asked once, on the first
+        sign-in of an account that has never chosen (`CurrentUser` then carries
+        no `learningLanguage`), and changeable afterwards from the rail and
+        Cài đặt.
+
+        **Only Korean can be chosen today.** English, Japanese and Chinese are
+        announced and listed in `LearningLanguage` so a client can show them as
+        "sắp ra mắt", and choosing one is 422 `learning_language_unavailable`.
+        A code outside the enum is 422 `unknown_learning_language`.
+
+        **Its own endpoint rather than a field of `PATCH /me/profile`**, because
+        switching is meant to become more than a field write: once a second
+        language opens, a switch moves the learner into that language's own
+        context. Today it stores the code and changes nothing else.
+
+        **Answers with the whole `CurrentUser`**, for the reason the profile
+        patch does — and because once a switch changes context, more of that
+        object will move than the field that was sent.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SetLearningLanguage' }
+      responses:
+        '200':
+          description: The learner, with the language now stored.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CurrentUser' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
   /me/password:
     put:
       tags: [auth]
@@ -6481,6 +6519,8 @@ components:
 
             Until it is set the server counts days in UTC. That is a documented
             fallback, not a claim about where anybody is.
+        learningLanguage:
+          $ref: '#/components/schemas/LearningLanguage'
         roles:
           type: array
           items: { type: string }
@@ -6954,6 +6994,28 @@ components:
             that would fail both rules, because `POST /auth/register` has never
             checked one. `GET /me` still returns whatever is stored; it is
             brought into line the first time its owner writes here.
+
+    LearningLanguage:
+      type: string
+      enum: [ko, en, ja, zh]
+      description: |
+        The language the learner is learning, as an ISO 639-1 code — not
+        `CurrentUser.locale`, which is the language the product speaks to them.
+
+        **Absent from `CurrentUser` means the learner has never chosen**, and
+        the client is expected to ask rather than assume: show the choice and
+        write the answer through `PUT /me/learning-language`. Accounts that
+        existed before the choice was introduced were all learning Korean and
+        carry `ko`; only accounts created since can be without one.
+
+        Only `ko` is open. The other three are announced, and a client lists
+        them as "sắp ra mắt" rather than hiding them.
+
+    SetLearningLanguage:
+      type: object
+      required: [learningLanguage]
+      properties:
+        learningLanguage: { $ref: '#/components/schemas/LearningLanguage' }
 
     ChangePassword:
       type: object

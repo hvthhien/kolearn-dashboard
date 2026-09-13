@@ -23,6 +23,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { LearningLanguage } from './learningLanguage';
 import type { UserPlan } from './userPlan';
 
 export interface CurrentUser {
@@ -60,6 +61,7 @@ export interface CurrentUser {
      * @maxLength 64
      */
   timezone?: string;
+  learningLanguage?: LearningLanguage;
   roles: string[];
   permissions: string[];
   plan: UserPlan;

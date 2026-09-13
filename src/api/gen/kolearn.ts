@@ -195,6 +195,7 @@ import type {
   SetCardGroupBody,
   SetCardStateBody,
   SetContentPremiumRequest,
+  SetLearningLanguage,
   SetLevelRequest,
   SetQuestionTopicsBody,
   SetShadowLineApprovalRequest,
@@ -1499,6 +1500,95 @@ export const useUpdateMyProfile = <TError = UnauthorizedResponse | Unprocessable
         TContext
       > => {
       return useMutation(getUpdateMyProfileMutationOptions(options), queryClient);
+    }
+
+export const getSetMyLearningLanguageUrl = () => {
+
+
+
+
+  return `/api/v1/me/learning-language`
+}
+
+/**
+ * Which language the learner is learning. Asked once, on the first
+ * sign-in of an account that has never chosen (`CurrentUser` then carries
+ * no `learningLanguage`), and changeable afterwards from the rail and
+ * Cài đặt.
+ *
+ * **Only Korean can be chosen today.** English, Japanese and Chinese are
+ * announced and listed in `LearningLanguage` so a client can show them as
+ * "sắp ra mắt", and choosing one is 422 `learning_language_unavailable`.
+ * A code outside the enum is 422 `unknown_learning_language`.
+ *
+ * **Its own endpoint rather than a field of `PATCH /me/profile`**, because
+ * switching is meant to become more than a field write: once a second
+ * language opens, a switch moves the learner into that language's own
+ * context. Today it stores the code and changes nothing else.
+ *
+ * **Answers with the whole `CurrentUser`**, for the reason the profile
+ * patch does — and because once a switch changes context, more of that
+ * object will move than the field that was sent.
+ * @summary Ngôn ngữ đang học
+ */
+export const setMyLearningLanguage = async (setLearningLanguage: SetLearningLanguage, options?: Parameters<typeof apiFetch>[1]): Promise<CurrentUser> => {
+
+  return apiFetch<CurrentUser>(getSetMyLearningLanguageUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(setLearningLanguage)
+  }
+);}
+
+
+
+
+
+export const getSetMyLearningLanguageMutationOptions = <TError = UnauthorizedResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setMyLearningLanguage>>, TError,{data: SetLearningLanguage}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof setMyLearningLanguage>>, TError,{data: SetLearningLanguage}, TContext> => {
+
+const mutationKey = ['setMyLearningLanguage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof setMyLearningLanguage>>, {data: SetLearningLanguage}> = (props) => {
+          const {data} = props ?? {};
+
+          return  setMyLearningLanguage(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SetMyLearningLanguageMutationResult = NonNullable<Awaited<ReturnType<typeof setMyLearningLanguage>>>
+    export type SetMyLearningLanguageMutationBody = SetLearningLanguage
+    export type SetMyLearningLanguageMutationError = UnauthorizedResponse | UnprocessableResponse
+
+    /**
+ * @summary Ngôn ngữ đang học
+ */
+export const useSetMyLearningLanguage = <TError = UnauthorizedResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof setMyLearningLanguage>>, TError,{data: SetLearningLanguage}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof setMyLearningLanguage>>,
+        TError,
+        {data: SetLearningLanguage},
+        TContext
+      > => {
+      return useMutation(getSetMyLearningLanguageMutationOptions(options), queryClient);
     }
 
 export const getChangeMyPasswordUrl = () => {
