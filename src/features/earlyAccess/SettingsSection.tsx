@@ -80,7 +80,7 @@ function SettingsForm({ settings }: { settings: EarlyAccessSettings }) {
             </p>
             <p className="text-sm text-muted">
               {settings.enabled
-                ? 'Chỉ tài khoản đã nhập mã truy cập mới dùng được Xami. Người khác thấy trang khoá, nơi họ nhập mã hoặc tham gia danh sách chờ. Tài khoản nhân sự không bị khoá.'
+                ? 'Chỉ tài khoản đã nhập mã truy cập mới dùng được Xami, và chỉ người có mã hợp lệ mới tạo được tài khoản mới (cả đăng ký bằng email lẫn Google). Người khác thấy trang khoá, nơi họ nhập mã hoặc tham gia danh sách chờ. Tài khoản nhân sự không bị khoá.'
                 : 'Ai cũng đăng ký và dùng được Xami. Mã truy cập vẫn tặng dùng thử và ưu đãi, nhưng không còn cần để vào.'}
             </p>
           </div>
@@ -163,7 +163,7 @@ function SettingsForm({ settings }: { settings: EarlyAccessSettings }) {
             <p>
               Người học chưa nhập mã sẽ thấy trang khoá thay cho sản phẩm, kể cả tài khoản đã đăng
               ký trước đó mà chưa được mời. Tài khoản đã có từ trước khi có chế độ này vẫn vào
-              được.
+              được. Không ai tạo được tài khoản mới nếu không có mã truy cập hợp lệ.
             </p>
           )}
           {save.error !== null && <ErrorNote>{userMessage(save.error)}</ErrorNote>}

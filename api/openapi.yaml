@@ -68,6 +68,15 @@ paths:
         `POST /auth/login` refuses an address that has never been verified
         (403 `email_not_verified`), so this is a gate rather than a suggestion.
         Accounts created before the gate existed are exempt and stay signed in.
+
+        **While the site is in early access, a new account needs an access
+        code.** With none, 403 `early_access_code_required`; with one that
+        cannot be redeemed, the 422s `POST /early-access/check` answers
+        (`access_code_invalid`, `access_code_expired`, `access_code_full`). The
+        code is checked before anything else about the request, and it is not
+        spent here: `POST /auth/verify-email` spends it, so an address nobody
+        verified cannot take a campaign's seat. With the site open the code is
+        optional, and a valid one still brings its trial and discount.
       requestBody:
         required: true
         content:
@@ -81,6 +90,11 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/VerificationChallenge' }
+        '403':
+          description: '`early_access_code_required` — the site is in early access and no code was sent.'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/Unprocessable' }
         '429': { $ref: '#/components/responses/TooManyRequests' }
@@ -214,6 +228,15 @@ paths:
             — is ignored in favour of the default, so this cannot be used as an
             open redirect. Defaults to `/exams`.
           schema: { type: string }
+        - name: accessCode
+          in: query
+          required: false
+          description: |
+            The early-access code the learner checked on the lock page. Used
+            only if the callback creates a new account: while the site is in
+            early access that needs a valid code, which is spent in the same
+            step. An existing account signs in whatever this says.
+          schema: { type: string, maxLength: 64 }
       responses:
         '302': { description: Redirect to Google. }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -236,8 +259,11 @@ paths:
         The codes are `google_cancelled` (the learner pressed cancel),
         `google_state` (the attempt expired or did not start in this browser),
         `google_unverified` (Google has not verified the address, so it cannot
-        be used to claim or create an account), `google_suspended`, and
-        `google_failed`.
+        be used to claim or create an account), `google_suspended`,
+        `google_access_required` (the site is in early access and this Google
+        account would be a new one, with no access code),
+        `google_access_code` (the access code cannot be redeemed — invalid,
+        expired or full), and `google_failed`.
       parameters:
         - name: code
           in: query
@@ -6782,6 +6808,10 @@ components:
         email: { type: string, format: email }
         password: { type: string, minLength: 10 }
         displayName: { type: string }
+        accessCode:
+          type: string
+          maxLength: 64
+          description: Required while the site is in early access. See `POST /auth/register`.
 
     LoginRequest:
       type: object

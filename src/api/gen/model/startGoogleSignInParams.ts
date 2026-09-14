@@ -32,4 +32,12 @@ export type StartGoogleSignInParams = {
  * open redirect. Defaults to `/exams`.
  */
 returnTo?: string;
+/**
+ * The early-access code the learner checked on the lock page. Used
+ * only if the callback creates a new account: while the site is in
+ * early access that needs a valid code, which is spent in the same
+ * step. An existing account signs in whatever this says.
+ * @maxLength 64
+ */
+accessCode?: string;
 };

@@ -299,6 +299,15 @@ export const getRegisterUrl = () => {
  * `POST /auth/login` refuses an address that has never been verified
  * (403 `email_not_verified`), so this is a gate rather than a suggestion.
  * Accounts created before the gate existed are exempt and stay signed in.
+ *
+ * **While the site is in early access, a new account needs an access
+ * code.** With none, 403 `early_access_code_required`; with one that
+ * cannot be redeemed, the 422s `POST /early-access/check` answers
+ * (`access_code_invalid`, `access_code_expired`, `access_code_full`). The
+ * code is checked before anything else about the request, and it is not
+ * spent here: `POST /auth/verify-email` spends it, so an address nobody
+ * verified cannot take a campaign's seat. With the site open the code is
+ * optional, and a valid one still brings its trial and discount.
  * @summary Create an account
  */
 export const register = async (registerRequest: RegisterRequest, options?: Parameters<typeof apiFetch>[1]): Promise<VerificationChallenge> => {
@@ -316,7 +325,7 @@ export const register = async (registerRequest: RegisterRequest, options?: Param
 
 
 
-export const getRegisterMutationOptions = <TError = ConflictResponse | UnprocessableResponse | TooManyRequestsResponse,
+export const getRegisterMutationOptions = <TError = Problem | ConflictResponse | UnprocessableResponse | TooManyRequestsResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof register>>, TError,{data: RegisterRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof register>>, TError,{data: RegisterRequest}, TContext> => {
 
@@ -345,12 +354,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type RegisterMutationResult = NonNullable<Awaited<ReturnType<typeof register>>>
     export type RegisterMutationBody = RegisterRequest
-    export type RegisterMutationError = ConflictResponse | UnprocessableResponse | TooManyRequestsResponse
+    export type RegisterMutationError = Problem | ConflictResponse | UnprocessableResponse | TooManyRequestsResponse
 
     /**
  * @summary Create an account
  */
-export const useRegister = <TError = ConflictResponse | UnprocessableResponse | TooManyRequestsResponse,
+export const useRegister = <TError = Problem | ConflictResponse | UnprocessableResponse | TooManyRequestsResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof register>>, TError,{data: RegisterRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof register>>,
@@ -845,8 +854,11 @@ export const getCompleteGoogleSignInUrl = (params?: CompleteGoogleSignInParams,)
  * The codes are `google_cancelled` (the learner pressed cancel),
  * `google_state` (the attempt expired or did not start in this browser),
  * `google_unverified` (Google has not verified the address, so it cannot
- * be used to claim or create an account), `google_suspended`, and
- * `google_failed`.
+ * be used to claim or create an account), `google_suspended`,
+ * `google_access_required` (the site is in early access and this Google
+ * account would be a new one, with no access code),
+ * `google_access_code` (the access code cannot be redeemed — invalid,
+ * expired or full), and `google_failed`.
  * @summary Google's redirect back
  */
 export const completeGoogleSignIn = async (params?: CompleteGoogleSignInParams, options?: Parameters<typeof apiFetch>[1]): Promise<unknown> => {

@@ -29,4 +29,9 @@ export interface RegisterRequest {
   /** @minLength 10 */
   password: string;
   displayName?: string;
+  /**
+     * Required while the site is in early access. See `POST /auth/register`.
+     * @maxLength 64
+     */
+  accessCode?: string;
 }
