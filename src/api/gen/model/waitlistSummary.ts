@@ -23,11 +23,15 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { PremiumOffer } from './premiumOffer';
-import type { PremiumProduct } from './premiumProduct';
 
-export interface PremiumProductList {
-  items: PremiumProduct[];
-  /** The signed-in learner's unspent discount. Absent for a visitor. */
-  offer?: PremiumOffer;
+/**
+ * The whole list as a funnel. `registered` and `activated` count entries
+ * that reached at least that far.
+ */
+export interface WaitlistSummary {
+  total: number;
+  notInvited: number;
+  invited: number;
+  registered: number;
+  activated: number;
 }

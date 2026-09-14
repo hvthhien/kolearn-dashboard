@@ -1,5 +1,14 @@
 import { http, HttpResponse } from 'msw'
 import type {
+  AccessCode,
+  AccessCodeStatus,
+  CreateAccessCodeRequest,
+  EarlyAccessSettings,
+  InviteWaitlistRequest,
+  InvitedWaitlistEntry,
+  UpdateAccessCodeRequest,
+  UpdateEarlyAccessSettingsRequest,
+  WaitlistEntry,
   AdminDictationApprovalRequest,
   AdminDictationPublishReport,
   AdminDictationSetDetail,
@@ -31,6 +40,12 @@ import { EXAMS, LISTENING_PASSAGE, QUESTIONS, READING_PASSAGE, layers } from './
 import { SHADOW_VIDEOS } from './fixtures/shadowing'
 import { DICTATION_SETS } from './fixtures/dictation'
 import { CODE_REDEMPTIONS, REDEEM_CODES } from './fixtures/billing'
+import {
+  ACCESS_CODES,
+  ACCESS_CODE_REDEMPTIONS,
+  EARLY_ACCESS_SETTINGS,
+  WAITLIST,
+} from './fixtures/earlyAccess'
 import {
   ADMIN_ROLES,
   ADMIN_SESSIONS,
@@ -139,6 +154,34 @@ const billingState = {
   users: clone(ADMIN_USERS) as AdminUser[],
 }
 
+/**
+ * Truy cập sớm (00064). Mutable: the switch, the codes and the waitlist are all
+ * written from the screen, and a write the next GET does not reflect proves
+ * nothing.
+ */
+const earlyAccessState = {
+  settings: clone(EARLY_ACCESS_SETTINGS) as EarlyAccessSettings,
+  codes: clone(ACCESS_CODES) as AccessCode[],
+  waitlist: clone(WAITLIST) as WaitlistEntry[],
+}
+
+/** The status the server derives, from the same fields in the same order. */
+function accessCodeStatus(c: AccessCode): AccessCodeStatus {
+  if (c.disabledAt) return 'DISABLED'
+  if (c.expiresAt && new Date(c.expiresAt) <= new Date()) return 'EXPIRED'
+  if (c.redemptions >= c.maxRedemptions) return 'FULL'
+  return 'ACTIVE'
+}
+
+function mintAccessCode(kind: AccessCode['kind']): string {
+  const length = kind === 'PERSONAL' ? 6 : 8
+  let out = ''
+  for (let i = 0; i < length; i++) {
+    out += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)]
+  }
+  return kind === 'PERSONAL' ? `XAMI-${out}` : out
+}
+
 /** Devices per account. Mutable: suspending and signing out both empty it. */
 let sessionState = clone(ADMIN_SESSIONS) as Record<string, AdminUserSession[]>
 
@@ -171,6 +214,9 @@ function mintCode(): string {
 }
 
 export function resetMockBank(): void {
+  earlyAccessState.settings = clone(EARLY_ACCESS_SETTINGS)
+  earlyAccessState.codes = clone(ACCESS_CODES)
+  earlyAccessState.waitlist = clone(WAITLIST)
   billingState.codes = clone(REDEEM_CODES)
   billingState.orders = clone(PAYMENT_ORDERS)
   billingState.transactions = clone(BANK_TRANSACTIONS)
@@ -255,6 +301,8 @@ export const MOCK_USER: AuthTokens['user'] = {
     // Billing. Held by admin alone in 00046, so the mock account wears both
     // hats — otherwise the Thanh toán screen would be unreachable offline.
     'billing:manage',
+    // Truy cập sớm, admin alone in 00064 — the same borrowed hat.
+    'early_access:manage',
     // Quản trị người dùng. The same borrowed hat: 00003 gives user:read to
     // support as well, but user:role:assign and 00055's user:suspend belong to
     // admin alone, and without all three the Người dùng screen would refuse
@@ -702,6 +750,181 @@ export const handlers = [
     u.plan = { tier: 'premium', premiumUntil: until.toISOString() }
     // The plan, not the account: `billing:manage` does not carry the roles.
     return HttpResponse.json(u.plan)
+  }),
+
+  /* ── Truy cập sớm (00064) ─────────────────────────────────────────────── */
+  http.get(`${BASE}/admin/early-access/settings`, () =>
+    HttpResponse.json(earlyAccessState.settings),
+  ),
+  http.put(`${BASE}/admin/early-access/settings`, async ({ request }) => {
+    const body = (await request.json()) as UpdateEarlyAccessSettingsRequest
+    earlyAccessState.settings = {
+      enabled: body.enabled,
+      showCapacity: body.showCapacity,
+      ...(body.launchAt !== undefined && { launchAt: body.launchAt }),
+      updatedAt: new Date().toISOString(),
+    }
+    return HttpResponse.json(earlyAccessState.settings)
+  }),
+  http.get(`${BASE}/admin/early-access/codes`, ({ request }) => {
+    const params = new URL(request.url).searchParams
+    const kind = params.get('kind')
+    const status = params.get('status')
+    const q = (params.get('q') ?? '').toLowerCase()
+    const matched = earlyAccessState.codes
+      .map((c) => ({ ...c, status: accessCodeStatus(c) }))
+      .filter((c) => !kind || c.kind === kind)
+      .filter((c) => !status || c.status === status)
+      .filter(
+        (c) => !q || c.code.toLowerCase().startsWith(q) || c.campaign.toLowerCase().includes(q),
+      )
+      .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
+    return HttpResponse.json(page(request, matched))
+  }),
+  http.post(`${BASE}/admin/early-access/codes`, async ({ request }) => {
+    const body = (await request.json()) as CreateAccessCodeRequest
+    if (body.kind === 'PERSONAL' && body.maxRedemptions !== 1) {
+      return problem(422, 'early_access_form_invalid', 'Mã cá nhân chỉ dùng được 1 lần.')
+    }
+    const code = body.code?.toUpperCase() || mintAccessCode(body.kind)
+    const key = code.replaceAll('-', '')
+    if (earlyAccessState.codes.some((c) => c.code.replaceAll('-', '') === key)) {
+      return problem(409, 'access_code_taken', 'Đã có mã này. Hãy chọn tên mã khác.')
+    }
+    const created: AccessCode = {
+      id: `ac-${Date.now()}`,
+      code,
+      kind: body.kind,
+      campaign: body.campaign.trim(),
+      status: 'ACTIVE',
+      maxRedemptions: body.maxRedemptions,
+      redemptions: 0,
+      trialDays: body.trialDays,
+      discountPercent: body.discountPercent,
+      ...(body.discountValidDays !== undefined && { discountValidDays: body.discountValidDays }),
+      ...(body.expiresAt !== undefined && { expiresAt: body.expiresAt }),
+      createdAt: new Date().toISOString(),
+    }
+    earlyAccessState.codes.push(created)
+    return HttpResponse.json(created, { status: 201 })
+  }),
+  http.put(`${BASE}/admin/early-access/codes/:codeId`, async ({ params, request }) => {
+    const code = earlyAccessState.codes.find((c) => c.id === params.codeId)
+    if (!code) return notFound('Không tìm thấy mã này')
+    const body = (await request.json()) as UpdateAccessCodeRequest
+    if (body.maxRedemptions < code.redemptions) {
+      return problem(
+        422,
+        'early_access_form_invalid',
+        `Số lượt không nhỏ hơn số lượt đã dùng (${code.redemptions}).`,
+      )
+    }
+    const { discountValidDays: _d, expiresAt: _e, ...rest } = code
+    const updated: AccessCode = {
+      ...rest,
+      campaign: body.campaign.trim(),
+      maxRedemptions: body.maxRedemptions,
+      trialDays: body.trialDays,
+      discountPercent: body.discountPercent,
+      ...(body.discountValidDays !== undefined && { discountValidDays: body.discountValidDays }),
+      ...(body.expiresAt !== undefined && { expiresAt: body.expiresAt }),
+    }
+    updated.status = accessCodeStatus(updated)
+    earlyAccessState.codes = earlyAccessState.codes.map((c) => (c.id === code.id ? updated : c))
+    return HttpResponse.json(updated)
+  }),
+  http.post(`${BASE}/admin/early-access/codes/:codeId/disable`, ({ params }) => {
+    const code = earlyAccessState.codes.find((c) => c.id === params.codeId)
+    if (!code) return notFound('Không tìm thấy mã này')
+    if (code.disabledAt) return problem(409, 'access_code_already_disabled', 'Mã này đã tắt rồi')
+    code.disabledAt = new Date().toISOString()
+    code.status = accessCodeStatus(code)
+    return HttpResponse.json(code)
+  }),
+  http.post(`${BASE}/admin/early-access/codes/:codeId/enable`, ({ params }) => {
+    const code = earlyAccessState.codes.find((c) => c.id === params.codeId)
+    if (!code) return notFound('Không tìm thấy mã này')
+    if (!code.disabledAt) return problem(409, 'access_code_not_disabled', 'Mã này đang bật')
+    delete code.disabledAt
+    code.status = accessCodeStatus(code)
+    return HttpResponse.json(code)
+  }),
+  http.get(`${BASE}/admin/early-access/codes/:codeId/redemptions`, ({ params }) => {
+    if (!earlyAccessState.codes.some((c) => c.id === params.codeId)) {
+      return notFound('Không tìm thấy mã này')
+    }
+    return HttpResponse.json({ items: ACCESS_CODE_REDEMPTIONS[String(params.codeId)] ?? [] })
+  }),
+  http.get(`${BASE}/admin/early-access/waitlist`, ({ request }) => {
+    const params = new URL(request.url).searchParams
+    const status = params.get('status')
+    const q = (params.get('q') ?? '').toLowerCase()
+    const all = [...earlyAccessState.waitlist].sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1))
+    const matched = all
+      .filter((e) => !status || e.status === status)
+      .filter((e) => !q || e.email.toLowerCase().includes(q))
+    const reached = (e: WaitlistEntry) => e.status === 'REGISTERED' || e.status === 'ACTIVATED'
+    return HttpResponse.json({
+      ...page(request, matched),
+      summary: {
+        total: all.length,
+        notInvited: all.filter((e) => !e.invitedAt).length,
+        invited: all.filter((e) => e.invitedAt).length,
+        registered: all.filter(reached).length,
+        activated: all.filter((e) => e.status === 'ACTIVATED').length,
+      },
+    })
+  }),
+  http.post(`${BASE}/admin/early-access/waitlist/invite`, async ({ request }) => {
+    const body = (await request.json()) as InviteWaitlistRequest
+    if (!Number.isInteger(body.count) || body.count < 1 || body.count > 200) {
+      return problem(422, 'early_access_form_invalid', 'Từ 1 đến 200 người một lần.')
+    }
+    const batch = earlyAccessState.waitlist
+      .filter((e) => !e.invitedAt)
+      .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1))
+      .slice(0, body.count)
+    const now = new Date().toISOString()
+    const invited: InvitedWaitlistEntry[] = batch.map((entry, i) => {
+      const code = mintAccessCode('PERSONAL')
+      earlyAccessState.codes.push({
+        id: `ac-${Date.now()}-${i}`,
+        code,
+        kind: 'PERSONAL',
+        campaign: body.campaign,
+        status: 'ACTIVE',
+        maxRedemptions: 1,
+        redemptions: 0,
+        trialDays: body.trialDays,
+        discountPercent: body.discountPercent,
+        createdAt: now,
+      })
+      entry.invitedAt = now
+      entry.invitationCode = code
+      if (entry.status === 'WAITING') entry.status = 'INVITED'
+      return { entryId: entry.id, email: entry.email, code, emailSent: true }
+    })
+    return HttpResponse.json({ invited })
+  }),
+  http.post(`${BASE}/admin/early-access/waitlist/:entryId/resend`, ({ params }) => {
+    const entry = earlyAccessState.waitlist.find((e) => e.id === params.entryId)
+    if (!entry) return notFound('Không tìm thấy người này trong danh sách chờ')
+    if (!entry.invitationCode) {
+      return problem(409, 'waitlist_entry_not_invited', 'Người này chưa được mời')
+    }
+    return HttpResponse.json({
+      entryId: entry.id,
+      email: entry.email,
+      code: entry.invitationCode,
+      emailSent: true,
+    })
+  }),
+  http.delete(`${BASE}/admin/early-access/waitlist/:entryId`, ({ params }) => {
+    if (!earlyAccessState.waitlist.some((e) => e.id === params.entryId)) {
+      return notFound('Không tìm thấy người này trong danh sách chờ')
+    }
+    earlyAccessState.waitlist = earlyAccessState.waitlist.filter((e) => e.id !== params.entryId)
+    return new HttpResponse(null, { status: 204 })
   }),
 
   /* ── Thanh toán: mã nâng cấp (00046) ──────────────────────────────────── */

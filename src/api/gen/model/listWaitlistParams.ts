@@ -23,11 +23,22 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { PremiumOffer } from './premiumOffer';
-import type { PremiumProduct } from './premiumProduct';
+import type { WaitlistStatus } from './waitlistStatus';
 
-export interface PremiumProductList {
-  items: PremiumProduct[];
-  /** The signed-in learner's unspent discount. Absent for a visitor. */
-  offer?: PremiumOffer;
-}
+export type ListWaitlistParams = {
+status?: WaitlistStatus;
+/**
+ * Matches the address anywhere in it.
+ * @maxLength 200
+ */
+q?: string;
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
+};

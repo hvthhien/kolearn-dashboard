@@ -68,6 +68,13 @@ export function AppBar() {
               Người dùng
             </Link>
           )}
+          {/* Admin alone (00064), and offered only to the account that holds
+              it, for the reason Thanh toán is. */}
+          {user?.permissions.includes('early_access:manage') && (
+            <Link to="/early-access" className={NAV_ITEM}>
+              Truy cập sớm
+            </Link>
+          )}
 
           {user && (
             <span className="ml-2 hidden text-xs text-muted md:inline">

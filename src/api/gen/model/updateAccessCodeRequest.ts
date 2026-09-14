@@ -23,11 +23,34 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { PremiumOffer } from './premiumOffer';
-import type { PremiumProduct } from './premiumProduct';
 
-export interface PremiumProductList {
-  items: PremiumProduct[];
-  /** The signed-in learner's unspent discount. Absent for a visitor. */
-  offer?: PremiumOffer;
+export interface UpdateAccessCodeRequest {
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  campaign: string;
+  /**
+     * @minimum 1
+     * @maximum 100000
+     */
+  maxRedemptions: number;
+  /**
+     * @minimum 0
+     * @maximum 90
+     */
+  trialDays: number;
+  /**
+     * @minimum 0
+     * @maximum 90
+     */
+  discountPercent: number;
+  /**
+     * Omit to keep the discount until it is used.
+     * @minimum 1
+     * @maximum 365
+     */
+  discountValidDays?: number;
+  /** Omit for a code with no expiry date. */
+  expiresAt?: string;
 }

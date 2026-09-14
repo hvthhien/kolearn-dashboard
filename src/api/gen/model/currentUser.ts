@@ -23,6 +23,7 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { EarlyAccessState } from './earlyAccessState';
 import type { LearningLanguage } from './learningLanguage';
 import type { UserPlan } from './userPlan';
 
@@ -65,4 +66,10 @@ export interface CurrentUser {
   roles: string[];
   permissions: string[];
   plan: UserPlan;
+  /**
+     * **Absent when there is nothing to say**: the site is not locked for
+     * this account and no access code let it in — which is every account
+     * once Xami is public.
+     */
+  earlyAccess?: EarlyAccessState;
 }

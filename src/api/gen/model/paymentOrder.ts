@@ -37,6 +37,11 @@ export interface PaymentOrder {
   createdAt: string;
   paidAt?: string;
   paidAmountVnd?: number;
+  /**
+     * What the early-access offer took off the list price, so the list
+     * price was `amountVnd + discountVnd`. Absent when nothing was.
+     */
+  discountVnd?: number;
   /** Present only while the order is `PENDING`. */
   transfer?: TransferInstructions;
 }

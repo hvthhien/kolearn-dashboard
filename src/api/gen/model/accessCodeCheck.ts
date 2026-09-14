@@ -23,11 +23,16 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { PremiumOffer } from './premiumOffer';
-import type { PremiumProduct } from './premiumProduct';
 
-export interface PremiumProductList {
-  items: PremiumProduct[];
-  /** The signed-in learner's unspent discount. Absent for a visitor. */
-  offer?: PremiumOffer;
+export interface AccessCodeCheck {
+  /** The code as it is written, to show back. */
+  code: string;
+  /** @minimum 0 */
+  trialDays: number;
+  /** @minimum 0 */
+  discountPercent: number;
+  /** @minimum 1 */
+  remaining: number;
+  /** @minimum 1 */
+  maxRedemptions: number;
 }

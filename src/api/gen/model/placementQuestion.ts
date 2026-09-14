@@ -61,4 +61,12 @@ export interface PlacementQuestion {
      * test has no countdown and no one-play rule.
      */
   audioUrl?: string;
+  /**
+     * How long the clip is silent before anything is said, in
+     * milliseconds — the same measurement `RunnerPassage.audioLeadInMs`
+     * carries, for the same reason. Absent when never measured; the
+     * player then starts at zero.
+     * @minimum 0
+     */
+  audioLeadInMs?: number;
 }

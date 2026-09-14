@@ -23,11 +23,18 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { PremiumOffer } from './premiumOffer';
-import type { PremiumProduct } from './premiumProduct';
 
-export interface PremiumProductList {
-  items: PremiumProduct[];
-  /** The signed-in learner's unspent discount. Absent for a visitor. */
-  offer?: PremiumOffer;
-}
+/**
+ * Derived, never stored. `REGISTERED` is an account on the same address;
+ * `ACTIVATED` is an account let in by a code — the entry's own invitation
+ * or any other.
+ */
+export type WaitlistStatus = typeof WaitlistStatus[keyof typeof WaitlistStatus];
+
+
+export const WaitlistStatus = {
+  WAITING: 'WAITING',
+  INVITED: 'INVITED',
+  REGISTERED: 'REGISTERED',
+  ACTIVATED: 'ACTIVATED',
+} as const;

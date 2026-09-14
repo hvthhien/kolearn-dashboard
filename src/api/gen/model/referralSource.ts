@@ -23,11 +23,15 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { PremiumOffer } from './premiumOffer';
-import type { PremiumProduct } from './premiumProduct';
 
-export interface PremiumProductList {
-  items: PremiumProduct[];
-  /** The signed-in learner's unspent discount. Absent for a visitor. */
-  offer?: PremiumOffer;
-}
+export type ReferralSource = typeof ReferralSource[keyof typeof ReferralSource];
+
+
+export const ReferralSource = {
+  TIKTOK: 'TIKTOK',
+  FACEBOOK: 'FACEBOOK',
+  YOUTUBE: 'YOUTUBE',
+  FRIEND: 'FRIEND',
+  SEARCH: 'SEARCH',
+  OTHER: 'OTHER',
+} as const;

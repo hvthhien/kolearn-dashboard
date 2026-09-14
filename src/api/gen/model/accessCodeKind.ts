@@ -23,11 +23,17 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { PremiumOffer } from './premiumOffer';
-import type { PremiumProduct } from './premiumProduct';
 
-export interface PremiumProductList {
-  items: PremiumProduct[];
-  /** The signed-in learner's unspent discount. Absent for a visitor. */
-  offer?: PremiumOffer;
-}
+/**
+ * `CAMPAIGN` is public and shared on purpose (TikTok). `BATCH` is a
+ * controlled group (a school, a community). `PERSONAL` is one person and
+ * one redemption.
+ */
+export type AccessCodeKind = typeof AccessCodeKind[keyof typeof AccessCodeKind];
+
+
+export const AccessCodeKind = {
+  CAMPAIGN: 'CAMPAIGN',
+  BATCH: 'BATCH',
+  PERSONAL: 'PERSONAL',
+} as const;

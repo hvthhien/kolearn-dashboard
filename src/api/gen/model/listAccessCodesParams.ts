@@ -23,11 +23,24 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { PremiumOffer } from './premiumOffer';
-import type { PremiumProduct } from './premiumProduct';
+import type { AccessCodeKind } from './accessCodeKind';
+import type { AccessCodeStatus } from './accessCodeStatus';
 
-export interface PremiumProductList {
-  items: PremiumProduct[];
-  /** The signed-in learner's unspent discount. Absent for a visitor. */
-  offer?: PremiumOffer;
-}
+export type ListAccessCodesParams = {
+kind?: AccessCodeKind;
+status?: AccessCodeStatus;
+/**
+ * The code by prefix, or the campaign name anywhere in it.
+ * @maxLength 80
+ */
+q?: string;
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
+};

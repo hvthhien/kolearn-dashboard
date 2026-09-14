@@ -27,6 +27,7 @@ import { VideoListPage } from './routes/VideoListPage'
 import { VideoStudioPage } from './routes/VideoStudioPage'
 import { BillingPage } from './routes/BillingPage'
 import { UsersPage } from './routes/UsersPage'
+import { EarlyAccessPage } from './routes/EarlyAccessPage'
 
 interface RouterContext {
   queryClient: QueryClient
@@ -226,6 +227,26 @@ const usersRoute = createRoute({
   ),
 })
 
+/* ── Truy cập sớm ──────────────────────────────────────────────────────────
+   Gated on the route as well as in the nav, for the reason /users is: the
+   screen's first tab is one switch that locks the whole product, and an
+   account without `early_access:manage` should be told it cannot, rather than
+   shown a form that answers 403 when pressed. */
+
+const earlyAccessRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/early-access',
+  component: () => (
+    <RequirePermission
+      permission="early_access:manage"
+      title="Màn truy cập sớm dành cho admin"
+      explanation="Tài khoản của bạn vào được ngân hàng đề nhưng không có quyền khoá trang, tạo mã truy cập hay mời người trong danh sách chờ."
+    >
+      <EarlyAccessPage />
+    </RequirePermission>
+  ),
+})
+
 /**
  * The second gate, for a screen whose whole content is behind one permission.
  *
@@ -261,6 +282,7 @@ function RequirePermission({
 export const routeTree = rootRoute.addChildren([
   billingRoute,
   usersRoute,
+  earlyAccessRoute,
   indexRoute,
   loginRoute,
   examsRoute,

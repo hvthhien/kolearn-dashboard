@@ -73,5 +73,21 @@ export interface RunnerPassage {
      * where replaying is unlimited.
      */
   audioPlayed?: boolean;
+  /**
+     * How long the clip is silent before anything is said, in
+     * milliseconds, measured from the file itself. The pre-reform papers
+     * were cut from one long recording at the midpoint of every answer
+     * pause, so their clips open on seven to twenty seconds of nothing;
+     * a modern clip opens on about one. The player starts playback one
+     * second before the first word instead of at zero.
+     *
+     * Absent when it was never measured, and the player then starts at
+     * zero, exactly as before. The players treat that point as where the
+     * clip begins — the time they count, the bar they fill, the place
+     * "Nghe lại" returns to — and nothing about the one-play rule
+     * changes: the learner still hears every word.
+     * @minimum 0
+     */
+  audioLeadInMs?: number;
   images?: ExamImage[];
 }

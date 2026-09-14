@@ -23,11 +23,13 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { PremiumOffer } from './premiumOffer';
-import type { PremiumProduct } from './premiumProduct';
+import type { EarlyAccessState } from './earlyAccessState';
+import type { UserPlan } from './userPlan';
 
-export interface PremiumProductList {
-  items: PremiumProduct[];
-  /** The signed-in learner's unspent discount. Absent for a visitor. */
-  offer?: PremiumOffer;
+export interface EarlyAccessActivation {
+  earlyAccess: EarlyAccessState;
+  plan: UserPlan;
+  /** What the code gave, for the welcome screen. */
+  trialDays: number;
+  discountPercent: number;
 }

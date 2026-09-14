@@ -23,11 +23,41 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { PremiumOffer } from './premiumOffer';
-import type { PremiumProduct } from './premiumProduct';
+import type { AccessCodeKind } from './accessCodeKind';
 
-export interface PremiumProductList {
-  items: PremiumProduct[];
-  /** The signed-in learner's unspent discount. Absent for a visitor. */
-  offer?: PremiumOffer;
+export interface CreateAccessCodeRequest {
+  /**
+     * Omit to generate one.
+     * @maxLength 32
+     * @pattern ^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$
+     */
+  code?: string;
+  kind: AccessCodeKind;
+  /**
+     * @minLength 1
+     * @maxLength 80
+     */
+  campaign: string;
+  /**
+     * Must be 1 for a `PERSONAL` code.
+     * @minimum 1
+     * @maximum 100000
+     */
+  maxRedemptions: number;
+  /**
+     * @minimum 0
+     * @maximum 90
+     */
+  trialDays: number;
+  /**
+     * @minimum 0
+     * @maximum 90
+     */
+  discountPercent: number;
+  /**
+     * @minimum 1
+     * @maximum 365
+     */
+  discountValidDays?: number;
+  expiresAt?: string;
 }

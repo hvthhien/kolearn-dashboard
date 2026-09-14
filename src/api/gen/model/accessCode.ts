@@ -23,11 +23,22 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { PremiumOffer } from './premiumOffer';
-import type { PremiumProduct } from './premiumProduct';
+import type { AccessCodeKind } from './accessCodeKind';
+import type { AccessCodeStatus } from './accessCodeStatus';
 
-export interface PremiumProductList {
-  items: PremiumProduct[];
-  /** The signed-in learner's unspent discount. Absent for a visitor. */
-  offer?: PremiumOffer;
+export interface AccessCode {
+  id: string;
+  code: string;
+  kind: AccessCodeKind;
+  campaign: string;
+  status: AccessCodeStatus;
+  maxRedemptions: number;
+  redemptions: number;
+  trialDays: number;
+  discountPercent: number;
+  /** Days after activation the discount may still be spent. Absent means until used. */
+  discountValidDays?: number;
+  expiresAt?: string;
+  disabledAt?: string;
+  createdAt: string;
 }

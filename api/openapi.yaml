@@ -42,6 +42,7 @@ tags:
   - name: assistant
   - name: streak
   - name: billing
+  - name: early-access
   - name: studio
   - name: admin
 
@@ -889,6 +890,108 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/PaymentOrderList' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ── truy cập sớm ──────────────────────────────────────────────────────────
+
+  /early-access:
+    get:
+      tags: [early-access]
+      operationId: getEarlyAccessStatus
+      summary: Trạng thái khoá trang
+      description: |
+        What the lock page reads, with no account: whether the site is locked,
+        the release date it counts down to, and — only when the operator has
+        switched it on and a campaign code exists — the seats left across every
+        live campaign code. Never locked itself.
+      security: []
+      responses:
+        '200':
+          description: The lock.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EarlyAccessStatus' }
+
+  /early-access/check:
+    post:
+      tags: [early-access]
+      operationId: checkAccessCode
+      summary: Kiểm tra mã truy cập
+      description: |
+        Validates a code **without spending it**, for a visitor who may not
+        have an account yet. The code is consumed only by
+        `POST /me/early-access/activate`, once there is an account to hold it.
+
+        | code | meaning |
+        |---|---|
+        | `access_code_invalid` | not a code, or disabled |
+        | `access_code_expired` | past its expiry date |
+        | `access_code_full` | every seat taken — the page offers the waitlist |
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AccessCodeRequest' }
+      responses:
+        '200':
+          description: The code is valid; what it gives.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccessCodeCheck' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /waitlist:
+    post:
+      tags: [early-access]
+      operationId: joinWaitlist
+      summary: Tham gia danh sách chờ
+      description: |
+        Puts an address on the waitlist. Joining again with the same address
+        changes nothing and answers the same `204`, so the form does not say
+        whether an address was already there. Nobody is let in by joining: the
+        operator releases invitations in batches.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/JoinWaitlistRequest' }
+      responses:
+        '204':
+          description: On the list.
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /me/early-access/activate:
+    post:
+      tags: [early-access]
+      operationId: activateEarlyAccess
+      summary: Kích hoạt truy cập sớm
+      description: |
+        Redeems an access code on the caller's own account: lifts the lock,
+        starts the Premium trial the code carries from today, and stores the
+        first-month discount against the account. Once per account — a second
+        code answers `409 early_access_already_active`.
+
+        Answers with the new `earlyAccess` and `plan`, so the client can update
+        `CurrentUser` without a second request. Refusals are the same 422s as
+        `POST /early-access/check`; after ten in an hour the route answers
+        `429 too_many_attempts` without looking at the code.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AccessCodeRequest' }
+      responses:
+        '200':
+          description: Activated.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EarlyAccessActivation' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /me/streak:
     get:
@@ -5294,6 +5397,291 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '422': { $ref: '#/components/responses/Unprocessable' }
 
+  # ── truy cập sớm (dashboard) ──────────────────────────────────────────────
+
+  /admin/early-access/settings:
+    get:
+      tags: [early-access]
+      operationId: getEarlyAccessSettings
+      summary: Cài đặt truy cập sớm
+      description: 'rbac: `early_access:manage`.'
+      responses:
+        '200':
+          description: The lock.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EarlyAccessSettings' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    put:
+      tags: [early-access]
+      operationId: updateEarlyAccessSettings
+      summary: Bật/tắt khoá trang
+      description: |
+        rbac: `early_access:manage`. Replaces all three settings; an absent
+        `launchAt` means no release date is announced. Takes effect for
+        signed-in accounts on their next request, and for visitors with no
+        account within seconds. Audited.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateEarlyAccessSettingsRequest' }
+      responses:
+        '200':
+          description: The lock as it now stands.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EarlyAccessSettings' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/early-access/codes:
+    get:
+      tags: [early-access]
+      operationId: listAccessCodes
+      summary: Mã truy cập
+      description: 'rbac: `early_access:manage`. Newest first.'
+      parameters:
+        - name: kind
+          in: query
+          schema: { $ref: '#/components/schemas/AccessCodeKind' }
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/AccessCodeStatus' }
+        - name: q
+          in: query
+          description: The code by prefix, or the campaign name anywhere in it.
+          schema: { type: string, maxLength: 80 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        '200':
+          description: One page of codes.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccessCodeList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [early-access]
+      operationId: createAccessCode
+      summary: Tạo mã truy cập
+      description: |
+        rbac: `early_access:manage`. Omit `code` to have one generated —
+        `XAMI-` and six characters for a personal code, eight characters
+        otherwise. A chosen code that already exists answers
+        `409 access_code_taken`. Audited.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateAccessCodeRequest' }
+      responses:
+        '201':
+          description: The code.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccessCode' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /admin/early-access/codes/{codeId}:
+    parameters:
+      - $ref: '#/components/parameters/AccessCodeId'
+    put:
+      tags: [early-access]
+      operationId: updateAccessCode
+      summary: Sửa điều kiện mã
+      description: |
+        rbac: `early_access:manage`. Replaces the code's terms. The code and its
+        kind never change. New terms apply to activations from now on;
+        accounts already let in keep the trial and discount they were given.
+        `maxRedemptions` may not go below the seats already taken. Audited.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateAccessCodeRequest' }
+      responses:
+        '200':
+          description: The code.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccessCode' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /admin/early-access/codes/{codeId}/disable:
+    parameters:
+      - $ref: '#/components/parameters/AccessCodeId'
+    post:
+      tags: [early-access]
+      operationId: disableAccessCode
+      summary: Tắt mã
+      description: |
+        rbac: `early_access:manage`. From now on the code answers
+        `access_code_invalid`. Accounts already let in through it stay in.
+      responses:
+        '200':
+          description: The code, now disabled.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccessCode' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /admin/early-access/codes/{codeId}/enable:
+    parameters:
+      - $ref: '#/components/parameters/AccessCodeId'
+    post:
+      tags: [early-access]
+      operationId: enableAccessCode
+      summary: Bật lại mã
+      description: 'rbac: `early_access:manage`.'
+      responses:
+        '200':
+          description: The code, enabled again.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccessCode' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /admin/early-access/codes/{codeId}/redemptions:
+    parameters:
+      - $ref: '#/components/parameters/AccessCodeId'
+    get:
+      tags: [early-access]
+      operationId: listAccessCodeRedemptions
+      summary: Ai đã vào bằng mã này
+      description: 'rbac: `early_access:manage`. Newest first.'
+      responses:
+        '200':
+          description: The accounts.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AccessCodeRedemptionList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /admin/early-access/waitlist:
+    get:
+      tags: [early-access]
+      operationId: listWaitlist
+      summary: Danh sách chờ
+      description: |
+        rbac: `early_access:manage`. One page of the list, **oldest first** —
+        the order an invitation batch takes people in — with the whole list's
+        funnel in `summary` whatever the filters.
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/WaitlistStatus' }
+        - name: q
+          in: query
+          description: Matches the address anywhere in it.
+          schema: { type: string, maxLength: 200 }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        '200':
+          description: One page of the list.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WaitlistPage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /admin/early-access/waitlist/invite:
+    post:
+      tags: [early-access]
+      operationId: inviteWaitlist
+      summary: Mời N người tiếp theo
+      description: |
+        rbac: `early_access:manage`. Invites the oldest `count` entries not yet
+        invited, each with a **personal code of its own** carrying the terms in
+        the request, and emails every one. Fewer than `count` are invited when
+        fewer are waiting. The invitations are written before any email is
+        sent; an email that could not be sent is reported as
+        `emailSent: false` and can be sent again. Audited.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InviteWaitlistRequest' }
+      responses:
+        '200':
+          description: Who was invited, with their codes.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InviteWaitlistResult' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /admin/early-access/waitlist/{entryId}/resend:
+    parameters:
+      - $ref: '#/components/parameters/WaitlistEntryId'
+    post:
+      tags: [early-access]
+      operationId: resendWaitlistInvitation
+      summary: Gửi lại email mời
+      description: |
+        rbac: `early_access:manage`. `409 waitlist_entry_not_invited` for an
+        entry with no invitation, and `503 invitation_email_failed` when the
+        mail provider refused it.
+      responses:
+        '200':
+          description: Sent.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InvitedWaitlistEntry' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503':
+          description: '`invitation_email_failed`.'
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problem' }
+
+  /admin/early-access/waitlist/{entryId}:
+    parameters:
+      - $ref: '#/components/parameters/WaitlistEntryId'
+    delete:
+      tags: [early-access]
+      operationId: deleteWaitlistEntry
+      summary: Xoá khỏi danh sách chờ
+      description: |
+        rbac: `early_access:manage`. An invitation already issued stays issued;
+        disable its code to withdraw it. Audited.
+      responses:
+        '204':
+          description: Removed.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /admin/exams:
     get:
       tags: [admin]
@@ -6245,6 +6633,16 @@ components:
       in: path
       required: true
       schema: { type: string, format: uuid }
+    AccessCodeId:
+      name: codeId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    WaitlistEntryId:
+      name: entryId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
 
   responses:
     ClipRedirect:
@@ -6528,6 +6926,12 @@ components:
           type: array
           items: { type: string }
         plan: { $ref: '#/components/schemas/UserPlan' }
+        earlyAccess:
+          $ref: '#/components/schemas/EarlyAccessState'
+          description: |
+            **Absent when there is nothing to say**: the site is not locked for
+            this account and no access code let it in — which is every account
+            once Xami is public.
 
     UserPlan:
       type: object
@@ -6662,6 +7066,13 @@ components:
         title: { type: string }
         days: { type: integer }
         priceVnd: { type: integer }
+        offerPriceVnd:
+          type: integer
+          description: |
+            What the signed-in learner pays for this product with their
+            early-access discount. Present only on a product the discount covers
+            — the one-month term — and only while the learner has one to spend.
+            The same rule `POST /billing/orders` charges by.
 
     PremiumProductList:
       type: object
@@ -6670,6 +7081,22 @@ components:
         items:
           type: array
           items: { $ref: '#/components/schemas/PremiumProduct' }
+        offer:
+          $ref: '#/components/schemas/PremiumOffer'
+          description: The signed-in learner's unspent discount. Absent for a visitor.
+
+    PremiumOffer:
+      type: object
+      required: [percent]
+      description: |
+        An early-access discount on the first paid month. Spent when an order
+        it discounted is paid; an order that expires unpaid leaves it unspent.
+      properties:
+        percent: { type: integer, minimum: 1, maximum: 90 }
+        expiresAt:
+          type: string
+          format: date-time
+          description: When it lapses unused. Absent when it does not.
 
     CreatePaymentOrderRequest:
       type: object
@@ -6717,6 +7144,11 @@ components:
         createdAt: { type: string, format: date-time }
         paidAt: { type: string, format: date-time }
         paidAmountVnd: { type: integer }
+        discountVnd:
+          type: integer
+          description: |
+            What the early-access offer took off the list price, so the list
+            price was `amountVnd + discountVnd`. Absent when nothing was.
         transfer:
           $ref: '#/components/schemas/TransferInstructions'
           description: Present only while the order is `PENDING`.
@@ -6957,6 +7389,315 @@ components:
       properties:
         days: { type: integer, minimum: 1, maximum: 3650 }
         note: { type: string, maxLength: 200 }
+
+    # ── truy cập sớm ──────────────────────────────────────────────────────────
+
+    EarlyAccessState:
+      type: object
+      required: [locked]
+      description: |
+        While the operator has the site in early-access mode, every learner
+        route and every guest shelf answers `403 early_access_required` to a
+        visitor with no account and to an account that has not redeemed an
+        access code. Signing in, the account's own settings, `GET /me`, the
+        price list and the `early-access` routes stay open, and staff accounts
+        are never locked.
+      properties:
+        locked:
+          type: boolean
+          description: |
+            The site is in early-access mode and this account has not been let
+            in. The client shows the lock page instead of the product; the API
+            would refuse the product with `403 early_access_required` anyway.
+        activatedAt:
+          type: string
+          format: date-time
+          description: When an access code let this account in.
+        campaign:
+          type: string
+          description: The campaign of the code that let it in.
+        trialEndsAt:
+          type: string
+          format: date-time
+          description: When the Premium trial that code carried runs out.
+        offer: { $ref: '#/components/schemas/PremiumOffer' }
+
+    EarlyAccessStatus:
+      type: object
+      required: [enabled]
+      properties:
+        enabled: { type: boolean }
+        launchAt:
+          type: string
+          format: date-time
+          description: The announced public release, for the countdown.
+        capacity: { $ref: '#/components/schemas/EarlyAccessCapacity' }
+
+    EarlyAccessCapacity:
+      type: object
+      required: [remaining, total]
+      description: |
+        Seats left across every live campaign code. Present only when the
+        operator has switched it on — the number is shown only while it is real.
+      properties:
+        remaining: { type: integer, minimum: 0 }
+        total: { type: integer, minimum: 1 }
+
+    AccessCodeRequest:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+          maxLength: 64
+          description: |
+            As typed. Matched on letters and digits alone, upper-cased, so
+            `xami h7k92p` and `XAMI-H7K92P` are the same code.
+
+    AccessCodeCheck:
+      type: object
+      required: [code, trialDays, discountPercent, remaining, maxRedemptions]
+      properties:
+        code:
+          type: string
+          description: The code as it is written, to show back.
+        trialDays: { type: integer, minimum: 0 }
+        discountPercent: { type: integer, minimum: 0 }
+        remaining: { type: integer, minimum: 1 }
+        maxRedemptions: { type: integer, minimum: 1 }
+
+    EarlyAccessActivation:
+      type: object
+      required: [earlyAccess, plan, trialDays, discountPercent]
+      properties:
+        earlyAccess: { $ref: '#/components/schemas/EarlyAccessState' }
+        plan: { $ref: '#/components/schemas/UserPlan' }
+        trialDays:
+          type: integer
+          description: What the code gave, for the welcome screen.
+        discountPercent: { type: integer }
+
+    KoreanLevel:
+      type: string
+      enum: [NONE, BEGINNER, INTERMEDIATE, ADVANCED]
+
+    LearningGoal:
+      type: string
+      enum: [TOPIK, STUDY_ABROAD, WORK, CULTURE, OTHER]
+
+    ReferralSource:
+      type: string
+      enum: [TIKTOK, FACEBOOK, YOUTUBE, FRIEND, SEARCH, OTHER]
+
+    JoinWaitlistRequest:
+      type: object
+      required: [email, koreanLevel, learningGoal]
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        koreanLevel: { $ref: '#/components/schemas/KoreanLevel' }
+        learningGoal: { $ref: '#/components/schemas/LearningGoal' }
+        topikTarget: { type: integer, minimum: 1, maximum: 6 }
+        examDate:
+          type: string
+          format: date
+          description: The exam the learner is aiming at, if they know it.
+        referralSource: { $ref: '#/components/schemas/ReferralSource' }
+
+    EarlyAccessSettings:
+      type: object
+      required: [enabled, showCapacity, updatedAt]
+      properties:
+        enabled: { type: boolean }
+        launchAt: { type: string, format: date-time }
+        showCapacity: { type: boolean }
+        updatedAt: { type: string, format: date-time }
+
+    UpdateEarlyAccessSettingsRequest:
+      type: object
+      required: [enabled, showCapacity]
+      properties:
+        enabled: { type: boolean }
+        launchAt:
+          type: string
+          format: date-time
+          description: Omit to announce no date.
+        showCapacity: { type: boolean }
+
+    AccessCodeKind:
+      type: string
+      enum: [CAMPAIGN, BATCH, PERSONAL]
+      description: |
+        `CAMPAIGN` is public and shared on purpose (TikTok). `BATCH` is a
+        controlled group (a school, a community). `PERSONAL` is one person and
+        one redemption.
+
+    AccessCodeStatus:
+      type: string
+      enum: [ACTIVE, FULL, EXPIRED, DISABLED]
+
+    AccessCode:
+      type: object
+      required: [id, code, kind, campaign, status, maxRedemptions, redemptions, trialDays, discountPercent, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        kind: { $ref: '#/components/schemas/AccessCodeKind' }
+        campaign: { type: string }
+        status: { $ref: '#/components/schemas/AccessCodeStatus' }
+        maxRedemptions: { type: integer }
+        redemptions: { type: integer }
+        trialDays: { type: integer }
+        discountPercent: { type: integer }
+        discountValidDays:
+          type: integer
+          description: Days after activation the discount may still be spent. Absent means until used.
+        expiresAt: { type: string, format: date-time }
+        disabledAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+
+    AccessCodeList:
+      type: object
+      required: [items, totalCount]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AccessCode' }
+        totalCount: { type: integer }
+
+    CreateAccessCodeRequest:
+      type: object
+      required: [kind, campaign, maxRedemptions, trialDays, discountPercent]
+      properties:
+        code:
+          type: string
+          maxLength: 32
+          pattern: '^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$'
+          description: Omit to generate one.
+        kind: { $ref: '#/components/schemas/AccessCodeKind' }
+        campaign: { type: string, minLength: 1, maxLength: 80 }
+        maxRedemptions:
+          type: integer
+          minimum: 1
+          maximum: 100000
+          description: Must be 1 for a `PERSONAL` code.
+        trialDays: { type: integer, minimum: 0, maximum: 90 }
+        discountPercent: { type: integer, minimum: 0, maximum: 90 }
+        discountValidDays: { type: integer, minimum: 1, maximum: 365 }
+        expiresAt: { type: string, format: date-time }
+
+    UpdateAccessCodeRequest:
+      type: object
+      required: [campaign, maxRedemptions, trialDays, discountPercent]
+      properties:
+        campaign: { type: string, minLength: 1, maxLength: 80 }
+        maxRedemptions: { type: integer, minimum: 1, maximum: 100000 }
+        trialDays: { type: integer, minimum: 0, maximum: 90 }
+        discountPercent: { type: integer, minimum: 0, maximum: 90 }
+        discountValidDays:
+          type: integer
+          minimum: 1
+          maximum: 365
+          description: Omit to keep the discount until it is used.
+        expiresAt:
+          type: string
+          format: date-time
+          description: Omit for a code with no expiry date.
+
+    AccessCodeRedemption:
+      type: object
+      required: [userId, email, displayName, activatedAt]
+      properties:
+        userId: { type: string, format: uuid }
+        email: { type: string, format: email }
+        displayName: { type: string }
+        activatedAt: { type: string, format: date-time }
+        trialEndsAt: { type: string, format: date-time }
+        discountUsedAt: { type: string, format: date-time }
+
+    AccessCodeRedemptionList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/AccessCodeRedemption' }
+
+    WaitlistStatus:
+      type: string
+      enum: [WAITING, INVITED, REGISTERED, ACTIVATED]
+      description: |
+        Derived, never stored. `REGISTERED` is an account on the same address;
+        `ACTIVATED` is an account let in by a code — the entry's own invitation
+        or any other.
+
+    WaitlistEntry:
+      type: object
+      required: [id, email, koreanLevel, learningGoal, status, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        koreanLevel: { $ref: '#/components/schemas/KoreanLevel' }
+        learningGoal: { $ref: '#/components/schemas/LearningGoal' }
+        topikTarget: { type: integer }
+        examDate: { type: string, format: date }
+        referralSource: { $ref: '#/components/schemas/ReferralSource' }
+        status: { $ref: '#/components/schemas/WaitlistStatus' }
+        createdAt: { type: string, format: date-time }
+        invitedAt: { type: string, format: date-time }
+        invitationCode: { type: string }
+
+    WaitlistSummary:
+      type: object
+      required: [total, notInvited, invited, registered, activated]
+      description: |
+        The whole list as a funnel. `registered` and `activated` count entries
+        that reached at least that far.
+      properties:
+        total: { type: integer }
+        notInvited: { type: integer }
+        invited: { type: integer }
+        registered: { type: integer }
+        activated: { type: integer }
+
+    WaitlistPage:
+      type: object
+      required: [items, totalCount, summary]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/WaitlistEntry' }
+        totalCount:
+          type: integer
+          description: Entries matching the filters, not the ones on this page.
+        summary: { $ref: '#/components/schemas/WaitlistSummary' }
+
+    InviteWaitlistRequest:
+      type: object
+      required: [count, campaign, trialDays, discountPercent]
+      properties:
+        count: { type: integer, minimum: 1, maximum: 200 }
+        campaign: { type: string, minLength: 1, maxLength: 80 }
+        trialDays: { type: integer, minimum: 0, maximum: 90 }
+        discountPercent: { type: integer, minimum: 0, maximum: 90 }
+        discountValidDays: { type: integer, minimum: 1, maximum: 365 }
+        expiresAt: { type: string, format: date-time }
+
+    InvitedWaitlistEntry:
+      type: object
+      required: [entryId, email, code, emailSent]
+      properties:
+        entryId: { type: string, format: uuid }
+        email: { type: string, format: email }
+        code: { type: string }
+        emailSent: { type: boolean }
+
+    InviteWaitlistResult:
+      type: object
+      required: [invited]
+      properties:
+        invited:
+          type: array
+          items: { $ref: '#/components/schemas/InvitedWaitlistEntry' }
 
     UpdateProfile:
       type: object
@@ -7825,6 +8566,22 @@ components:
             without it a reload would present a fresh play button, which is the
             most common way a second listen happens. Meaningless in PRACTICE,
             where replaying is unlimited.
+        audioLeadInMs:
+          type: integer
+          minimum: 0
+          description: |
+            How long the clip is silent before anything is said, in
+            milliseconds, measured from the file itself. The pre-reform papers
+            were cut from one long recording at the midpoint of every answer
+            pause, so their clips open on seven to twenty seconds of nothing;
+            a modern clip opens on about one. The player starts playback one
+            second before the first word instead of at zero.
+
+            Absent when it was never measured, and the player then starts at
+            zero, exactly as before. The players treat that point as where the
+            clip begins — the time they count, the bar they fill, the place
+            "Nghe lại" returns to — and nothing about the one-play rule
+            changes: the learner still hears every word.
         images:
           type: array
           items: { $ref: '#/components/schemas/ExamImage' }
@@ -10031,6 +10788,14 @@ components:
             on a deployment with a public bucket, and the authenticated
             placement route otherwise. Nothing is rationed here either way: this
             test has no countdown and no one-play rule.
+        audioLeadInMs:
+          type: integer
+          minimum: 0
+          description: |
+            How long the clip is silent before anything is said, in
+            milliseconds — the same measurement `RunnerPassage.audioLeadInMs`
+            carries, for the same reason. Absent when never measured; the
+            player then starts at zero.
 
     PlacementPassage:
       type: object

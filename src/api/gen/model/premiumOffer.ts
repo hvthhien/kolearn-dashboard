@@ -23,11 +23,17 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { PremiumOffer } from './premiumOffer';
-import type { PremiumProduct } from './premiumProduct';
 
-export interface PremiumProductList {
-  items: PremiumProduct[];
-  /** The signed-in learner's unspent discount. Absent for a visitor. */
-  offer?: PremiumOffer;
+/**
+ * An early-access discount on the first paid month. Spent when an order
+ * it discounted is paid; an order that expires unpaid leaves it unspent.
+ */
+export interface PremiumOffer {
+  /**
+     * @minimum 1
+     * @maximum 90
+     */
+  percent: number;
+  /** When it lapses unused. Absent when it does not. */
+  expiresAt?: string;
 }

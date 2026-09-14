@@ -23,11 +23,11 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { PremiumOffer } from './premiumOffer';
-import type { PremiumProduct } from './premiumProduct';
+import type { EarlyAccessCapacity } from './earlyAccessCapacity';
 
-export interface PremiumProductList {
-  items: PremiumProduct[];
-  /** The signed-in learner's unspent discount. Absent for a visitor. */
-  offer?: PremiumOffer;
+export interface EarlyAccessStatus {
+  enabled: boolean;
+  /** The announced public release, for the countdown. */
+  launchAt?: string;
+  capacity?: EarlyAccessCapacity;
 }

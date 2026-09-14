@@ -43,6 +43,11 @@ import type {
 } from '@tanstack/react-query';
 
 import type {
+  AccessCode,
+  AccessCodeCheck,
+  AccessCodeList,
+  AccessCodeRedemptionList,
+  AccessCodeRequest,
   AdminDictationApprovalRequest,
   AdminDictationCategory,
   AdminDictationCategoryList,
@@ -92,6 +97,7 @@ import type {
   ConfirmShadowUploadRequest,
   ConflictResponse,
   ContentPremium,
+  CreateAccessCodeRequest,
   CreateCardGroupBody,
   CreateCardRequest,
   CreateCardsBatchBody,
@@ -110,6 +116,9 @@ import type {
   DictationShadowLessonDetail,
   DictationShadowLessonList,
   DictationSkipResult,
+  EarlyAccessActivation,
+  EarlyAccessSettings,
+  EarlyAccessStatus,
   ExamDetail,
   ForbiddenResponse,
   ForgotPasswordBody,
@@ -120,6 +129,11 @@ import type {
   GrantPlanRequest,
   ImportReport,
   ImportRequest,
+  InviteWaitlistRequest,
+  InviteWaitlistResult,
+  InvitedWaitlistEntry,
+  JoinWaitlistRequest,
+  ListAccessCodesParams,
   ListAdminDictationSetsParams,
   ListAdminExams200,
   ListAdminExamsParams,
@@ -147,6 +161,7 @@ import type {
   ListStudyCardsParams,
   ListTopics200,
   ListTopicsParams,
+  ListWaitlistParams,
   LoginRequest,
   MatchBankTransactionRequest,
   MediaRedirectResponse,
@@ -222,8 +237,10 @@ import type {
   TopicRecommendations,
   UnauthorizedResponse,
   UnprocessableResponse,
+  UpdateAccessCodeRequest,
   UpdateAttemptBody,
   UpdateCardRequest,
+  UpdateEarlyAccessSettingsRequest,
   UpdateExamRequest,
   UpdateProfile,
   UserPlan,
@@ -231,6 +248,7 @@ import type {
   VerificationChallenge,
   VerifyEmailBody,
   VerifyPasswordResetCodeBody,
+  WaitlistPage,
   WeaknessPreference,
   WeaknessRetakeSummary,
   Wordbook,
@@ -2560,6 +2578,346 @@ export function useListMyPaymentOrders<TData = Awaited<ReturnType<typeof listMyP
 
 
 
+
+export const getGetEarlyAccessStatusUrl = () => {
+
+
+
+
+  return `/api/v1/early-access`
+}
+
+/**
+ * What the lock page reads, with no account: whether the site is locked,
+ * the release date it counts down to, and — only when the operator has
+ * switched it on and a campaign code exists — the seats left across every
+ * live campaign code. Never locked itself.
+ * @summary Trạng thái khoá trang
+ */
+export const getEarlyAccessStatus = async ( options?: Parameters<typeof apiFetch>[1]): Promise<EarlyAccessStatus> => {
+
+  return apiFetch<EarlyAccessStatus>(getGetEarlyAccessStatusUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetEarlyAccessStatusQueryKey = () => {
+    return [
+    `/api/v1/early-access`
+    ] as const;
+    }
+
+
+export const getGetEarlyAccessStatusQueryOptions = <TData = Awaited<ReturnType<typeof getEarlyAccessStatus>>, TError = unknown>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEarlyAccessStatus>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetEarlyAccessStatusQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getEarlyAccessStatus>>> = ({ signal }) => getEarlyAccessStatus({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getEarlyAccessStatus>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetEarlyAccessStatusQueryResult = NonNullable<Awaited<ReturnType<typeof getEarlyAccessStatus>>>
+export type GetEarlyAccessStatusQueryError = unknown
+
+
+export function useGetEarlyAccessStatus<TData = Awaited<ReturnType<typeof getEarlyAccessStatus>>, TError = unknown>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEarlyAccessStatus>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getEarlyAccessStatus>>,
+          TError,
+          Awaited<ReturnType<typeof getEarlyAccessStatus>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetEarlyAccessStatus<TData = Awaited<ReturnType<typeof getEarlyAccessStatus>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEarlyAccessStatus>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getEarlyAccessStatus>>,
+          TError,
+          Awaited<ReturnType<typeof getEarlyAccessStatus>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetEarlyAccessStatus<TData = Awaited<ReturnType<typeof getEarlyAccessStatus>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEarlyAccessStatus>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Trạng thái khoá trang
+ */
+
+export function useGetEarlyAccessStatus<TData = Awaited<ReturnType<typeof getEarlyAccessStatus>>, TError = unknown>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEarlyAccessStatus>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetEarlyAccessStatusQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCheckAccessCodeUrl = () => {
+
+
+
+
+  return `/api/v1/early-access/check`
+}
+
+/**
+ * Validates a code **without spending it**, for a visitor who may not
+ * have an account yet. The code is consumed only by
+ * `POST /me/early-access/activate`, once there is an account to hold it.
+ *
+ * | code | meaning |
+ * |---|---|
+ * | `access_code_invalid` | not a code, or disabled |
+ * | `access_code_expired` | past its expiry date |
+ * | `access_code_full` | every seat taken — the page offers the waitlist |
+ * @summary Kiểm tra mã truy cập
+ */
+export const checkAccessCode = async (accessCodeRequest: AccessCodeRequest, options?: Parameters<typeof apiFetch>[1]): Promise<AccessCodeCheck> => {
+
+  return apiFetch<AccessCodeCheck>(getCheckAccessCodeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(accessCodeRequest)
+  }
+);}
+
+
+
+
+
+export const getCheckAccessCodeMutationOptions = <TError = UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof checkAccessCode>>, TError,{data: AccessCodeRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof checkAccessCode>>, TError,{data: AccessCodeRequest}, TContext> => {
+
+const mutationKey = ['checkAccessCode'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof checkAccessCode>>, {data: AccessCodeRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  checkAccessCode(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CheckAccessCodeMutationResult = NonNullable<Awaited<ReturnType<typeof checkAccessCode>>>
+    export type CheckAccessCodeMutationBody = AccessCodeRequest
+    export type CheckAccessCodeMutationError = UnprocessableResponse
+
+    /**
+ * @summary Kiểm tra mã truy cập
+ */
+export const useCheckAccessCode = <TError = UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof checkAccessCode>>, TError,{data: AccessCodeRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof checkAccessCode>>,
+        TError,
+        {data: AccessCodeRequest},
+        TContext
+      > => {
+      return useMutation(getCheckAccessCodeMutationOptions(options), queryClient);
+    }
+
+export const getJoinWaitlistUrl = () => {
+
+
+
+
+  return `/api/v1/waitlist`
+}
+
+/**
+ * Puts an address on the waitlist. Joining again with the same address
+ * changes nothing and answers the same `204`, so the form does not say
+ * whether an address was already there. Nobody is let in by joining: the
+ * operator releases invitations in batches.
+ * @summary Tham gia danh sách chờ
+ */
+export const joinWaitlist = async (joinWaitlistRequest: JoinWaitlistRequest, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getJoinWaitlistUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(joinWaitlistRequest)
+  }
+);}
+
+
+
+
+
+export const getJoinWaitlistMutationOptions = <TError = BadRequestResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof joinWaitlist>>, TError,{data: JoinWaitlistRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof joinWaitlist>>, TError,{data: JoinWaitlistRequest}, TContext> => {
+
+const mutationKey = ['joinWaitlist'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof joinWaitlist>>, {data: JoinWaitlistRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  joinWaitlist(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type JoinWaitlistMutationResult = NonNullable<Awaited<ReturnType<typeof joinWaitlist>>>
+    export type JoinWaitlistMutationBody = JoinWaitlistRequest
+    export type JoinWaitlistMutationError = BadRequestResponse | UnprocessableResponse
+
+    /**
+ * @summary Tham gia danh sách chờ
+ */
+export const useJoinWaitlist = <TError = BadRequestResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof joinWaitlist>>, TError,{data: JoinWaitlistRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof joinWaitlist>>,
+        TError,
+        {data: JoinWaitlistRequest},
+        TContext
+      > => {
+      return useMutation(getJoinWaitlistMutationOptions(options), queryClient);
+    }
+
+export const getActivateEarlyAccessUrl = () => {
+
+
+
+
+  return `/api/v1/me/early-access/activate`
+}
+
+/**
+ * Redeems an access code on the caller's own account: lifts the lock,
+ * starts the Premium trial the code carries from today, and stores the
+ * first-month discount against the account. Once per account — a second
+ * code answers `409 early_access_already_active`.
+ *
+ * Answers with the new `earlyAccess` and `plan`, so the client can update
+ * `CurrentUser` without a second request. Refusals are the same 422s as
+ * `POST /early-access/check`; after ten in an hour the route answers
+ * `429 too_many_attempts` without looking at the code.
+ * @summary Kích hoạt truy cập sớm
+ */
+export const activateEarlyAccess = async (accessCodeRequest: AccessCodeRequest, options?: Parameters<typeof apiFetch>[1]): Promise<EarlyAccessActivation> => {
+
+  return apiFetch<EarlyAccessActivation>(getActivateEarlyAccessUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(accessCodeRequest)
+  }
+);}
+
+
+
+
+
+export const getActivateEarlyAccessMutationOptions = <TError = UnauthorizedResponse | ConflictResponse | UnprocessableResponse | TooManyRequestsResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof activateEarlyAccess>>, TError,{data: AccessCodeRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof activateEarlyAccess>>, TError,{data: AccessCodeRequest}, TContext> => {
+
+const mutationKey = ['activateEarlyAccess'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof activateEarlyAccess>>, {data: AccessCodeRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  activateEarlyAccess(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ActivateEarlyAccessMutationResult = NonNullable<Awaited<ReturnType<typeof activateEarlyAccess>>>
+    export type ActivateEarlyAccessMutationBody = AccessCodeRequest
+    export type ActivateEarlyAccessMutationError = UnauthorizedResponse | ConflictResponse | UnprocessableResponse | TooManyRequestsResponse
+
+    /**
+ * @summary Kích hoạt truy cập sớm
+ */
+export const useActivateEarlyAccess = <TError = UnauthorizedResponse | ConflictResponse | UnprocessableResponse | TooManyRequestsResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof activateEarlyAccess>>, TError,{data: AccessCodeRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof activateEarlyAccess>>,
+        TError,
+        {data: AccessCodeRequest},
+        TContext
+      > => {
+      return useMutation(getActivateEarlyAccessMutationOptions(options), queryClient);
+    }
 
 export const getGetMyStreakUrl = () => {
 
@@ -14065,6 +14423,1025 @@ export const useGrantUserPlan = <TError = UnauthorizedResponse | ForbiddenRespon
         TContext
       > => {
       return useMutation(getGrantUserPlanMutationOptions(options), queryClient);
+    }
+
+export const getGetEarlyAccessSettingsUrl = () => {
+
+
+
+
+  return `/api/v1/admin/early-access/settings`
+}
+
+/**
+ * rbac: `early_access:manage`.
+ * @summary Cài đặt truy cập sớm
+ */
+export const getEarlyAccessSettings = async ( options?: Parameters<typeof apiFetch>[1]): Promise<EarlyAccessSettings> => {
+
+  return apiFetch<EarlyAccessSettings>(getGetEarlyAccessSettingsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetEarlyAccessSettingsQueryKey = () => {
+    return [
+    `/api/v1/admin/early-access/settings`
+    ] as const;
+    }
+
+
+export const getGetEarlyAccessSettingsQueryOptions = <TData = Awaited<ReturnType<typeof getEarlyAccessSettings>>, TError = UnauthorizedResponse | ForbiddenResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEarlyAccessSettings>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetEarlyAccessSettingsQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getEarlyAccessSettings>>> = ({ signal }) => getEarlyAccessSettings({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getEarlyAccessSettings>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetEarlyAccessSettingsQueryResult = NonNullable<Awaited<ReturnType<typeof getEarlyAccessSettings>>>
+export type GetEarlyAccessSettingsQueryError = UnauthorizedResponse | ForbiddenResponse
+
+
+export function useGetEarlyAccessSettings<TData = Awaited<ReturnType<typeof getEarlyAccessSettings>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEarlyAccessSettings>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getEarlyAccessSettings>>,
+          TError,
+          Awaited<ReturnType<typeof getEarlyAccessSettings>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetEarlyAccessSettings<TData = Awaited<ReturnType<typeof getEarlyAccessSettings>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEarlyAccessSettings>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getEarlyAccessSettings>>,
+          TError,
+          Awaited<ReturnType<typeof getEarlyAccessSettings>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetEarlyAccessSettings<TData = Awaited<ReturnType<typeof getEarlyAccessSettings>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEarlyAccessSettings>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Cài đặt truy cập sớm
+ */
+
+export function useGetEarlyAccessSettings<TData = Awaited<ReturnType<typeof getEarlyAccessSettings>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getEarlyAccessSettings>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetEarlyAccessSettingsQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateEarlyAccessSettingsUrl = () => {
+
+
+
+
+  return `/api/v1/admin/early-access/settings`
+}
+
+/**
+ * rbac: `early_access:manage`. Replaces all three settings; an absent
+ * `launchAt` means no release date is announced. Takes effect for
+ * signed-in accounts on their next request, and for visitors with no
+ * account within seconds. Audited.
+ * @summary Bật/tắt khoá trang
+ */
+export const updateEarlyAccessSettings = async (updateEarlyAccessSettingsRequest: UpdateEarlyAccessSettingsRequest, options?: Parameters<typeof apiFetch>[1]): Promise<EarlyAccessSettings> => {
+
+  return apiFetch<EarlyAccessSettings>(getUpdateEarlyAccessSettingsUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateEarlyAccessSettingsRequest)
+  }
+);}
+
+
+
+
+
+export const getUpdateEarlyAccessSettingsMutationOptions = <TError = BadRequestResponse | UnauthorizedResponse | ForbiddenResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateEarlyAccessSettings>>, TError,{data: UpdateEarlyAccessSettingsRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateEarlyAccessSettings>>, TError,{data: UpdateEarlyAccessSettingsRequest}, TContext> => {
+
+const mutationKey = ['updateEarlyAccessSettings'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateEarlyAccessSettings>>, {data: UpdateEarlyAccessSettingsRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  updateEarlyAccessSettings(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateEarlyAccessSettingsMutationResult = NonNullable<Awaited<ReturnType<typeof updateEarlyAccessSettings>>>
+    export type UpdateEarlyAccessSettingsMutationBody = UpdateEarlyAccessSettingsRequest
+    export type UpdateEarlyAccessSettingsMutationError = BadRequestResponse | UnauthorizedResponse | ForbiddenResponse
+
+    /**
+ * @summary Bật/tắt khoá trang
+ */
+export const useUpdateEarlyAccessSettings = <TError = BadRequestResponse | UnauthorizedResponse | ForbiddenResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateEarlyAccessSettings>>, TError,{data: UpdateEarlyAccessSettingsRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateEarlyAccessSettings>>,
+        TError,
+        {data: UpdateEarlyAccessSettingsRequest},
+        TContext
+      > => {
+      return useMutation(getUpdateEarlyAccessSettingsMutationOptions(options), queryClient);
+    }
+
+export const getListAccessCodesUrl = (params?: ListAccessCodesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/admin/early-access/codes?${stringifiedParams}` : `/api/v1/admin/early-access/codes`
+}
+
+/**
+ * rbac: `early_access:manage`. Newest first.
+ * @summary Mã truy cập
+ */
+export const listAccessCodes = async (params?: ListAccessCodesParams, options?: Parameters<typeof apiFetch>[1]): Promise<AccessCodeList> => {
+
+  return apiFetch<AccessCodeList>(getListAccessCodesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAccessCodesQueryKey = (params?: ListAccessCodesParams,) => {
+    return [
+    `/api/v1/admin/early-access/codes`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListAccessCodesQueryOptions = <TData = Awaited<ReturnType<typeof listAccessCodes>>, TError = UnauthorizedResponse | ForbiddenResponse>(params?: ListAccessCodesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAccessCodes>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAccessCodesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAccessCodes>>> = ({ signal }) => listAccessCodes(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAccessCodes>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListAccessCodesQueryResult = NonNullable<Awaited<ReturnType<typeof listAccessCodes>>>
+export type ListAccessCodesQueryError = UnauthorizedResponse | ForbiddenResponse
+
+
+export function useListAccessCodes<TData = Awaited<ReturnType<typeof listAccessCodes>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params: undefined |  ListAccessCodesParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAccessCodes>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAccessCodes>>,
+          TError,
+          Awaited<ReturnType<typeof listAccessCodes>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListAccessCodes<TData = Awaited<ReturnType<typeof listAccessCodes>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params?: ListAccessCodesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAccessCodes>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAccessCodes>>,
+          TError,
+          Awaited<ReturnType<typeof listAccessCodes>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListAccessCodes<TData = Awaited<ReturnType<typeof listAccessCodes>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params?: ListAccessCodesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAccessCodes>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Mã truy cập
+ */
+
+export function useListAccessCodes<TData = Awaited<ReturnType<typeof listAccessCodes>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params?: ListAccessCodesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAccessCodes>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListAccessCodesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateAccessCodeUrl = () => {
+
+
+
+
+  return `/api/v1/admin/early-access/codes`
+}
+
+/**
+ * rbac: `early_access:manage`. Omit `code` to have one generated —
+ * `XAMI-` and six characters for a personal code, eight characters
+ * otherwise. A chosen code that already exists answers
+ * `409 access_code_taken`. Audited.
+ * @summary Tạo mã truy cập
+ */
+export const createAccessCode = async (createAccessCodeRequest: CreateAccessCodeRequest, options?: Parameters<typeof apiFetch>[1]): Promise<AccessCode> => {
+
+  return apiFetch<AccessCode>(getCreateAccessCodeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createAccessCodeRequest)
+  }
+);}
+
+
+
+
+
+export const getCreateAccessCodeMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | ConflictResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAccessCode>>, TError,{data: CreateAccessCodeRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAccessCode>>, TError,{data: CreateAccessCodeRequest}, TContext> => {
+
+const mutationKey = ['createAccessCode'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAccessCode>>, {data: CreateAccessCodeRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createAccessCode(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateAccessCodeMutationResult = NonNullable<Awaited<ReturnType<typeof createAccessCode>>>
+    export type CreateAccessCodeMutationBody = CreateAccessCodeRequest
+    export type CreateAccessCodeMutationError = UnauthorizedResponse | ForbiddenResponse | ConflictResponse | UnprocessableResponse
+
+    /**
+ * @summary Tạo mã truy cập
+ */
+export const useCreateAccessCode = <TError = UnauthorizedResponse | ForbiddenResponse | ConflictResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAccessCode>>, TError,{data: CreateAccessCodeRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createAccessCode>>,
+        TError,
+        {data: CreateAccessCodeRequest},
+        TContext
+      > => {
+      return useMutation(getCreateAccessCodeMutationOptions(options), queryClient);
+    }
+
+export const getUpdateAccessCodeUrl = (codeId: string,) => {
+
+
+
+
+  return `/api/v1/admin/early-access/codes/${codeId}`
+}
+
+/**
+ * rbac: `early_access:manage`. Replaces the code's terms. The code and its
+ * kind never change. New terms apply to activations from now on;
+ * accounts already let in keep the trial and discount they were given.
+ * `maxRedemptions` may not go below the seats already taken. Audited.
+ * @summary Sửa điều kiện mã
+ */
+export const updateAccessCode = async (codeId: string,
+    updateAccessCodeRequest: UpdateAccessCodeRequest, options?: Parameters<typeof apiFetch>[1]): Promise<AccessCode> => {
+
+  return apiFetch<AccessCode>(getUpdateAccessCodeUrl(codeId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(updateAccessCodeRequest)
+  }
+);}
+
+
+
+
+
+export const getUpdateAccessCodeMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAccessCode>>, TError,{codeId: string;data: UpdateAccessCodeRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateAccessCode>>, TError,{codeId: string;data: UpdateAccessCodeRequest}, TContext> => {
+
+const mutationKey = ['updateAccessCode'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateAccessCode>>, {codeId: string;data: UpdateAccessCodeRequest}> = (props) => {
+          const {codeId,data} = props ?? {};
+
+          return  updateAccessCode(codeId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateAccessCodeMutationResult = NonNullable<Awaited<ReturnType<typeof updateAccessCode>>>
+    export type UpdateAccessCodeMutationBody = UpdateAccessCodeRequest
+    export type UpdateAccessCodeMutationError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | UnprocessableResponse
+
+    /**
+ * @summary Sửa điều kiện mã
+ */
+export const useUpdateAccessCode = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateAccessCode>>, TError,{codeId: string;data: UpdateAccessCodeRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof updateAccessCode>>,
+        TError,
+        {codeId: string;data: UpdateAccessCodeRequest},
+        TContext
+      > => {
+      return useMutation(getUpdateAccessCodeMutationOptions(options), queryClient);
+    }
+
+export const getDisableAccessCodeUrl = (codeId: string,) => {
+
+
+
+
+  return `/api/v1/admin/early-access/codes/${codeId}/disable`
+}
+
+/**
+ * rbac: `early_access:manage`. From now on the code answers
+ * `access_code_invalid`. Accounts already let in through it stay in.
+ * @summary Tắt mã
+ */
+export const disableAccessCode = async (codeId: string, options?: Parameters<typeof apiFetch>[1]): Promise<AccessCode> => {
+
+  return apiFetch<AccessCode>(getDisableAccessCodeUrl(codeId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getDisableAccessCodeMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disableAccessCode>>, TError,{codeId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof disableAccessCode>>, TError,{codeId: string}, TContext> => {
+
+const mutationKey = ['disableAccessCode'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof disableAccessCode>>, {codeId: string}> = (props) => {
+          const {codeId} = props ?? {};
+
+          return  disableAccessCode(codeId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DisableAccessCodeMutationResult = NonNullable<Awaited<ReturnType<typeof disableAccessCode>>>
+
+    export type DisableAccessCodeMutationError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse
+
+    /**
+ * @summary Tắt mã
+ */
+export const useDisableAccessCode = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disableAccessCode>>, TError,{codeId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof disableAccessCode>>,
+        TError,
+        {codeId: string},
+        TContext
+      > => {
+      return useMutation(getDisableAccessCodeMutationOptions(options), queryClient);
+    }
+
+export const getEnableAccessCodeUrl = (codeId: string,) => {
+
+
+
+
+  return `/api/v1/admin/early-access/codes/${codeId}/enable`
+}
+
+/**
+ * rbac: `early_access:manage`.
+ * @summary Bật lại mã
+ */
+export const enableAccessCode = async (codeId: string, options?: Parameters<typeof apiFetch>[1]): Promise<AccessCode> => {
+
+  return apiFetch<AccessCode>(getEnableAccessCodeUrl(codeId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getEnableAccessCodeMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof enableAccessCode>>, TError,{codeId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof enableAccessCode>>, TError,{codeId: string}, TContext> => {
+
+const mutationKey = ['enableAccessCode'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof enableAccessCode>>, {codeId: string}> = (props) => {
+          const {codeId} = props ?? {};
+
+          return  enableAccessCode(codeId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type EnableAccessCodeMutationResult = NonNullable<Awaited<ReturnType<typeof enableAccessCode>>>
+
+    export type EnableAccessCodeMutationError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse
+
+    /**
+ * @summary Bật lại mã
+ */
+export const useEnableAccessCode = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof enableAccessCode>>, TError,{codeId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof enableAccessCode>>,
+        TError,
+        {codeId: string},
+        TContext
+      > => {
+      return useMutation(getEnableAccessCodeMutationOptions(options), queryClient);
+    }
+
+export const getListAccessCodeRedemptionsUrl = (codeId: string,) => {
+
+
+
+
+  return `/api/v1/admin/early-access/codes/${codeId}/redemptions`
+}
+
+/**
+ * rbac: `early_access:manage`. Newest first.
+ * @summary Ai đã vào bằng mã này
+ */
+export const listAccessCodeRedemptions = async (codeId: string, options?: Parameters<typeof apiFetch>[1]): Promise<AccessCodeRedemptionList> => {
+
+  return apiFetch<AccessCodeRedemptionList>(getListAccessCodeRedemptionsUrl(codeId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListAccessCodeRedemptionsQueryKey = (codeId: string,) => {
+    return [
+    `/api/v1/admin/early-access/codes/${codeId}/redemptions`
+    ] as const;
+    }
+
+
+export const getListAccessCodeRedemptionsQueryOptions = <TData = Awaited<ReturnType<typeof listAccessCodeRedemptions>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(codeId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAccessCodeRedemptions>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListAccessCodeRedemptionsQueryKey(codeId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAccessCodeRedemptions>>> = ({ signal }) => listAccessCodeRedemptions(codeId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: codeId !== null && codeId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listAccessCodeRedemptions>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListAccessCodeRedemptionsQueryResult = NonNullable<Awaited<ReturnType<typeof listAccessCodeRedemptions>>>
+export type ListAccessCodeRedemptionsQueryError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse
+
+
+export function useListAccessCodeRedemptions<TData = Awaited<ReturnType<typeof listAccessCodeRedemptions>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
+ codeId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAccessCodeRedemptions>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAccessCodeRedemptions>>,
+          TError,
+          Awaited<ReturnType<typeof listAccessCodeRedemptions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListAccessCodeRedemptions<TData = Awaited<ReturnType<typeof listAccessCodeRedemptions>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
+ codeId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAccessCodeRedemptions>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listAccessCodeRedemptions>>,
+          TError,
+          Awaited<ReturnType<typeof listAccessCodeRedemptions>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListAccessCodeRedemptions<TData = Awaited<ReturnType<typeof listAccessCodeRedemptions>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
+ codeId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAccessCodeRedemptions>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Ai đã vào bằng mã này
+ */
+
+export function useListAccessCodeRedemptions<TData = Awaited<ReturnType<typeof listAccessCodeRedemptions>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
+ codeId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAccessCodeRedemptions>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListAccessCodeRedemptionsQueryOptions(codeId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListWaitlistUrl = (params?: ListWaitlistParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/admin/early-access/waitlist?${stringifiedParams}` : `/api/v1/admin/early-access/waitlist`
+}
+
+/**
+ * rbac: `early_access:manage`. One page of the list, **oldest first** —
+ * the order an invitation batch takes people in — with the whole list's
+ * funnel in `summary` whatever the filters.
+ * @summary Danh sách chờ
+ */
+export const listWaitlist = async (params?: ListWaitlistParams, options?: Parameters<typeof apiFetch>[1]): Promise<WaitlistPage> => {
+
+  return apiFetch<WaitlistPage>(getListWaitlistUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListWaitlistQueryKey = (params?: ListWaitlistParams,) => {
+    return [
+    `/api/v1/admin/early-access/waitlist`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListWaitlistQueryOptions = <TData = Awaited<ReturnType<typeof listWaitlist>>, TError = UnauthorizedResponse | ForbiddenResponse>(params?: ListWaitlistParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listWaitlist>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListWaitlistQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listWaitlist>>> = ({ signal }) => listWaitlist(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listWaitlist>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListWaitlistQueryResult = NonNullable<Awaited<ReturnType<typeof listWaitlist>>>
+export type ListWaitlistQueryError = UnauthorizedResponse | ForbiddenResponse
+
+
+export function useListWaitlist<TData = Awaited<ReturnType<typeof listWaitlist>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params: undefined |  ListWaitlistParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listWaitlist>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listWaitlist>>,
+          TError,
+          Awaited<ReturnType<typeof listWaitlist>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListWaitlist<TData = Awaited<ReturnType<typeof listWaitlist>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params?: ListWaitlistParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listWaitlist>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listWaitlist>>,
+          TError,
+          Awaited<ReturnType<typeof listWaitlist>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListWaitlist<TData = Awaited<ReturnType<typeof listWaitlist>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params?: ListWaitlistParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listWaitlist>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Danh sách chờ
+ */
+
+export function useListWaitlist<TData = Awaited<ReturnType<typeof listWaitlist>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params?: ListWaitlistParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listWaitlist>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListWaitlistQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getInviteWaitlistUrl = () => {
+
+
+
+
+  return `/api/v1/admin/early-access/waitlist/invite`
+}
+
+/**
+ * rbac: `early_access:manage`. Invites the oldest `count` entries not yet
+ * invited, each with a **personal code of its own** carrying the terms in
+ * the request, and emails every one. Fewer than `count` are invited when
+ * fewer are waiting. The invitations are written before any email is
+ * sent; an email that could not be sent is reported as
+ * `emailSent: false` and can be sent again. Audited.
+ * @summary Mời N người tiếp theo
+ */
+export const inviteWaitlist = async (inviteWaitlistRequest: InviteWaitlistRequest, options?: Parameters<typeof apiFetch>[1]): Promise<InviteWaitlistResult> => {
+
+  return apiFetch<InviteWaitlistResult>(getInviteWaitlistUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(inviteWaitlistRequest)
+  }
+);}
+
+
+
+
+
+export const getInviteWaitlistMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof inviteWaitlist>>, TError,{data: InviteWaitlistRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof inviteWaitlist>>, TError,{data: InviteWaitlistRequest}, TContext> => {
+
+const mutationKey = ['inviteWaitlist'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof inviteWaitlist>>, {data: InviteWaitlistRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  inviteWaitlist(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type InviteWaitlistMutationResult = NonNullable<Awaited<ReturnType<typeof inviteWaitlist>>>
+    export type InviteWaitlistMutationBody = InviteWaitlistRequest
+    export type InviteWaitlistMutationError = UnauthorizedResponse | ForbiddenResponse | UnprocessableResponse
+
+    /**
+ * @summary Mời N người tiếp theo
+ */
+export const useInviteWaitlist = <TError = UnauthorizedResponse | ForbiddenResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof inviteWaitlist>>, TError,{data: InviteWaitlistRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof inviteWaitlist>>,
+        TError,
+        {data: InviteWaitlistRequest},
+        TContext
+      > => {
+      return useMutation(getInviteWaitlistMutationOptions(options), queryClient);
+    }
+
+export const getResendWaitlistInvitationUrl = (entryId: string,) => {
+
+
+
+
+  return `/api/v1/admin/early-access/waitlist/${entryId}/resend`
+}
+
+/**
+ * rbac: `early_access:manage`. `409 waitlist_entry_not_invited` for an
+ * entry with no invitation, and `503 invitation_email_failed` when the
+ * mail provider refused it.
+ * @summary Gửi lại email mời
+ */
+export const resendWaitlistInvitation = async (entryId: string, options?: Parameters<typeof apiFetch>[1]): Promise<InvitedWaitlistEntry> => {
+
+  return apiFetch<InvitedWaitlistEntry>(getResendWaitlistInvitationUrl(entryId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getResendWaitlistInvitationMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse | Problem,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resendWaitlistInvitation>>, TError,{entryId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof resendWaitlistInvitation>>, TError,{entryId: string}, TContext> => {
+
+const mutationKey = ['resendWaitlistInvitation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof resendWaitlistInvitation>>, {entryId: string}> = (props) => {
+          const {entryId} = props ?? {};
+
+          return  resendWaitlistInvitation(entryId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ResendWaitlistInvitationMutationResult = NonNullable<Awaited<ReturnType<typeof resendWaitlistInvitation>>>
+
+    export type ResendWaitlistInvitationMutationError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse | Problem
+
+    /**
+ * @summary Gửi lại email mời
+ */
+export const useResendWaitlistInvitation = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse | Problem,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resendWaitlistInvitation>>, TError,{entryId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof resendWaitlistInvitation>>,
+        TError,
+        {entryId: string},
+        TContext
+      > => {
+      return useMutation(getResendWaitlistInvitationMutationOptions(options), queryClient);
+    }
+
+export const getDeleteWaitlistEntryUrl = (entryId: string,) => {
+
+
+
+
+  return `/api/v1/admin/early-access/waitlist/${entryId}`
+}
+
+/**
+ * rbac: `early_access:manage`. An invitation already issued stays issued;
+ * disable its code to withdraw it. Audited.
+ * @summary Xoá khỏi danh sách chờ
+ */
+export const deleteWaitlistEntry = async (entryId: string, options?: Parameters<typeof apiFetch>[1]): Promise<void> => {
+
+  return apiFetch<void>(getDeleteWaitlistEntryUrl(entryId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteWaitlistEntryMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteWaitlistEntry>>, TError,{entryId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteWaitlistEntry>>, TError,{entryId: string}, TContext> => {
+
+const mutationKey = ['deleteWaitlistEntry'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteWaitlistEntry>>, {entryId: string}> = (props) => {
+          const {entryId} = props ?? {};
+
+          return  deleteWaitlistEntry(entryId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteWaitlistEntryMutationResult = NonNullable<Awaited<ReturnType<typeof deleteWaitlistEntry>>>
+
+    export type DeleteWaitlistEntryMutationError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse
+
+    /**
+ * @summary Xoá khỏi danh sách chờ
+ */
+export const useDeleteWaitlistEntry = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteWaitlistEntry>>, TError,{entryId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteWaitlistEntry>>,
+        TError,
+        {entryId: string},
+        TContext
+      > => {
+      return useMutation(getDeleteWaitlistEntryMutationOptions(options), queryClient);
     }
 
 export const getListAdminExamsUrl = (params?: ListAdminExamsParams,) => {

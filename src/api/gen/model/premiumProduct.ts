@@ -29,4 +29,11 @@ export interface PremiumProduct {
   title: string;
   days: number;
   priceVnd: number;
+  /**
+     * What the signed-in learner pays for this product with their
+     * early-access discount. Present only on a product the discount covers
+     * — the one-month term — and only while the learner has one to spend.
+     * The same rule `POST /billing/orders` charges by.
+     */
+  offerPriceVnd?: number;
 }

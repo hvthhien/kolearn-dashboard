@@ -23,11 +23,12 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { PremiumOffer } from './premiumOffer';
-import type { PremiumProduct } from './premiumProduct';
 
-export interface PremiumProductList {
-  items: PremiumProduct[];
-  /** The signed-in learner's unspent discount. Absent for a visitor. */
-  offer?: PremiumOffer;
+export interface AccessCodeRequest {
+  /**
+     * As typed. Matched on letters and digits alone, upper-cased, so
+     * `xami h7k92p` and `XAMI-H7K92P` are the same code.
+     * @maxLength 64
+     */
+  code: string;
 }

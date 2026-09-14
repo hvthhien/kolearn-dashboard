@@ -24,10 +24,27 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { PremiumOffer } from './premiumOffer';
-import type { PremiumProduct } from './premiumProduct';
 
-export interface PremiumProductList {
-  items: PremiumProduct[];
-  /** The signed-in learner's unspent discount. Absent for a visitor. */
+/**
+ * While the operator has the site in early-access mode, every learner
+ * route and every guest shelf answers `403 early_access_required` to a
+ * visitor with no account and to an account that has not redeemed an
+ * access code. Signing in, the account's own settings, `GET /me`, the
+ * price list and the `early-access` routes stay open, and staff accounts
+ * are never locked.
+ */
+export interface EarlyAccessState {
+  /**
+     * The site is in early-access mode and this account has not been let
+     * in. The client shows the lock page instead of the product; the API
+     * would refuse the product with `403 early_access_required` anyway.
+     */
+  locked: boolean;
+  /** When an access code let this account in. */
+  activatedAt?: string;
+  /** The campaign of the code that let it in. */
+  campaign?: string;
+  /** When the Premium trial that code carried runs out. */
+  trialEndsAt?: string;
   offer?: PremiumOffer;
 }

@@ -23,11 +23,8 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { PremiumOffer } from './premiumOffer';
-import type { PremiumProduct } from './premiumProduct';
+import type { AccessCodeRedemption } from './accessCodeRedemption';
 
-export interface PremiumProductList {
-  items: PremiumProduct[];
-  /** The signed-in learner's unspent discount. Absent for a visitor. */
-  offer?: PremiumOffer;
+export interface AccessCodeRedemptionList {
+  items: AccessCodeRedemption[];
 }

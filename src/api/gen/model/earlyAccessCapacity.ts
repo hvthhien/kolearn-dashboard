@@ -23,11 +23,14 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { PremiumOffer } from './premiumOffer';
-import type { PremiumProduct } from './premiumProduct';
 
-export interface PremiumProductList {
-  items: PremiumProduct[];
-  /** The signed-in learner's unspent discount. Absent for a visitor. */
-  offer?: PremiumOffer;
+/**
+ * Seats left across every live campaign code. Present only when the
+ * operator has switched it on — the number is shown only while it is real.
+ */
+export interface EarlyAccessCapacity {
+  /** @minimum 0 */
+  remaining: number;
+  /** @minimum 1 */
+  total: number;
 }

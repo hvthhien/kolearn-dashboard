@@ -23,11 +23,21 @@
  *
  * OpenAPI spec version: 0.1.0
  */
-import type { PremiumOffer } from './premiumOffer';
-import type { PremiumProduct } from './premiumProduct';
+import type { KoreanLevel } from './koreanLevel';
+import type { LearningGoal } from './learningGoal';
+import type { ReferralSource } from './referralSource';
+import type { WaitlistStatus } from './waitlistStatus';
 
-export interface PremiumProductList {
-  items: PremiumProduct[];
-  /** The signed-in learner's unspent discount. Absent for a visitor. */
-  offer?: PremiumOffer;
+export interface WaitlistEntry {
+  id: string;
+  email: string;
+  koreanLevel: KoreanLevel;
+  learningGoal: LearningGoal;
+  topikTarget?: number;
+  examDate?: string;
+  referralSource?: ReferralSource;
+  status: WaitlistStatus;
+  createdAt: string;
+  invitedAt?: string;
+  invitationCode?: string;
 }
