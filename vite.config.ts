@@ -2,6 +2,9 @@ import { defineConfig, type Plugin } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
+/** Where `/api` is proxied in dev and in `npm run preview`. */
+const API_TARGET = process.env.API_TARGET || 'http://localhost:8080'
+
 /**
  * Refuses to build a deployable bundle with the mock backend switched on.
  *
@@ -60,8 +63,13 @@ export default defineConfig({
     // Proxied rather than called cross-origin so the refresh cookie is a
     // same-origin httpOnly cookie in development too. Testing auth against a
     // different cookie posture than production ships is how refresh bugs hide.
+    //
+    // API_TARGET overrides the port, the way kolearn-web's config already
+    // allows. Two people — or two agents — working in one checkout run their
+    // own API rather than sharing one, and without this the only way to point
+    // this app at a second instance is to edit the file they are both using.
     proxy: {
-      '/api': { target: 'http://localhost:8080', changeOrigin: true },
+      '/api': { target: API_TARGET, changeOrigin: true },
     },
   },
   // `npm run preview` serves the built bundle, and it gets the same proxy as
@@ -71,7 +79,7 @@ export default defineConfig({
   preview: {
     port: Number(process.env.PORT) || 4174,
     proxy: {
-      '/api': { target: 'http://localhost:8080', changeOrigin: true },
+      '/api': { target: API_TARGET, changeOrigin: true },
     },
   },
   test: {
