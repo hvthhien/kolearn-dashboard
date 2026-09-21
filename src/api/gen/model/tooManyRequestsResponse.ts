@@ -26,6 +26,14 @@
 import type { Problem } from './problem';
 
 /**
- * Rate limited.
+ * `too_many_attempts` — over one of the ceilings in
+ * `internal/platform/attempts`: wrong passwords, wrong codes, mail sent,
+ * accounts created, mã nâng cấp redeemed, mã khuyến mãi priced, access
+ * codes tried.
+ *
+ * Every one of them carries `Retry-After`, in seconds, computed from how
+ * much of the window is actually left. Wait it out rather than retrying:
+ * the ceiling is a sliding window, so an early retry both fails and
+ * pushes the window along.
  */
 export type TooManyRequestsResponse = Problem;

@@ -315,6 +315,17 @@ export const getRegisterUrl = () => {
  * spent here: `POST /auth/verify-email` spends it, so an address nobody
  * verified cannot take a campaign's seat. With the site open the code is
  * optional, and a valid one still brings its trial and discount.
+ *
+ * **Rationed with the two endpoints that also post mail** — the resend
+ * and the password-reset request — at six per address and twenty per
+ * caller address per hour. Over either, `429 too_many_attempts` with
+ * `Retry-After`. The account is not created and no mail is sent.
+ *
+ * An `accessCode` sent here is also counted against the access-code
+ * ceiling `POST /early-access/check` describes, because this is the other
+ * anonymous way to try one — and the more attractive of the two, since a
+ * script that guesses here walks away with a working account rather than
+ * with the news that the code was real.
  * @summary Create an account
  */
 export const register = async (registerRequest: RegisterRequest, options?: Parameters<typeof apiFetch>[1]): Promise<VerificationChallenge> => {
@@ -404,6 +415,15 @@ export const getLoginUrl = () => {
  * than by deploy. An account sitting ABOVE its ceiling — a premium period
  * that lapsed, or a limit somebody lowered — is trimmed all the way down
  * by the next single sign-in, not one device per login.
+ *
+ * **Wrong passwords are counted.** Ten against one address in fifteen
+ * minutes, or sixty from one caller address, and this answers
+ * `429 too_many_attempts` with `Retry-After` without looking at the
+ * password. Only failures count: the 403 above does not, because that
+ * password was right and the learner is being sent to the code screen
+ * rather than turned away. A wrong password for an address that has no
+ * account counts like any other, so guessing the address is not a way
+ * around the ceiling.
  * @summary Đăng nhập
  */
 export const login = async (loginRequest: LoginRequest, options?: Parameters<typeof apiFetch>[1]): Promise<AuthTokens> => {
@@ -974,6 +994,14 @@ export const getVerifyEmailUrl = () => {
  *
  * Safe to call again after a success: a second redemption of a spent code
  * answers 400 like any other dead code.
+ *
+ * **Wrong codes are counted across codes, not only within one.** The
+ * five-guess cap kills the code in the learner's inbox; this is what
+ * stops the script that answers that by asking for a sixth code. Ten
+ * wrong codes against one address in an hour, or sixty from one caller
+ * address, and the route answers `429 too_many_attempts` with
+ * `Retry-After` without looking at the code. An address with no account
+ * counts the same, so guessing addresses is not a way around it.
  * @summary Redeem a verification code and sign in
  */
 export const verifyEmail = async (verifyEmailBody: VerifyEmailBody, options?: Parameters<typeof apiFetch>[1]): Promise<AuthTokens> => {
@@ -1049,6 +1077,15 @@ export const getResendVerificationCodeUrl = () => {
  * previous one is less than `resendAfter` seconds old — in which case it
  * sends nothing and the code already in the learner's inbox stays valid.
  * Either way the answer is the same 202.
+ *
+ * **Six per address and twenty per caller address per hour**, over which
+ * this answers `429 too_many_attempts` with `Retry-After`. It is the one
+ * answer this endpoint gives that is not the 202, and it leaks nothing:
+ * the count is made from the caller's own traffic, which they can already
+ * see, and it is kept whether or not the address has an account. The
+ * cooldown spaces sends thirty seconds apart, which is not a ceiling —
+ * without this, one address is a way to post two thousand messages into
+ * somebody's inbox overnight.
  * @summary Post a fresh verification code
  */
 export const resendVerificationCode = async (resendVerificationCodeBody: ResendVerificationCodeBody, options?: Parameters<typeof apiFetch>[1]): Promise<VerificationChallenge> => {
@@ -1066,7 +1103,7 @@ export const resendVerificationCode = async (resendVerificationCodeBody: ResendV
 
 
 
-export const getResendVerificationCodeMutationOptions = <TError = unknown,
+export const getResendVerificationCodeMutationOptions = <TError = TooManyRequestsResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resendVerificationCode>>, TError,{data: ResendVerificationCodeBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof resendVerificationCode>>, TError,{data: ResendVerificationCodeBody}, TContext> => {
 
@@ -1095,12 +1132,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type ResendVerificationCodeMutationResult = NonNullable<Awaited<ReturnType<typeof resendVerificationCode>>>
     export type ResendVerificationCodeMutationBody = ResendVerificationCodeBody
-    export type ResendVerificationCodeMutationError = unknown
+    export type ResendVerificationCodeMutationError = TooManyRequestsResponse
 
     /**
  * @summary Post a fresh verification code
  */
-export const useResendVerificationCode = <TError = unknown,
+export const useResendVerificationCode = <TError = TooManyRequestsResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof resendVerificationCode>>, TError,{data: ResendVerificationCodeBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof resendVerificationCode>>,
@@ -1129,6 +1166,13 @@ export const getForgotPasswordUrl = () => {
  * A Google-only account gets nothing: there is no password to reset, and
  * mailing a code would mint a way past the sign-in method the learner
  * chose.
+ *
+ * **The one exception to "always 202"** is the ceiling the resend is
+ * behind — six per address and twenty per caller address per hour, then
+ * `429 too_many_attempts` with `Retry-After`. It keeps the promise above
+ * rather than breaking it: the count is kept for every address whether or
+ * not it has an account, so the 429 arrives at the same request number
+ * either way and still distinguishes nothing.
  * @summary Post a password-reset code
  */
 export const forgotPassword = async (forgotPasswordBody: ForgotPasswordBody, options?: Parameters<typeof apiFetch>[1]): Promise<VerificationChallenge> => {
@@ -1146,7 +1190,7 @@ export const forgotPassword = async (forgotPasswordBody: ForgotPasswordBody, opt
 
 
 
-export const getForgotPasswordMutationOptions = <TError = unknown,
+export const getForgotPasswordMutationOptions = <TError = TooManyRequestsResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof forgotPassword>>, TError,{data: ForgotPasswordBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof forgotPassword>>, TError,{data: ForgotPasswordBody}, TContext> => {
 
@@ -1175,12 +1219,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type ForgotPasswordMutationResult = NonNullable<Awaited<ReturnType<typeof forgotPassword>>>
     export type ForgotPasswordMutationBody = ForgotPasswordBody
-    export type ForgotPasswordMutationError = unknown
+    export type ForgotPasswordMutationError = TooManyRequestsResponse
 
     /**
  * @summary Post a password-reset code
  */
-export const useForgotPassword = <TError = unknown,
+export const useForgotPassword = <TError = TooManyRequestsResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof forgotPassword>>, TError,{data: ForgotPasswordBody}, TContext>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof forgotPassword>>,
@@ -1214,6 +1258,12 @@ export const getVerifyPasswordResetCodeUrl = () => {
  * of the screen. It must never reach a URL: a query parameter is browser
  * history, a `Referer` header, and every access log between here and the
  * client.
+ *
+ * **Behind the same hourly ceiling on wrong codes as
+ * `POST /auth/verify-email`**, and it is the one that matters more: what
+ * a guessed reset code opens is the account itself. Ten wrong codes
+ * against one address in an hour, or sixty from one caller address, then
+ * `429 too_many_attempts` with `Retry-After` without looking at the code.
  * @summary Step one of a reset — prove the code
  */
 export const verifyPasswordResetCode = async (verifyPasswordResetCodeBody: VerifyPasswordResetCodeBody, options?: Parameters<typeof apiFetch>[1]): Promise<PasswordResetTicket> => {
@@ -2070,8 +2120,11 @@ export const getRedeemPlanCodeUrl = () => {
  * | `code_already_used` | this learner already redeemed it |
  *
  * After ten failed attempts in an hour the route answers `429
- * too_many_attempts` without looking at the code, and keeps doing so
- * until the window passes. Attempts are counted per account.
+ * too_many_attempts` with `Retry-After`, without looking at the code,
+ * and keeps doing so until the window passes. Attempts are counted per
+ * account **and** per caller address (sixty an hour): the per-account
+ * count alone could not see an attacker holding a hundred accounts,
+ * which is the shape this ceiling is actually for.
  * @summary Nhập mã nâng cấp
  */
 export const redeemPlanCode = async (redeemCodeRequest: RedeemCodeRequest, options?: Parameters<typeof apiFetch>[1]): Promise<RedeemCodeResult> => {
@@ -2264,6 +2317,17 @@ export const getPreviewPromoCodeUrl = () => {
  * The 422s: `promo_invalid`, `promo_not_started`, `promo_expired`,
  * `promo_exhausted`, `promo_already_used`, `promo_not_applicable`. Each
  * one names the `promoCode` field.
+ *
+ * **Bounded by volume, not by failures.** Sixty quotes per account and a
+ * hundred and twenty per caller address per hour, then `429
+ * too_many_attempts` with `Retry-After`. Every quote counts, including
+ * the ones that worked — a promo code is printed on a poster and
+ * guessing one wins the discount everybody already has, so what is being
+ * rationed here is this database's time and not the code space. The
+ * ceiling is twenty times what this screen can produce: it quotes on Áp
+ * dụng and re-quotes when the term changes, so a learner comparing three
+ * terms against three codes spends about a dozen. `POST /billing/orders`
+ * shares the count when it is sent a code.
  * @summary Thử mã khuyến mãi
  */
 export const previewPromoCode = async (previewPromoCodeRequest: PreviewPromoCodeRequest, options?: Parameters<typeof apiFetch>[1]): Promise<PromoQuote> => {
@@ -2281,7 +2345,7 @@ export const previewPromoCode = async (previewPromoCodeRequest: PreviewPromoCode
 
 
 
-export const getPreviewPromoCodeMutationOptions = <TError = UnauthorizedResponse | UnprocessableResponse,
+export const getPreviewPromoCodeMutationOptions = <TError = UnauthorizedResponse | UnprocessableResponse | TooManyRequestsResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof previewPromoCode>>, TError,{data: PreviewPromoCodeRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof previewPromoCode>>, TError,{data: PreviewPromoCodeRequest}, TContext> => {
 
@@ -2310,12 +2374,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type PreviewPromoCodeMutationResult = NonNullable<Awaited<ReturnType<typeof previewPromoCode>>>
     export type PreviewPromoCodeMutationBody = PreviewPromoCodeRequest
-    export type PreviewPromoCodeMutationError = UnauthorizedResponse | UnprocessableResponse
+    export type PreviewPromoCodeMutationError = UnauthorizedResponse | UnprocessableResponse | TooManyRequestsResponse
 
     /**
  * @summary Thử mã khuyến mãi
  */
-export const usePreviewPromoCode = <TError = UnauthorizedResponse | UnprocessableResponse,
+export const usePreviewPromoCode = <TError = UnauthorizedResponse | UnprocessableResponse | TooManyRequestsResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof previewPromoCode>>, TError,{data: PreviewPromoCodeRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof previewPromoCode>>,
@@ -2356,6 +2420,12 @@ export const getCreatePaymentOrderUrl = () => {
  * price is frozen, and a learner who wants a different code cancels and
  * opens a new order.
  *
+ * An order that carries a `promoCode` is behind the same hourly quote
+ * ceiling as `POST /billing/promotions/preview`, and answers `429
+ * too_many_attempts` over it — otherwise a ceiling on the preview would
+ * only be a reason to guess here instead. An order with no code prices no
+ * promo and spends none of that allowance.
+ *
  * `503 billing_unavailable` when this deployment has no receiving
  * account configured; codes still redeem.
  * @summary Tạo mã chuyển khoản
@@ -2375,7 +2445,7 @@ export const createPaymentOrder = async (createPaymentOrderRequest: CreatePaymen
 
 
 
-export const getCreatePaymentOrderMutationOptions = <TError = UnauthorizedResponse | UnprocessableResponse | Problem,
+export const getCreatePaymentOrderMutationOptions = <TError = UnauthorizedResponse | UnprocessableResponse | TooManyRequestsResponse | Problem,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPaymentOrder>>, TError,{data: CreatePaymentOrderRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof createPaymentOrder>>, TError,{data: CreatePaymentOrderRequest}, TContext> => {
 
@@ -2404,12 +2474,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type CreatePaymentOrderMutationResult = NonNullable<Awaited<ReturnType<typeof createPaymentOrder>>>
     export type CreatePaymentOrderMutationBody = CreatePaymentOrderRequest
-    export type CreatePaymentOrderMutationError = UnauthorizedResponse | UnprocessableResponse | Problem
+    export type CreatePaymentOrderMutationError = UnauthorizedResponse | UnprocessableResponse | TooManyRequestsResponse | Problem
 
     /**
  * @summary Tạo mã chuyển khoản
  */
-export const useCreatePaymentOrder = <TError = UnauthorizedResponse | UnprocessableResponse | Problem,
+export const useCreatePaymentOrder = <TError = UnauthorizedResponse | UnprocessableResponse | TooManyRequestsResponse | Problem,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPaymentOrder>>, TError,{data: CreatePaymentOrderRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof createPaymentOrder>>,
@@ -2820,6 +2890,19 @@ export const getCheckAccessCodeUrl = () => {
  * | `access_code_invalid` | not a code, or disabled |
  * | `access_code_expired` | past its expiry date |
  * | `access_code_full` | every seat taken — the page offers the waitlist |
+ *
+ * **Thirty refusals per caller address per hour**, then `429
+ * too_many_attempts` with `Retry-After` without the code being looked at.
+ * The caller is the only thing there is to count here — a visitor has no
+ * account — and until this existed an anonymous script had the whole code
+ * space to itself, one request at a time, forever. An access code is
+ * eight characters from a thirty-two letter alphabet and one of them
+ * lifts the lock, starts a Premium trial and carries a discount.
+ *
+ * The count is shared with the access code sent to `POST /auth/register`
+ * and with `POST /me/early-access/activate`: the three are one guessing
+ * surface, so a ceiling any one of them kept to itself would only be a
+ * reason to alternate.
  * @summary Kiểm tra mã truy cập
  */
 export const checkAccessCode = async (accessCodeRequest: AccessCodeRequest, options?: Parameters<typeof apiFetch>[1]): Promise<AccessCodeCheck> => {
@@ -2837,7 +2920,7 @@ export const checkAccessCode = async (accessCodeRequest: AccessCodeRequest, opti
 
 
 
-export const getCheckAccessCodeMutationOptions = <TError = UnprocessableResponse,
+export const getCheckAccessCodeMutationOptions = <TError = UnprocessableResponse | TooManyRequestsResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof checkAccessCode>>, TError,{data: AccessCodeRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof checkAccessCode>>, TError,{data: AccessCodeRequest}, TContext> => {
 
@@ -2866,12 +2949,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type CheckAccessCodeMutationResult = NonNullable<Awaited<ReturnType<typeof checkAccessCode>>>
     export type CheckAccessCodeMutationBody = AccessCodeRequest
-    export type CheckAccessCodeMutationError = UnprocessableResponse
+    export type CheckAccessCodeMutationError = UnprocessableResponse | TooManyRequestsResponse
 
     /**
  * @summary Kiểm tra mã truy cập
  */
-export const useCheckAccessCode = <TError = UnprocessableResponse,
+export const useCheckAccessCode = <TError = UnprocessableResponse | TooManyRequestsResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof checkAccessCode>>, TError,{data: AccessCodeRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof checkAccessCode>>,
@@ -2974,7 +3057,10 @@ export const getActivateEarlyAccessUrl = () => {
  * Answers with the new `earlyAccess` and `plan`, so the client can update
  * `CurrentUser` without a second request. Refusals are the same 422s as
  * `POST /early-access/check`; after ten in an hour the route answers
- * `429 too_many_attempts` without looking at the code.
+ * `429 too_many_attempts` with `Retry-After`, without looking at the
+ * code. Counted per account and per caller address, and the caller's
+ * count is shared with the two anonymous ways to try a code — checking
+ * one at the lock page, and sending one with a registration.
  * @summary Kích hoạt truy cập sớm
  */
 export const activateEarlyAccess = async (accessCodeRequest: AccessCodeRequest, options?: Parameters<typeof apiFetch>[1]): Promise<EarlyAccessActivation> => {
@@ -11510,6 +11596,14 @@ export const getAskAssistantUrl = () => {
  * it is on `quota`. `OFF_TOPIC` and `FAILED` never charge (`TCCN-567-1`),
  * and neither does an answer served from an earlier identical question
  * (`TCCN-564-1`, flagged as `turn.fromSaved`).
+ *
+ * **One turn at a time per learner.** A second question sent while one is
+ * still running answers `409 assistant_busy` — this route and the
+ * streaming one share the lease, so two tabs cannot have two turns
+ * between them. The monthly allowance caps the month and caps it too
+ * late: a hundred parallel questions each take their hold and each call
+ * the provider before any has settled. Send the next question when the
+ * previous turn's response has arrived.
  * @summary Ask one question (YC-562, YC-564, YC-566, YC-567)
  */
 export const askAssistant = async (assistantAskRequest: AssistantAskRequest, options?: Parameters<typeof apiFetch>[1]): Promise<AssistantAskResult> => {
@@ -11610,9 +11704,14 @@ export const getAskAssistantStreamUrl = () => {
  * lets one client render both paths.
  *
  * Errors that happen before the first event — an empty question, a paper
- * in progress, no AI provider configured — are ordinary `problem+json`
- * with their real status, exactly as on `askAssistant`. Nothing is written
- * until there is something to say, so the status line is still available.
+ * in progress, a turn already running, no AI provider configured — are
+ * ordinary `problem+json` with their real status, exactly as on
+ * `askAssistant`. Nothing is written until there is something to say, so
+ * the status line is still available.
+ *
+ * **One turn at a time per learner**, shared with `askAssistant`: a
+ * second question sent while one is still streaming answers
+ * `409 assistant_busy` before the stream opens.
  *
  * A `retract` means the answer was withdrawn mid-flight: `SCORE_PREDICTION`
  * is `TCCN-566-3` catching a verdict about a real exam, `TRUNCATED` is a

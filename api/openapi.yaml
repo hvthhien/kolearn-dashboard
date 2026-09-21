@@ -77,6 +77,17 @@ paths:
         spent here: `POST /auth/verify-email` spends it, so an address nobody
         verified cannot take a campaign's seat. With the site open the code is
         optional, and a valid one still brings its trial and discount.
+
+        **Rationed with the two endpoints that also post mail** — the resend
+        and the password-reset request — at six per address and twenty per
+        caller address per hour. Over either, `429 too_many_attempts` with
+        `Retry-After`. The account is not created and no mail is sent.
+
+        An `accessCode` sent here is also counted against the access-code
+        ceiling `POST /early-access/check` describes, because this is the other
+        anonymous way to try one — and the more attractive of the two, since a
+        script that guesses here walks away with a working account rather than
+        with the news that the code was real.
       requestBody:
         required: true
         content:
@@ -124,6 +135,15 @@ paths:
         than by deploy. An account sitting ABOVE its ceiling — a premium period
         that lapsed, or a limit somebody lowered — is trimmed all the way down
         by the next single sign-in, not one device per login.
+
+        **Wrong passwords are counted.** Ten against one address in fifteen
+        minutes, or sixty from one caller address, and this answers
+        `429 too_many_attempts` with `Retry-After` without looking at the
+        password. Only failures count: the 403 above does not, because that
+        password was right and the learner is being sent to the code screen
+        rather than turned away. A wrong password for an address that has no
+        account counts like any other, so guessing the address is not a way
+        around the ceiling.
       requestBody:
         required: true
         content:
@@ -309,6 +329,14 @@ paths:
 
         Safe to call again after a success: a second redemption of a spent code
         answers 400 like any other dead code.
+
+        **Wrong codes are counted across codes, not only within one.** The
+        five-guess cap kills the code in the learner's inbox; this is what
+        stops the script that answers that by asking for a sixth code. Ten
+        wrong codes against one address in an hour, or sixty from one caller
+        address, and the route answers `429 too_many_attempts` with
+        `Retry-After` without looking at the code. An address with no account
+        counts the same, so guessing addresses is not a way around it.
       requestBody:
         required: true
         content:
@@ -342,10 +370,21 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '429':
           description: |
+            Two refusals share this status, told apart by `code`.
+
             `code_attempts_exceeded` — five wrong guesses, and the code is now
             dead. Unlike the 400 this is not "try again": the client must send
             the learner to the resend button, because no further entry of that
             code can succeed.
+
+            `too_many_attempts` — the hourly ceiling on wrong codes. The code
+            may well still be good; the client should show the wait from
+            `Retry-After` and offer neither a retry nor a resend until it has
+            passed, because the resend is behind a ceiling of its own.
+          headers:
+            Retry-After:
+              description: Seconds until the ceiling clears. Absent on `code_attempts_exceeded`.
+              schema: { type: integer }
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
@@ -361,6 +400,15 @@ paths:
         previous one is less than `resendAfter` seconds old — in which case it
         sends nothing and the code already in the learner's inbox stays valid.
         Either way the answer is the same 202.
+
+        **Six per address and twenty per caller address per hour**, over which
+        this answers `429 too_many_attempts` with `Retry-After`. It is the one
+        answer this endpoint gives that is not the 202, and it leaks nothing:
+        the count is made from the caller's own traffic, which they can already
+        see, and it is kept whether or not the address has an account. The
+        cooldown spaces sends thirty seconds apart, which is not a ceiling —
+        without this, one address is a way to post two thousand messages into
+        somebody's inbox overnight.
       requestBody:
         required: true
         content:
@@ -376,6 +424,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/VerificationChallenge' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /auth/password/forgot:
     post:
@@ -393,6 +442,13 @@ paths:
         A Google-only account gets nothing: there is no password to reset, and
         mailing a code would mint a way past the sign-in method the learner
         chose.
+
+        **The one exception to "always 202"** is the ceiling the resend is
+        behind — six per address and twenty per caller address per hour, then
+        `429 too_many_attempts` with `Retry-After`. It keeps the promise above
+        rather than breaking it: the count is kept for every address whether or
+        not it has an account, so the 429 arrives at the same request number
+        either way and still distinguishes nothing.
       requestBody:
         required: true
         content:
@@ -408,6 +464,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/VerificationChallenge' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /auth/password/verify-code:
     post:
@@ -430,6 +487,12 @@ paths:
         of the screen. It must never reach a URL: a query parameter is browser
         history, a `Referer` header, and every access log between here and the
         client.
+
+        **Behind the same hourly ceiling on wrong codes as
+        `POST /auth/verify-email`**, and it is the one that matters more: what
+        a guessed reset code opens is the account itself. Ten wrong codes
+        against one address in an hour, or sixty from one caller address, then
+        `429 too_many_attempts` with `Retry-After` without looking at the code.
       requestBody:
         required: true
         content:
@@ -456,7 +519,16 @@ paths:
               schema: { $ref: '#/components/schemas/Problem' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '429':
-          description: '`code_attempts_exceeded` — the code is dead; ask for a new one.'
+          description: |
+            `code_attempts_exceeded` — the code is dead; ask for a new one.
+
+            `too_many_attempts` — the hourly ceiling on wrong codes, as on
+            `POST /auth/verify-email`. Carries `Retry-After`; the code may
+            still be good.
+          headers:
+            Retry-After:
+              description: Seconds until the ceiling clears. Absent on `code_attempts_exceeded`.
+              schema: { type: integer }
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
@@ -787,8 +859,11 @@ paths:
         | `code_already_used` | this learner already redeemed it |
 
         After ten failed attempts in an hour the route answers `429
-        too_many_attempts` without looking at the code, and keeps doing so
-        until the window passes. Attempts are counted per account.
+        too_many_attempts` with `Retry-After`, without looking at the code,
+        and keeps doing so until the window passes. Attempts are counted per
+        account **and** per caller address (sixty an hour): the per-account
+        count alone could not see an attacker holding a hundred accounts,
+        which is the shape this ceiling is actually for.
       requestBody:
         required: true
         content:
@@ -846,6 +921,17 @@ paths:
         The 422s: `promo_invalid`, `promo_not_started`, `promo_expired`,
         `promo_exhausted`, `promo_already_used`, `promo_not_applicable`. Each
         one names the `promoCode` field.
+
+        **Bounded by volume, not by failures.** Sixty quotes per account and a
+        hundred and twenty per caller address per hour, then `429
+        too_many_attempts` with `Retry-After`. Every quote counts, including
+        the ones that worked — a promo code is printed on a poster and
+        guessing one wins the discount everybody already has, so what is being
+        rationed here is this database's time and not the code space. The
+        ceiling is twenty times what this screen can produce: it quotes on Áp
+        dụng and re-quotes when the term changes, so a learner comparing three
+        terms against three codes spends about a dozen. `POST /billing/orders`
+        shares the count when it is sent a code.
       requestBody:
         required: true
         content:
@@ -859,6 +945,7 @@ paths:
               schema: { $ref: '#/components/schemas/PromoQuote' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '422': { $ref: '#/components/responses/Unprocessable' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /billing/orders:
     post:
@@ -887,6 +974,12 @@ paths:
         price is frozen, and a learner who wants a different code cancels and
         opens a new order.
 
+        An order that carries a `promoCode` is behind the same hourly quote
+        ceiling as `POST /billing/promotions/preview`, and answers `429
+        too_many_attempts` over it — otherwise a ceiling on the preview would
+        only be a reason to guess here instead. An order with no code prices no
+        promo and spends none of that allowance.
+
         `503 billing_unavailable` when this deployment has no receiving
         account configured; codes still redeem.
       requestBody:
@@ -902,6 +995,7 @@ paths:
               schema: { $ref: '#/components/schemas/PaymentOrder' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '422': { $ref: '#/components/responses/Unprocessable' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
         '503':
           description: '`billing_unavailable`.'
           content:
@@ -1000,6 +1094,19 @@ paths:
         | `access_code_invalid` | not a code, or disabled |
         | `access_code_expired` | past its expiry date |
         | `access_code_full` | every seat taken — the page offers the waitlist |
+
+        **Thirty refusals per caller address per hour**, then `429
+        too_many_attempts` with `Retry-After` without the code being looked at.
+        The caller is the only thing there is to count here — a visitor has no
+        account — and until this existed an anonymous script had the whole code
+        space to itself, one request at a time, forever. An access code is
+        eight characters from a thirty-two letter alphabet and one of them
+        lifts the lock, starts a Premium trial and carries a discount.
+
+        The count is shared with the access code sent to `POST /auth/register`
+        and with `POST /me/early-access/activate`: the three are one guessing
+        surface, so a ceiling any one of them kept to itself would only be a
+        reason to alternate.
       security: []
       requestBody:
         required: true
@@ -1013,6 +1120,7 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/AccessCodeCheck' }
         '422': { $ref: '#/components/responses/Unprocessable' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
 
   /waitlist:
     post:
@@ -1050,7 +1158,10 @@ paths:
         Answers with the new `earlyAccess` and `plan`, so the client can update
         `CurrentUser` without a second request. Refusals are the same 422s as
         `POST /early-access/check`; after ten in an hour the route answers
-        `429 too_many_attempts` without looking at the code.
+        `429 too_many_attempts` with `Retry-After`, without looking at the
+        code. Counted per account and per caller address, and the caller's
+        count is shared with the two anonymous ways to try a code — checking
+        one at the lock page, and sending one with a registration.
       requestBody:
         required: true
         content:
@@ -4375,6 +4486,14 @@ paths:
         it is on `quota`. `OFF_TOPIC` and `FAILED` never charge (`TCCN-567-1`),
         and neither does an answer served from an earlier identical question
         (`TCCN-564-1`, flagged as `turn.fromSaved`).
+
+        **One turn at a time per learner.** A second question sent while one is
+        still running answers `409 assistant_busy` — this route and the
+        streaming one share the lease, so two tabs cannot have two turns
+        between them. The monthly allowance caps the month and caps it too
+        late: a hundred parallel questions each take their hold and each call
+        the provider before any has settled. Send the next question when the
+        previous turn's response has arrived.
       requestBody:
         required: true
         content:
@@ -4391,9 +4510,14 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '409':
           description: |
-            The anchor names an attempt that is still in progress. `TCCN-566-1`
-            and `YC-565`: the launcher is not drawn during a paper, so this is
-            unreachable from the app.
+            `attempt_in_progress` — the anchor names an attempt that is still
+            in progress. `TCCN-566-1` and `YC-565`: the launcher is not drawn
+            during a paper, so this is unreachable from the app.
+
+            `assistant_busy` — this learner already has a turn running. The
+            lease behind it expires with the turn budget, so a request killed
+            mid-answer does not lock the feature; the client should wait for
+            the turn it already has rather than retrying.
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
@@ -4446,9 +4570,14 @@ paths:
         lets one client render both paths.
 
         Errors that happen before the first event — an empty question, a paper
-        in progress, no AI provider configured — are ordinary `problem+json`
-        with their real status, exactly as on `askAssistant`. Nothing is written
-        until there is something to say, so the status line is still available.
+        in progress, a turn already running, no AI provider configured — are
+        ordinary `problem+json` with their real status, exactly as on
+        `askAssistant`. Nothing is written until there is something to say, so
+        the status line is still available.
+
+        **One turn at a time per learner**, shared with `askAssistant`: a
+        second question sent while one is still streaming answers
+        `409 assistant_busy` before the stream opens.
 
         A `retract` means the answer was withdrawn mid-flight: `SCORE_PREDICTION`
         is `TCCN-566-3` catching a verdict about a real exam, `TRUNCATED` is a
@@ -4479,9 +4608,9 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '409':
           description: |
-            The anchor names an attempt that is still in progress, as on
-            `askAssistant`. Raised before the stream opens, so it is a real
-            status code.
+            `attempt_in_progress` or `assistant_busy`, as on `askAssistant`.
+            Both are raised before the stream opens, so both are real status
+            codes rather than an `error` event.
           content:
             application/problem+json:
               schema: { $ref: '#/components/schemas/Problem' }
@@ -6907,7 +7036,20 @@ components:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
     TooManyRequests:
-      description: Rate limited.
+      description: |
+        `too_many_attempts` — over one of the ceilings in
+        `internal/platform/attempts`: wrong passwords, wrong codes, mail sent,
+        accounts created, mã nâng cấp redeemed, mã khuyến mãi priced, access
+        codes tried.
+
+        Every one of them carries `Retry-After`, in seconds, computed from how
+        much of the window is actually left. Wait it out rather than retrying:
+        the ceiling is a sliding window, so an early retry both fails and
+        pushes the window along.
+      headers:
+        Retry-After:
+          description: Seconds until the ceiling clears.
+          schema: { type: integer }
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
