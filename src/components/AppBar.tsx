@@ -59,6 +59,16 @@ export function AppBar() {
               Thanh toán
             </Link>
           )}
+          {/* Beside Thanh toán and under the same permission, because issuing
+              a discount is the same act as minting a mã nâng cấp at a smaller
+              number. A separate link rather than a tab inside it — the two
+              screens answer questions asked by different people at different
+              times. */}
+          {user?.permissions.includes('billing:manage') && (
+            <Link to="/promotions" className={NAV_ITEM}>
+              Khuyến mãi
+            </Link>
+          )}
           {/* Admin alone. `user:role:assign` is the permission 00003 gives to
               that role and to no other, so it is what "admin only" means here;
               `user:read` would show the link to support, whose account cannot

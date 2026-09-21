@@ -26,6 +26,7 @@ import { DictationStudioPage } from './routes/DictationStudioPage'
 import { VideoListPage } from './routes/VideoListPage'
 import { VideoStudioPage } from './routes/VideoStudioPage'
 import { BillingPage } from './routes/BillingPage'
+import { PromotionsPage } from './routes/PromotionsPage'
 import { UsersPage } from './routes/UsersPage'
 import { EarlyAccessPage } from './routes/EarlyAccessPage'
 
@@ -201,6 +202,25 @@ const billingRoute = createRoute({
   component: BillingPage,
 })
 
+/* ── Khuyến mãi ───────────────────────────────────────────────────────────
+   The campaign codes that discount an order, as against Thanh toán's mã nâng
+   cấp, which hands over days for nothing. Same permission, `billing:manage`,
+   because both give away something the product charges for — but its own
+   route, for the reason PromotionsPage's header comment gives: it is decided
+   before anybody pays, and a marketing screen buried inside the
+   reconciliation desk is a screen nobody finds.
+
+   Gated the way /billing is — the nav withholds the link, the server
+   enforces. Not the double gate /users carries: reaching this by guessing the
+   URL shows one list that 403s, which reads as forbidden rather than as
+   broken. */
+
+const promotionsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/promotions',
+  component: PromotionsPage,
+})
+
 /* ── Quản trị người dùng ──────────────────────────────────────────────────
    Admin only, and unlike every other route here that is said twice: the nav
    does not offer the link, and the route itself refuses. The difference from
@@ -281,6 +301,7 @@ function RequirePermission({
 
 export const routeTree = rootRoute.addChildren([
   billingRoute,
+  promotionsRoute,
   usersRoute,
   earlyAccessRoute,
   indexRoute,

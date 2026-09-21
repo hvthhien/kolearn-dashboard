@@ -15,7 +15,9 @@ import type {
   AdminExamDetail,
   AdminShadowVideoDetail,
   ShadowPublishReport,
+  CreatePromoCodeRequest,
   CreateRedeemCodesRequest,
+  PromoCode,
   RedeemCode,
   AdminPaymentOrder,
   AdminUser,
@@ -39,7 +41,7 @@ import { TOPICS } from './fixtures/topics'
 import { EXAMS, LISTENING_PASSAGE, QUESTIONS, READING_PASSAGE, layers } from './fixtures/bank'
 import { SHADOW_VIDEOS } from './fixtures/shadowing'
 import { DICTATION_SETS } from './fixtures/dictation'
-import { CODE_REDEMPTIONS, REDEEM_CODES } from './fixtures/billing'
+import { CODE_REDEMPTIONS, PROMO_CODES, PROMO_USES, REDEEM_CODES } from './fixtures/billing'
 import {
   ACCESS_CODES,
   ACCESS_CODE_REDEMPTIONS,
@@ -149,6 +151,7 @@ const categoryState = {
  */
 const billingState = {
   codes: clone(REDEEM_CODES) as RedeemCode[],
+  promos: clone(PROMO_CODES) as PromoCode[],
   orders: clone(PAYMENT_ORDERS) as AdminPaymentOrder[],
   transactions: clone(BANK_TRANSACTIONS) as BankTransaction[],
   users: clone(ADMIN_USERS) as AdminUser[],
@@ -218,6 +221,7 @@ export function resetMockBank(): void {
   earlyAccessState.codes = clone(ACCESS_CODES)
   earlyAccessState.waitlist = clone(WAITLIST)
   billingState.codes = clone(REDEEM_CODES)
+  billingState.promos = clone(PROMO_CODES)
   billingState.orders = clone(PAYMENT_ORDERS)
   billingState.transactions = clone(BANK_TRANSACTIONS)
   billingState.users = clone(ADMIN_USERS)
@@ -978,6 +982,59 @@ export const handlers = [
       )
     }
     return HttpResponse.json({ items: CODE_REDEMPTIONS[String(params.codeId)] ?? [] })
+  }),
+
+  /* ── Mã khuyến mãi ───────────────────────────────────────────────────── */
+  //
+  // Beside the mã nâng cấp handlers above and deliberately not folded into
+  // them: the two are different resources with different refusals, and a
+  // mock that shared a path would let the screen pass a test the server
+  // would fail.
+
+  http.get(`${BASE}/admin/billing/promotions`, () =>
+    HttpResponse.json({
+      items: [...billingState.promos].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)),
+    }),
+  ),
+  http.post(`${BASE}/admin/billing/promotions`, async ({ request }) => {
+    const body = (await request.json()) as CreatePromoCodeRequest
+    // The server's normalisation, so the mock refuses a duplicate on the same
+    // spelling rule the unique index does.
+    const code = body.code.toUpperCase().replace(/[\s\-_.]/g, '')
+    if (billingState.promos.some((p) => p.code === code)) {
+      return problem(409, 'promo_code_taken', 'Mã này đã tồn tại. Chọn một mã khác.')
+    }
+    const minted: PromoCode = {
+      id: `pc-${Date.now()}`,
+      code,
+      kind: body.kind,
+      percent: body.kind === 'PERCENT' ? body.percent : undefined,
+      amountVnd: body.kind === 'AMOUNT' ? body.amountVnd : undefined,
+      maxUses: body.maxUses,
+      uses: 0,
+      productCodes: body.productCodes ?? [],
+      startsAt: body.startsAt,
+      expiresAt: body.expiresAt,
+      note: body.note ?? '',
+      createdAt: new Date().toISOString(),
+    }
+    billingState.promos.push(minted)
+    return HttpResponse.json(minted, { status: 201 })
+  }),
+  http.post(`${BASE}/admin/billing/promotions/:promoId/revoke`, ({ params }) => {
+    const promo = billingState.promos.find((p) => p.id === params.promoId)
+    if (!promo) return problem(404, 'promo_not_found', 'Không tìm thấy mã khuyến mãi này')
+    if (promo.revokedAt) {
+      return problem(409, 'promo_already_revoked', 'Mã này đã bị thu hồi rồi')
+    }
+    promo.revokedAt = new Date().toISOString()
+    return HttpResponse.json(promo)
+  }),
+  http.get(`${BASE}/admin/billing/promotions/:promoId/uses`, ({ params }) => {
+    if (!billingState.promos.some((p) => p.id === params.promoId)) {
+      return problem(404, 'promo_not_found', 'Không tìm thấy mã khuyến mãi này')
+    }
+    return HttpResponse.json({ items: PROMO_USES[String(params.promoId)] ?? [] })
   }),
 
   /* ── Chủ đề (00035) ──────────────────────────────────────────────────── */
