@@ -25,16 +25,13 @@
  */
 
 /**
- * An early-access discount on the learner's first paid order, on any term.
- * Spent when an order it discounted is paid; an order that expires unpaid
- * leaves it unspent.
+ * `PERCENT` takes a share off the list price, `AMOUNT` a fixed sum in
+ * đồng. Exactly one of `percent` / `amountVnd` is set accordingly.
  */
-export interface PremiumOffer {
-  /**
-     * @minimum 1
-     * @maximum 90
-     */
-  percent: number;
-  /** When it lapses unused. Absent when it does not. */
-  expiresAt?: string;
-}
+export type PromoCodeKind = typeof PromoCodeKind[keyof typeof PromoCodeKind];
+
+
+export const PromoCodeKind = {
+  PERCENT: 'PERCENT',
+  AMOUNT: 'AMOUNT',
+} as const;

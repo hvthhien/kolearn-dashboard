@@ -24,17 +24,14 @@
  * OpenAPI spec version: 0.1.0
  */
 
-/**
- * An early-access discount on the learner's first paid order, on any term.
- * Spent when an order it discounted is paid; an order that expires unpaid
- * leaves it unspent.
- */
-export interface PremiumOffer {
-  /**
-     * @minimum 1
-     * @maximum 90
-     */
-  percent: number;
-  /** When it lapses unused. Absent when it does not. */
-  expiresAt?: string;
+export interface PromoCodeUse {
+  userId: string;
+  email: string;
+  displayName: string;
+  orderId: string;
+  /** What the code took off this learner's order. */
+  discountVnd: number;
+  /** What they paid after it. */
+  amountVnd: number;
+  redeemedAt: string;
 }

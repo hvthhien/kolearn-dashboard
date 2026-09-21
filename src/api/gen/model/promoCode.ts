@@ -23,18 +23,38 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { PromoCodeKind } from './promoCodeKind';
 
 /**
- * An early-access discount on the learner's first paid order, on any term.
- * Spent when an order it discounted is paid; an order that expires unpaid
- * leaves it unspent.
+ * A mã khuyến mãi as the dashboard sees it. `billing:manage`.
  */
-export interface PremiumOffer {
+export interface PromoCode {
+  id: string;
+  /** 4–24 characters of A–Z and 0–9, chosen by the operator. */
+  code: string;
+  kind: PromoCodeKind;
   /**
      * @minimum 1
      * @maximum 90
      */
-  percent: number;
-  /** When it lapses unused. Absent when it does not. */
+  percent?: number;
+  /** @minimum 1 */
+  amountVnd?: number;
+  maxUses: number;
+  /**
+     * Paid orders that spent it. May finish one or two ABOVE `maxUses`:
+     * a use is counted when the money arrives rather than when the order
+     * is opened, so several learners can hold orders on the last seat.
+     */
+  uses: number;
+  /** The terms it covers. EMPTY MEANS EVERY TERM. */
+  productCodes: string[];
+  /** Absent for a code usable from the moment it is created. */
+  startsAt?: string;
+  /** Absent for a code with no expiry date. */
   expiresAt?: string;
+  /** Present once revoked. Orders already open keep their price. */
+  revokedAt?: string;
+  note: string;
+  createdAt: string;
 }

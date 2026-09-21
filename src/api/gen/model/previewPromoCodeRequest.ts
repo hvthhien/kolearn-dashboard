@@ -24,17 +24,12 @@
  * OpenAPI spec version: 0.1.0
  */
 
-/**
- * An early-access discount on the learner's first paid order, on any term.
- * Spent when an order it discounted is paid; an order that expires unpaid
- * leaves it unspent.
- */
-export interface PremiumOffer {
+export interface PreviewPromoCodeRequest {
   /**
-     * @minimum 1
-     * @maximum 90
+     * As typed. Case, spaces and dashes are normalised away, so
+     * `tet-2026` finds `TET2026`.
      */
-  percent: number;
-  /** When it lapses unused. Absent when it does not. */
-  expiresAt?: string;
+  code: string;
+  /** The term the learner has selected; a code may cover only some. */
+  productCode: string;
 }

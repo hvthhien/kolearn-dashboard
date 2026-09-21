@@ -55,6 +55,9 @@ export interface CreateAccessCodeRequest {
      */
   discountPercent: number;
   /**
+     * Days after activation the discount may still be spent. Omitted on a
+     * code that carries a discount, it is 30; to issue one that never
+     * lapses, create it and then PATCH it with this field absent.
      * @minimum 1
      * @maximum 365
      */

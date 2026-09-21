@@ -38,10 +38,18 @@ export interface PaymentOrder {
   paidAt?: string;
   paidAmountVnd?: number;
   /**
-     * What the early-access offer took off the list price, so the list
-     * price was `amountVnd + discountVnd`. Absent when nothing was.
+     * What came off the list price, so the list price was
+     * `amountVnd + discountVnd`. Absent when nothing was. The
+     * early-access offer's doing, or a promo code's — `promoCode` says
+     * which, and the two never stack.
      */
   discountVnd?: number;
+  /**
+     * The mã khuyến mãi that produced `discountVnd`. Absent when the
+     * discount was the early-access offer's, and absent when there was
+     * no discount.
+     */
+  promoCode?: string;
   /** Present only while the order is `PENDING`. */
   transfer?: TransferInstructions;
 }

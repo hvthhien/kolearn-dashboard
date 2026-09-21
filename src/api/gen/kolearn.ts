@@ -102,6 +102,7 @@ import type {
   CreateCardRequest,
   CreateCardsBatchBody,
   CreatePaymentOrderRequest,
+  CreatePromoCodeRequest,
   CreateRedeemCodesRequest,
   CreateShadowUploadTargetRequest,
   CreateShadowVideoRequest,
@@ -154,6 +155,7 @@ import type {
   ListExamsParams,
   ListMyCards200,
   ListMyCardsParams,
+  ListPromoCodesParams,
   ListRedeemCodesParams,
   ListShadowDictationLessonsParams,
   ListShadowVideosParams,
@@ -179,7 +181,12 @@ import type {
   PlacementResult,
   PlacementRunner,
   PremiumProductList,
+  PreviewPromoCodeRequest,
   Problem,
+  PromoCode,
+  PromoCodeList,
+  PromoCodeUseList,
+  PromoQuote,
   PublishAdminDictationSetParams,
   PublishAdminExamParams,
   PublishAdminShadowVideoParams,
@@ -2231,6 +2238,94 @@ export function useListPremiumProducts<TData = Awaited<ReturnType<typeof listPre
 
 
 
+export const getPreviewPromoCodeUrl = () => {
+
+
+
+
+  return `/api/v1/billing/promotions/preview`
+}
+
+/**
+ * Prices a mã khuyến mãi against one term WITHOUT opening an order, so
+ * the price card can show the discount before the learner commits to a
+ * memo. `POST /billing/orders` charges by the same rule, so what this
+ * quotes is what that freezes.
+ *
+ * Distinct from `POST /me/plan/redeem`, which spends a **mã nâng cấp** —
+ * that one hands over Premium days and no money moves. This one only
+ * lowers the price of an order that still has to be paid.
+ *
+ * **A promo and an early-access offer never stack.** The better of the
+ * two is applied and the other is left unspent; `offerBetter` is true
+ * when the learner's own offer won, in which case `discountVnd` is the
+ * offer's and the code stays available for a later order.
+ *
+ * The 422s: `promo_invalid`, `promo_not_started`, `promo_expired`,
+ * `promo_exhausted`, `promo_already_used`, `promo_not_applicable`. Each
+ * one names the `promoCode` field.
+ * @summary Thử mã khuyến mãi
+ */
+export const previewPromoCode = async (previewPromoCodeRequest: PreviewPromoCodeRequest, options?: Parameters<typeof apiFetch>[1]): Promise<PromoQuote> => {
+
+  return apiFetch<PromoQuote>(getPreviewPromoCodeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(previewPromoCodeRequest)
+  }
+);}
+
+
+
+
+
+export const getPreviewPromoCodeMutationOptions = <TError = UnauthorizedResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof previewPromoCode>>, TError,{data: PreviewPromoCodeRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof previewPromoCode>>, TError,{data: PreviewPromoCodeRequest}, TContext> => {
+
+const mutationKey = ['previewPromoCode'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof previewPromoCode>>, {data: PreviewPromoCodeRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  previewPromoCode(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PreviewPromoCodeMutationResult = NonNullable<Awaited<ReturnType<typeof previewPromoCode>>>
+    export type PreviewPromoCodeMutationBody = PreviewPromoCodeRequest
+    export type PreviewPromoCodeMutationError = UnauthorizedResponse | UnprocessableResponse
+
+    /**
+ * @summary Thử mã khuyến mãi
+ */
+export const usePreviewPromoCode = <TError = UnauthorizedResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof previewPromoCode>>, TError,{data: PreviewPromoCodeRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof previewPromoCode>>,
+        TError,
+        {data: PreviewPromoCodeRequest},
+        TContext
+      > => {
+      return useMutation(getPreviewPromoCodeMutationOptions(options), queryClient);
+    }
+
 export const getCreatePaymentOrderUrl = () => {
 
 
@@ -2249,6 +2344,17 @@ export const getCreatePaymentOrderUrl = () => {
  * — for any product — answers with that order, so the memo a learner
  * already typed into their banking app stays the right memo. Cancel it
  * to start over.
+ *
+ * **A mã khuyến mãi is applied here, not after.** Send `promoCode` and
+ * the order is opened at the discounted price. A code that cannot be
+ * used REFUSES the order — it is never silently dropped, because a
+ * learner who typed a code and got a full-price memo would transfer the
+ * wrong sum believing it discounted. The same 422s
+ * `POST /billing/promotions/preview` lists.
+ *
+ * The promo is ignored on the already-open path above: that order's
+ * price is frozen, and a learner who wants a different code cancels and
+ * opens a new order.
  *
  * `503 billing_unavailable` when this deployment has no receiving
  * account configured; codes still redeem.
@@ -13380,6 +13486,374 @@ export function useListCodeRedemptions<TData = Awaited<ReturnType<typeof listCod
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getListCodeRedemptionsQueryOptions(codeId,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListPromoCodesUrl = (params?: ListPromoCodesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/admin/billing/promotions?${stringifiedParams}` : `/api/v1/admin/billing/promotions`
+}
+
+/**
+ * rbac: `billing:manage`. Newest first, capped.
+ *
+ * A mã khuyến mãi discounts a paid order; a mã nâng cấp
+ * (`/admin/billing/codes`) hands over days for nothing. They are
+ * separate lists because they are separate acts.
+ * @summary Mã khuyến mãi
+ */
+export const listPromoCodes = async (params?: ListPromoCodesParams, options?: Parameters<typeof apiFetch>[1]): Promise<PromoCodeList> => {
+
+  return apiFetch<PromoCodeList>(getListPromoCodesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPromoCodesQueryKey = (params?: ListPromoCodesParams,) => {
+    return [
+    `/api/v1/admin/billing/promotions`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListPromoCodesQueryOptions = <TData = Awaited<ReturnType<typeof listPromoCodes>>, TError = UnauthorizedResponse | ForbiddenResponse>(params?: ListPromoCodesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPromoCodes>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPromoCodesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPromoCodes>>> = ({ signal }) => listPromoCodes(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPromoCodes>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListPromoCodesQueryResult = NonNullable<Awaited<ReturnType<typeof listPromoCodes>>>
+export type ListPromoCodesQueryError = UnauthorizedResponse | ForbiddenResponse
+
+
+export function useListPromoCodes<TData = Awaited<ReturnType<typeof listPromoCodes>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params: undefined |  ListPromoCodesParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPromoCodes>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPromoCodes>>,
+          TError,
+          Awaited<ReturnType<typeof listPromoCodes>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPromoCodes<TData = Awaited<ReturnType<typeof listPromoCodes>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params?: ListPromoCodesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPromoCodes>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPromoCodes>>,
+          TError,
+          Awaited<ReturnType<typeof listPromoCodes>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPromoCodes<TData = Awaited<ReturnType<typeof listPromoCodes>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params?: ListPromoCodesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPromoCodes>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Mã khuyến mãi
+ */
+
+export function useListPromoCodes<TData = Awaited<ReturnType<typeof listPromoCodes>>, TError = UnauthorizedResponse | ForbiddenResponse>(
+ params?: ListPromoCodesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPromoCodes>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListPromoCodesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreatePromoCodeUrl = () => {
+
+
+
+
+  return `/api/v1/admin/billing/promotions`
+}
+
+/**
+ * rbac: `billing:manage`. One code at a time, and the operator CHOOSES
+ * it — a promo code is a word on a poster, not a minted secret, so
+ * there is no `count` here the way there is on `/admin/billing/codes`.
+ *
+ * `409 promo_code_taken` when the code already exists.
+ * @summary Tạo mã khuyến mãi
+ */
+export const createPromoCode = async (createPromoCodeRequest: CreatePromoCodeRequest, options?: Parameters<typeof apiFetch>[1]): Promise<PromoCode> => {
+
+  return apiFetch<PromoCode>(getCreatePromoCodeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(createPromoCodeRequest)
+  }
+);}
+
+
+
+
+
+export const getCreatePromoCodeMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | ConflictResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPromoCode>>, TError,{data: CreatePromoCodeRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createPromoCode>>, TError,{data: CreatePromoCodeRequest}, TContext> => {
+
+const mutationKey = ['createPromoCode'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createPromoCode>>, {data: CreatePromoCodeRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createPromoCode(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreatePromoCodeMutationResult = NonNullable<Awaited<ReturnType<typeof createPromoCode>>>
+    export type CreatePromoCodeMutationBody = CreatePromoCodeRequest
+    export type CreatePromoCodeMutationError = UnauthorizedResponse | ForbiddenResponse | ConflictResponse | UnprocessableResponse
+
+    /**
+ * @summary Tạo mã khuyến mãi
+ */
+export const useCreatePromoCode = <TError = UnauthorizedResponse | ForbiddenResponse | ConflictResponse | UnprocessableResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPromoCode>>, TError,{data: CreatePromoCodeRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createPromoCode>>,
+        TError,
+        {data: CreatePromoCodeRequest},
+        TContext
+      > => {
+      return useMutation(getCreatePromoCodeMutationOptions(options), queryClient);
+    }
+
+export const getRevokePromoCodeUrl = (promoId: string,) => {
+
+
+
+
+  return `/api/v1/admin/billing/promotions/${promoId}/revoke`
+}
+
+/**
+ * rbac: `billing:manage`. From now on the code answers `promo_invalid`.
+ *
+ * Orders already OPEN on it keep their price: the amount is frozen on
+ * the row and the learner may be holding that memo in a banking app.
+ * What this stops is the next order.
+ * @summary Thu hồi mã khuyến mãi
+ */
+export const revokePromoCode = async (promoId: string, options?: Parameters<typeof apiFetch>[1]): Promise<PromoCode> => {
+
+  return apiFetch<PromoCode>(getRevokePromoCodeUrl(promoId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRevokePromoCodeMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokePromoCode>>, TError,{promoId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof revokePromoCode>>, TError,{promoId: string}, TContext> => {
+
+const mutationKey = ['revokePromoCode'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof revokePromoCode>>, {promoId: string}> = (props) => {
+          const {promoId} = props ?? {};
+
+          return  revokePromoCode(promoId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RevokePromoCodeMutationResult = NonNullable<Awaited<ReturnType<typeof revokePromoCode>>>
+
+    export type RevokePromoCodeMutationError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse
+
+    /**
+ * @summary Thu hồi mã khuyến mãi
+ */
+export const useRevokePromoCode = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof revokePromoCode>>, TError,{promoId: string}, TContext>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof revokePromoCode>>,
+        TError,
+        {promoId: string},
+        TContext
+      > => {
+      return useMutation(getRevokePromoCodeMutationOptions(options), queryClient);
+    }
+
+export const getListPromoCodeUsesUrl = (promoId: string,) => {
+
+
+
+
+  return `/api/v1/admin/billing/promotions/${promoId}/uses`
+}
+
+/**
+ * rbac: `billing:manage`. Only PAID orders appear — a promo is spent
+ * when the money arrives, not when the order is opened.
+ * @summary Ai đã dùng mã khuyến mãi
+ */
+export const listPromoCodeUses = async (promoId: string, options?: Parameters<typeof apiFetch>[1]): Promise<PromoCodeUseList> => {
+
+  return apiFetch<PromoCodeUseList>(getListPromoCodeUsesUrl(promoId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListPromoCodeUsesQueryKey = (promoId: string,) => {
+    return [
+    `/api/v1/admin/billing/promotions/${promoId}/uses`
+    ] as const;
+    }
+
+
+export const getListPromoCodeUsesQueryOptions = <TData = Awaited<ReturnType<typeof listPromoCodeUses>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(promoId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPromoCodeUses>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPromoCodeUsesQueryKey(promoId);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPromoCodeUses>>> = ({ signal }) => listPromoCodeUses(promoId, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: promoId !== null && promoId !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPromoCodeUses>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListPromoCodeUsesQueryResult = NonNullable<Awaited<ReturnType<typeof listPromoCodeUses>>>
+export type ListPromoCodeUsesQueryError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse
+
+
+export function useListPromoCodeUses<TData = Awaited<ReturnType<typeof listPromoCodeUses>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
+ promoId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPromoCodeUses>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPromoCodeUses>>,
+          TError,
+          Awaited<ReturnType<typeof listPromoCodeUses>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPromoCodeUses<TData = Awaited<ReturnType<typeof listPromoCodeUses>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
+ promoId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPromoCodeUses>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPromoCodeUses>>,
+          TError,
+          Awaited<ReturnType<typeof listPromoCodeUses>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPromoCodeUses<TData = Awaited<ReturnType<typeof listPromoCodeUses>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
+ promoId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPromoCodeUses>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Ai đã dùng mã khuyến mãi
+ */
+
+export function useListPromoCodeUses<TData = Awaited<ReturnType<typeof listPromoCodeUses>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
+ promoId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPromoCodeUses>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListPromoCodeUsesQueryOptions(promoId,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

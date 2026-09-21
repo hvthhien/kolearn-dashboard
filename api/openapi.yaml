@@ -823,6 +823,43 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/PremiumProductList' }
 
+  /billing/promotions/preview:
+    post:
+      tags: [billing]
+      operationId: previewPromoCode
+      summary: Thử mã khuyến mãi
+      description: |
+        Prices a mã khuyến mãi against one term WITHOUT opening an order, so
+        the price card can show the discount before the learner commits to a
+        memo. `POST /billing/orders` charges by the same rule, so what this
+        quotes is what that freezes.
+
+        Distinct from `POST /me/plan/redeem`, which spends a **mã nâng cấp** —
+        that one hands over Premium days and no money moves. This one only
+        lowers the price of an order that still has to be paid.
+
+        **A promo and an early-access offer never stack.** The better of the
+        two is applied and the other is left unspent; `offerBetter` is true
+        when the learner's own offer won, in which case `discountVnd` is the
+        offer's and the code stays available for a later order.
+
+        The 422s: `promo_invalid`, `promo_not_started`, `promo_expired`,
+        `promo_exhausted`, `promo_already_used`, `promo_not_applicable`. Each
+        one names the `promoCode` field.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PreviewPromoCodeRequest' }
+      responses:
+        '200':
+          description: What the code is worth on this term.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PromoQuote' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
   /billing/orders:
     post:
       tags: [billing]
@@ -838,6 +875,17 @@ paths:
         — for any product — answers with that order, so the memo a learner
         already typed into their banking app stays the right memo. Cancel it
         to start over.
+
+        **A mã khuyến mãi is applied here, not after.** Send `promoCode` and
+        the order is opened at the discounted price. A code that cannot be
+        used REFUSES the order — it is never silently dropped, because a
+        learner who typed a code and got a full-price memo would transfer the
+        wrong sum believing it discounted. The same 422s
+        `POST /billing/promotions/preview` lists.
+
+        The promo is ignored on the already-open path above: that order's
+        price is frozen, and a learner who wants a different code cancels and
+        opens a new order.
 
         `503 billing_unavailable` when this deployment has no receiving
         account configured; codes still redeem.
@@ -5043,6 +5091,105 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /admin/billing/promotions:
+    get:
+      tags: [billing]
+      operationId: listPromoCodes
+      summary: Mã khuyến mãi
+      description: |
+        rbac: `billing:manage`. Newest first, capped.
+
+        A mã khuyến mãi discounts a paid order; a mã nâng cấp
+        (`/admin/billing/codes`) hands over days for nothing. They are
+        separate lists because they are separate acts.
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 500, default: 200 }
+      responses:
+        '200':
+          description: The promo codes.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PromoCodeList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [billing]
+      operationId: createPromoCode
+      summary: Tạo mã khuyến mãi
+      description: |
+        rbac: `billing:manage`. One code at a time, and the operator CHOOSES
+        it — a promo code is a word on a poster, not a minted secret, so
+        there is no `count` here the way there is on `/admin/billing/codes`.
+
+        `409 promo_code_taken` when the code already exists.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreatePromoCodeRequest' }
+      responses:
+        '201':
+          description: The code as issued.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PromoCode' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /admin/billing/promotions/{promoId}/revoke:
+    parameters:
+      - name: promoId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [billing]
+      operationId: revokePromoCode
+      summary: Thu hồi mã khuyến mãi
+      description: |
+        rbac: `billing:manage`. From now on the code answers `promo_invalid`.
+
+        Orders already OPEN on it keep their price: the amount is frozen on
+        the row and the learner may be holding that memo in a banking app.
+        What this stops is the next order.
+      responses:
+        '200':
+          description: The code, now revoked.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PromoCode' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /admin/billing/promotions/{promoId}/uses:
+    parameters:
+      - name: promoId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [billing]
+      operationId: listPromoCodeUses
+      summary: Ai đã dùng mã khuyến mãi
+      description: |
+        rbac: `billing:manage`. Only PAID orders appear — a promo is spent
+        when the money arrives, not when the order is opened.
+      responses:
+        '200':
+          description: Who spent it, and what it cost.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PromoCodeUseList' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   /admin/billing/orders:
     get:
       tags: [billing]
@@ -7100,9 +7247,10 @@ components:
           type: integer
           description: |
             What the signed-in learner pays for this product with their
-            early-access discount. Present only on a product the discount covers
-            — the one-month term — and only while the learner has one to spend.
-            The same rule `POST /billing/orders` charges by.
+            early-access discount. Present on EVERY term while the learner has
+            one to spend — the offer is spent on their first paid order whatever
+            its length — and absent once it is spent or lapsed. The same rule
+            `POST /billing/orders` charges by.
 
     PremiumProductList:
       type: object
@@ -7119,8 +7267,9 @@ components:
       type: object
       required: [percent]
       description: |
-        An early-access discount on the first paid month. Spent when an order
-        it discounted is paid; an order that expires unpaid leaves it unspent.
+        An early-access discount on the learner's first paid order, on any term.
+        Spent when an order it discounted is paid; an order that expires unpaid
+        leaves it unspent.
       properties:
         percent: { type: integer, minimum: 1, maximum: 90 }
         expiresAt:
@@ -7133,6 +7282,180 @@ components:
       required: [productCode]
       properties:
         productCode: { type: string }
+        promoCode:
+          type: string
+          description: |
+            A mã khuyến mãi to apply. Omit for the list price. A code that
+            cannot be used refuses the whole order with one of the promo 422s
+            rather than being dropped.
+
+    PromoCodeKind:
+      type: string
+      enum: [PERCENT, AMOUNT]
+      description: |
+        `PERCENT` takes a share off the list price, `AMOUNT` a fixed sum in
+        đồng. Exactly one of `percent` / `amountVnd` is set accordingly.
+
+    PreviewPromoCodeRequest:
+      type: object
+      required: [code, productCode]
+      properties:
+        code:
+          type: string
+          description: |
+            As typed. Case, spaces and dashes are normalised away, so
+            `tet-2026` finds `TET2026`.
+        productCode:
+          type: string
+          description: The term the learner has selected; a code may cover only some.
+
+    PromoQuote:
+      type: object
+      required: [code, productCode, priceVnd, discountVnd, amountVnd]
+      description: What a mã khuyến mãi is worth on one term, for the price card.
+      properties:
+        code:
+          type: string
+          description: The code in its stored, normalised form.
+        kind:
+          $ref: '#/components/schemas/PromoCodeKind'
+          description: |
+            Absent when `offerBetter` is true — the quote then describes the
+            early-access offer, which is not a promo code.
+        percent:
+          type: integer
+          description: Set on a `PERCENT` code.
+        productCode: { type: string }
+        priceVnd:
+          type: integer
+          description: The list price of the term.
+        discountVnd:
+          type: integer
+          description: What comes off it — the promo's, or the offer's when that won.
+        amountVnd:
+          type: integer
+          description: '`priceVnd - discountVnd`: what the memo would quote.'
+        offerBetter:
+          type: boolean
+          description: |
+            The learner's early-access offer is worth more than this code, so
+            it is the offer that was applied. The code stays unspent and can
+            be used on a later order. The two never stack.
+
+    PromoCode:
+      type: object
+      required: [id, code, kind, maxUses, uses, productCodes, note, createdAt]
+      description: A mã khuyến mãi as the dashboard sees it. `billing:manage`.
+      properties:
+        id: { type: string, format: uuid }
+        code:
+          type: string
+          description: 4–24 characters of A–Z and 0–9, chosen by the operator.
+        kind: { $ref: '#/components/schemas/PromoCodeKind' }
+        percent: { type: integer, minimum: 1, maximum: 90 }
+        amountVnd: { type: integer, minimum: 1 }
+        maxUses: { type: integer }
+        uses:
+          type: integer
+          description: |
+            Paid orders that spent it. May finish one or two ABOVE `maxUses`:
+            a use is counted when the money arrives rather than when the order
+            is opened, so several learners can hold orders on the last seat.
+        productCodes:
+          type: array
+          items: { type: string }
+          description: The terms it covers. EMPTY MEANS EVERY TERM.
+        startsAt:
+          type: string
+          format: date-time
+          description: Absent for a code usable from the moment it is created.
+        expiresAt:
+          type: string
+          format: date-time
+          description: Absent for a code with no expiry date.
+        revokedAt:
+          type: string
+          format: date-time
+          description: Present once revoked. Orders already open keep their price.
+        note: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    PromoCodeList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/PromoCode' }
+
+    CreatePromoCodeRequest:
+      type: object
+      required: [code, kind, maxUses]
+      properties:
+        code:
+          type: string
+          minLength: 4
+          maxLength: 24
+          description: |
+            Normalised to upper case with spaces and dashes removed, then it
+            must be 4–24 characters of A–Z and 0–9.
+        kind: { $ref: '#/components/schemas/PromoCodeKind' }
+        percent:
+          type: integer
+          minimum: 1
+          maximum: 90
+          description: Required when `kind` is `PERCENT`, ignored otherwise.
+        amountVnd:
+          type: integer
+          minimum: 1
+          description: Required when `kind` is `AMOUNT`, ignored otherwise.
+        maxUses:
+          type: integer
+          minimum: 1
+          maximum: 1000000
+          description: Across all learners. Each learner may still use it only once.
+        productCodes:
+          type: array
+          items: { type: string }
+          description: |
+            Which terms it covers. Omit or send empty for every term. Every
+            code named must exist, or `422 promo_form_invalid`.
+        startsAt:
+          type: string
+          format: date-time
+          description: Omit for a code that works immediately.
+        expiresAt:
+          type: string
+          format: date-time
+          description: Omit for a code that never expires by date.
+        note:
+          type: string
+          maxLength: 200
+          description: Which campaign it is for.
+
+    PromoCodeUse:
+      type: object
+      required: [userId, email, displayName, orderId, discountVnd, amountVnd, redeemedAt]
+      properties:
+        userId: { type: string, format: uuid }
+        email: { type: string, format: email }
+        displayName: { type: string }
+        orderId: { type: string, format: uuid }
+        discountVnd:
+          type: integer
+          description: What the code took off this learner's order.
+        amountVnd:
+          type: integer
+          description: What they paid after it.
+        redeemedAt: { type: string, format: date-time }
+
+    PromoCodeUseList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/PromoCodeUse' }
 
     PaymentOrderStatus:
       type: string
@@ -7177,8 +7500,16 @@ components:
         discountVnd:
           type: integer
           description: |
-            What the early-access offer took off the list price, so the list
-            price was `amountVnd + discountVnd`. Absent when nothing was.
+            What came off the list price, so the list price was
+            `amountVnd + discountVnd`. Absent when nothing was. The
+            early-access offer's doing, or a promo code's — `promoCode` says
+            which, and the two never stack.
+        promoCode:
+          type: string
+          description: |
+            The mã khuyến mãi that produced `discountVnd`. Absent when the
+            discount was the early-access offer's, and absent when there was
+            no discount.
         transfer:
           $ref: '#/components/schemas/TransferInstructions'
           description: Present only while the order is `PENDING`.
@@ -7612,7 +7943,15 @@ components:
           description: Must be 1 for a `PERSONAL` code.
         trialDays: { type: integer, minimum: 0, maximum: 90 }
         discountPercent: { type: integer, minimum: 0, maximum: 90 }
-        discountValidDays: { type: integer, minimum: 1, maximum: 365 }
+        discountValidDays:
+          type: integer
+          minimum: 1
+          maximum: 365
+          default: 30
+          description: |
+            Days after activation the discount may still be spent. Omitted on a
+            code that carries a discount, it is 30; to issue one that never
+            lapses, create it and then PATCH it with this field absent.
         expiresAt: { type: string, format: date-time }
 
     UpdateAccessCodeRequest:

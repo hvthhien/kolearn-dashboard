@@ -23,18 +23,32 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { PromoCodeKind } from './promoCodeKind';
 
 /**
- * An early-access discount on the learner's first paid order, on any term.
- * Spent when an order it discounted is paid; an order that expires unpaid
- * leaves it unspent.
+ * What a mã khuyến mãi is worth on one term, for the price card.
  */
-export interface PremiumOffer {
+export interface PromoQuote {
+  /** The code in its stored, normalised form. */
+  code: string;
   /**
-     * @minimum 1
-     * @maximum 90
+     * Absent when `offerBetter` is true — the quote then describes the
+     * early-access offer, which is not a promo code.
      */
-  percent: number;
-  /** When it lapses unused. Absent when it does not. */
-  expiresAt?: string;
+  kind?: PromoCodeKind;
+  /** Set on a `PERCENT` code. */
+  percent?: number;
+  productCode: string;
+  /** The list price of the term. */
+  priceVnd: number;
+  /** What comes off it — the promo's, or the offer's when that won. */
+  discountVnd: number;
+  /** `priceVnd - discountVnd`: what the memo would quote. */
+  amountVnd: number;
+  /**
+     * The learner's early-access offer is worth more than this code, so
+     * it is the offer that was applied. The code stays unspent and can
+     * be used on a later order. The two never stack.
+     */
+  offerBetter?: boolean;
 }

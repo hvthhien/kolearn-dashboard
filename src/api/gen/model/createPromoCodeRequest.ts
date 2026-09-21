@@ -23,18 +23,46 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { PromoCodeKind } from './promoCodeKind';
 
-/**
- * An early-access discount on the learner's first paid order, on any term.
- * Spent when an order it discounted is paid; an order that expires unpaid
- * leaves it unspent.
- */
-export interface PremiumOffer {
+export interface CreatePromoCodeRequest {
   /**
+     * Normalised to upper case with spaces and dashes removed, then it
+     * must be 4–24 characters of A–Z and 0–9.
+     * @minLength 4
+     * @maxLength 24
+     */
+  code: string;
+  kind: PromoCodeKind;
+  /**
+     * Required when `kind` is `PERCENT`, ignored otherwise.
      * @minimum 1
      * @maximum 90
      */
-  percent: number;
-  /** When it lapses unused. Absent when it does not. */
+  percent?: number;
+  /**
+     * Required when `kind` is `AMOUNT`, ignored otherwise.
+     * @minimum 1
+     */
+  amountVnd?: number;
+  /**
+     * Across all learners. Each learner may still use it only once.
+     * @minimum 1
+     * @maximum 1000000
+     */
+  maxUses: number;
+  /**
+     * Which terms it covers. Omit or send empty for every term. Every
+     * code named must exist, or `422 promo_form_invalid`.
+     */
+  productCodes?: string[];
+  /** Omit for a code that works immediately. */
+  startsAt?: string;
+  /** Omit for a code that never expires by date. */
   expiresAt?: string;
+  /**
+     * Which campaign it is for.
+     * @maxLength 200
+     */
+  note?: string;
 }

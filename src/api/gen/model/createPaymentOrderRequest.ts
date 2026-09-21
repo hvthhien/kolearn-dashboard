@@ -26,4 +26,10 @@
 
 export interface CreatePaymentOrderRequest {
   productCode: string;
+  /**
+     * A mã khuyến mãi to apply. Omit for the list price. A code that
+     * cannot be used refuses the whole order with one of the promo 422s
+     * rather than being dropped.
+     */
+  promoCode?: string;
 }

@@ -31,9 +31,10 @@ export interface PremiumProduct {
   priceVnd: number;
   /**
      * What the signed-in learner pays for this product with their
-     * early-access discount. Present only on a product the discount covers
-     * — the one-month term — and only while the learner has one to spend.
-     * The same rule `POST /billing/orders` charges by.
+     * early-access discount. Present on EVERY term while the learner has
+     * one to spend — the offer is spent on their first paid order whatever
+     * its length — and absent once it is spent or lapsed. The same rule
+     * `POST /billing/orders` charges by.
      */
   offerPriceVnd?: number;
 }
