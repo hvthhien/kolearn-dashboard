@@ -116,19 +116,22 @@ export function ExamListPage() {
               caption="Danh sách đề trong ngân hàng"
               head={
                 <tr>
-                  <Th>Mã đề</Th>
+                  {/* The short columns hold one line and the title holds 12rem,
+                      so a phone scrolls the table inside its box rather than
+                      folding every title and badge a word to a line to fit. */}
+                  <Th className="whitespace-nowrap">Mã đề</Th>
                   <Th>Tên</Th>
-                  <Th>Bậc</Th>
-                  <Th>Cấu hình</Th>
-                  <Th className="text-right">Số câu</Th>
-                  <Th>Trạng thái</Th>
+                  <Th className="whitespace-nowrap">Bậc</Th>
+                  <Th className="whitespace-nowrap">Cấu hình</Th>
+                  <Th className="text-right whitespace-nowrap">Số câu</Th>
+                  <Th className="whitespace-nowrap">Trạng thái</Th>
                   <Th>Gói</Th>
                 </tr>
               }
             >
               {items.map((exam) => (
                 <tr key={exam.id}>
-                  <Td className="font-mono text-xs">
+                  <Td className="font-mono text-xs whitespace-nowrap">
                     <Link
                       to="/exams/$examId"
                       params={{ examId: exam.id }}
@@ -137,7 +140,7 @@ export function ExamListPage() {
                       {exam.code}
                     </Link>
                   </Td>
-                  <Td>
+                  <Td className="min-w-48">
                     {exam.title}
                     {/* TCCN-302-4: said here, in the list, before anyone opens
                         the paper — not after a learner has started it. */}
@@ -149,10 +152,10 @@ export function ExamListPage() {
                       </p>
                     )}
                   </Td>
-                  <Td>{exam.level === 'TOPIK_I' ? 'TOPIK I' : 'TOPIK II'}</Td>
-                  <Td className="font-mono text-xs text-muted">{exam.blueprintVersion}</Td>
+                  <Td className="whitespace-nowrap">{exam.level === 'TOPIK_I' ? 'TOPIK I' : 'TOPIK II'}</Td>
+                  <Td className="font-mono text-xs whitespace-nowrap text-muted">{exam.blueprintVersion}</Td>
                   <Td className="text-right tabular-nums">{exam.questionCount}</Td>
-                  <Td>
+                  <Td className="whitespace-nowrap">
                     <Badge tone={exam.status === 'PUBLISHED' ? 'ok' : 'neutral'}>
                       {STATUS_LABEL[exam.status]}
                     </Badge>
