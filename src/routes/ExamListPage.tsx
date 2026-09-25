@@ -26,6 +26,7 @@ import {
   Td,
   Th,
 } from '../components/ui'
+import { authoringLanguage } from '../lib/authoringLanguage'
 
 type StatusFilter = ExamStatus | 'ALL'
 
@@ -52,6 +53,7 @@ export function ExamListPage() {
 
   const pager = usePager(PAGE_SIZE)
   const { data, error, isPending, isFetching } = useListAdminExams({
+    language: authoringLanguage(),
     status: status === 'ALL' ? undefined : status,
     limit: pager.pageSize,
     offset: pager.offset,

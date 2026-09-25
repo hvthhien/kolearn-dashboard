@@ -36,6 +36,10 @@
  *
  * Only `ko` is open. The other three are announced, and a client lists
  * them as "sắp ra mắt" rather than hiding them.
+ *
+ * Also the value of `X-Learning-Language`, the header that names the
+ * learning context a request is in; see
+ * `#/components/parameters/LearningLanguageHeader`.
  */
 export type LearningLanguage = typeof LearningLanguage[keyof typeof LearningLanguage];
 

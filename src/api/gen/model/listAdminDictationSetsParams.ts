@@ -23,9 +23,16 @@
  *
  * OpenAPI spec version: 0.1.0
  */
+import type { LearningLanguage } from './learningLanguage';
 import type { ListAdminDictationSetsStatus } from './listAdminDictationSetsStatus';
 
 export type ListAdminDictationSetsParams = {
+/**
+ * The corpus to list or author in; absent means `ko`. Any announced
+ * language, open or not, and never the staff member's own study
+ * language. See `#/components/parameters/LearningLanguageHeader`.
+ */
+language?: LearningLanguage;
 status?: ListAdminDictationSetsStatus;
 /**
  * @minimum 1

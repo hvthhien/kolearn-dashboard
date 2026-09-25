@@ -25,8 +25,15 @@
  */
 import type { ExamLevel } from './examLevel';
 import type { ExamStatus } from './examStatus';
+import type { LearningLanguage } from './learningLanguage';
 
 export type ListAdminExamsParams = {
+/**
+ * The corpus to list or author in; absent means `ko`. Any announced
+ * language, open or not, and never the staff member's own study
+ * language. See `#/components/parameters/LearningLanguageHeader`.
+ */
+language?: LearningLanguage;
 status?: ExamStatus;
 level?: ExamLevel;
 /**

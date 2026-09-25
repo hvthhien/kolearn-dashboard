@@ -24,20 +24,5 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { LearningLanguage } from './learningLanguage';
-import type { TopicCategory } from './topicCategory';
 
-export type ListTopicsParams = {
-/**
- * The corpus to list or author in; absent means `ko`. Any announced
- * language, open or not, and never the staff member's own study
- * language. See `#/components/parameters/LearningLanguageHeader`.
- */
-language?: LearningLanguage;
-category?: TopicCategory;
-q?: string;
-/**
- * @minimum 1
- * @maximum 100
- */
-limit?: number;
-};
+export type LearningLanguageHeaderParameter = LearningLanguage;

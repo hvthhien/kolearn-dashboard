@@ -39,6 +39,7 @@ import {
   Td,
   Th,
 } from '../components/ui'
+import { authoringLanguage } from '../lib/authoringLanguage'
 
 type StatusFilter = 'ALL' | ShadowVideoStatus
 
@@ -89,6 +90,7 @@ export function VideoListPage() {
 
   const pager = usePager(PAGE_SIZE)
   const { data, error: loadError, isPending, isFetching } = useListAdminShadowVideos({
+    language: authoringLanguage(),
     status: status === 'ALL' ? undefined : status,
     limit: pager.pageSize,
     offset: pager.offset,
@@ -102,7 +104,7 @@ export function VideoListPage() {
      many shelves there are and be honestly disabled while the list is in
      flight — a manager opened on an empty array looks like a vocabulary
      somebody deleted. */
-  const categories = useListAdminShadowCategories()
+  const categories = useListAdminShadowCategories({ language: authoringLanguage() })
 
   /* No params, so this is the prefix every status filter hangs off — a video
      removed under "Tất cả" must not still be sitting in the cached "Nháp". */
@@ -123,10 +125,10 @@ export function VideoListPage() {
     setBusy(true)
     setError(null)
     try {
-      const created = await createAdminShadowVideo({
-        title: 'Ngữ liệu mới',
-        level: 2,
-      })
+      const created = await createAdminShadowVideo(
+        { title: 'Ngữ liệu mới', level: 2 },
+        { language: authoringLanguage() },
+      )
       await navigate({ to: '/videos/$videoId', params: { videoId: created.id } })
     } catch (err) {
       setError(err)
@@ -314,8 +316,11 @@ export function VideoListPage() {
           noun="ngữ liệu"
           categories={categories.data.items.map(toManaged)}
           api={{
-            list: async () => (await listAdminShadowCategories()).items.map(toManaged),
-            create: (input) => createAdminShadowCategory(input),
+            list: async () =>
+              (await listAdminShadowCategories({ language: authoringLanguage() })).items.map(
+                toManaged,
+              ),
+            create: (input) => createAdminShadowCategory(input, { language: authoringLanguage() }),
             save: (id, input) => saveAdminShadowCategory(id, input),
             remove: (id) => deleteAdminShadowCategory(id),
           }}

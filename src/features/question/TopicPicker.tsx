@@ -2,6 +2,7 @@ import { useId, useState } from 'react'
 import { useListTopics } from '../../api/gen/kolearn'
 import type { AdminQuestionTopic, Topic } from '../../api/gen/model'
 import { Field } from '../../components/ui'
+import { authoringLanguage } from '../../lib/authoringLanguage'
 
 const CATEGORY_LABEL: Record<Topic['category'], string> = {
   GRAMMAR: 'ngữ pháp',
@@ -38,7 +39,7 @@ export function TopicPicker({
 }) {
   const inputId = useId()
   const [query, setQuery] = useState('')
-  const { data } = useListTopics({ q: query })
+  const { data } = useListTopics({ q: query, language: authoringLanguage() })
 
   const selectedIds = selected.map((t) => t.topicId)
   const suggestions = (data?.items ?? []).filter((t) => !selectedIds.includes(t.id))

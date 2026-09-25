@@ -636,16 +636,23 @@ paths:
         **Only Korean can be chosen today.** English, Japanese and Chinese are
         announced and listed in `LearningLanguage` so a client can show them as
         "sắp ra mắt", and choosing one is 422 `learning_language_unavailable`.
-        A code outside the enum is 422 `unknown_learning_language`.
+        A code outside the enum is 422 `unknown_learning_language`. Staff may
+        choose a language before it opens, which is how one is checked.
+
+        **Choosing a language the learner has not studied before starts its
+        context**: its own level, streak, deck, history and weakness, empty,
+        beside the ones they already have. Choosing one they have moves only
+        the choice. Nothing is moved between contexts or deleted — an exam left
+        in progress stays in progress, in its own language, with its clock
+        running. Choosing twice starts nothing twice.
 
         **Its own endpoint rather than a field of `PATCH /me/profile`**, because
-        switching is meant to become more than a field write: once a second
-        language opens, a switch moves the learner into that language's own
-        context. Today it stores the code and changes nothing else.
+        the write is not only a field.
 
         **Answers with the whole `CurrentUser`**, for the reason the profile
-        patch does — and because once a switch changes context, more of that
-        object will move than the field that was sent.
+        patch does — and because `startedLanguages` moves with it. The client
+        reloads after a switch rather than patching its cache: every screen it
+        holds was rendered in the old context.
       requestBody:
         required: true
         content:
@@ -2062,6 +2069,14 @@ paths:
       operationId: listTopics
       summary: Topic suggestions for tagging
       parameters:
+        - name: language
+          in: query
+          required: false
+          description: |
+            The corpus to list or author in; absent means `ko`. Any announced
+            language, open or not, and never the staff member's own study
+            language. See `#/components/parameters/LearningLanguageHeader`.
+          schema: { $ref: '#/components/schemas/LearningLanguage' }
         - { name: category, in: query, schema: { $ref: '#/components/schemas/TopicCategory' } }
         - { name: q, in: query, schema: { type: string } }
         - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 50 } }
@@ -4791,6 +4806,15 @@ paths:
         `rbac: dictation:read:any` — the same floor as reading a set, because
         every editor who opens the metadata dialog needs this list to choose
         from.
+      parameters:
+        - name: language
+          in: query
+          required: false
+          description: |
+            The corpus to list or author in; absent means `ko`. Any announced
+            language, open or not, and never the staff member's own study
+            language. See `#/components/parameters/LearningLanguageHeader`.
+          schema: { $ref: '#/components/schemas/LearningLanguage' }
       responses:
         '200':
           description: Authored order, with counts.
@@ -4808,6 +4832,15 @@ paths:
         `rbac: dictation:write`, not `dictation:publish`: renaming or adding a
         shelf is authoring metadata and reaches no learner who was not already
         reaching those sets.
+      parameters:
+        - name: language
+          in: query
+          required: false
+          description: |
+            The corpus to list or author in; absent means `ko`. Any announced
+            language, open or not, and never the staff member's own study
+            language. See `#/components/parameters/LearningLanguageHeader`.
+          schema: { $ref: '#/components/schemas/LearningLanguage' }
       requestBody:
         required: true
         content:
@@ -4877,6 +4910,14 @@ paths:
       summary: Every dictation set, drafts included
       description: 'rbac: `dictation:read:any`.'
       parameters:
+        - name: language
+          in: query
+          required: false
+          description: |
+            The corpus to list or author in; absent means `ko`. Any announced
+            language, open or not, and never the staff member's own study
+            language. See `#/components/parameters/LearningLanguageHeader`.
+          schema: { $ref: '#/components/schemas/LearningLanguage' }
         - name: status
           in: query
           schema: { type: string, enum: [DRAFT, IN_REVIEW, PUBLISHED, RETIRED] }
@@ -5995,6 +6036,14 @@ paths:
         drafts are the work, and whose attempts they are is not the question
         this screen asks.
       parameters:
+        - name: language
+          in: query
+          required: false
+          description: |
+            The corpus to list or author in; absent means `ko`. Any announced
+            language, open or not, and never the staff member's own study
+            language. See `#/components/parameters/LearningLanguageHeader`.
+          schema: { $ref: '#/components/schemas/LearningLanguage' }
         - name: status
           in: query
           schema: { $ref: '#/components/schemas/ExamStatus' }
@@ -6390,6 +6439,15 @@ paths:
         `rbac: shadowing:read:any` — the same floor as reading a video, because
         every editor who opens the metadata form needs this list to choose
         from.
+      parameters:
+        - name: language
+          in: query
+          required: false
+          description: |
+            The corpus to list or author in; absent means `ko`. Any announced
+            language, open or not, and never the staff member's own study
+            language. See `#/components/parameters/LearningLanguageHeader`.
+          schema: { $ref: '#/components/schemas/LearningLanguage' }
       responses:
         '200':
           description: Authored order, with counts.
@@ -6407,6 +6465,15 @@ paths:
         `rbac: shadowing:write`, not `shadowing:publish`: adding or renaming a
         shelf is authoring metadata and reaches no learner who was not already
         reaching those items.
+      parameters:
+        - name: language
+          in: query
+          required: false
+          description: |
+            The corpus to list or author in; absent means `ko`. Any announced
+            language, open or not, and never the staff member's own study
+            language. See `#/components/parameters/LearningLanguageHeader`.
+          schema: { $ref: '#/components/schemas/LearningLanguage' }
       requestBody:
         required: true
         content:
@@ -6470,6 +6537,14 @@ paths:
       summary: Every shadowing video, drafts included
       description: 'rbac: `shadowing:read:any`.'
       parameters:
+        - name: language
+          in: query
+          required: false
+          description: |
+            The corpus to list or author in; absent means `ko`. Any announced
+            language, open or not, and never the staff member's own study
+            language. See `#/components/parameters/LearningLanguageHeader`.
+          schema: { $ref: '#/components/schemas/LearningLanguage' }
         - name: status
           in: query
           schema: { $ref: '#/components/schemas/ShadowVideoStatus' }
@@ -6498,6 +6573,15 @@ paths:
         the upload needs something to hang an object key off — and because the
         list screen's empty state has to offer a way forward that leads
         somewhere.
+      parameters:
+        - name: language
+          in: query
+          required: false
+          description: |
+            The corpus to list or author in; absent means `ko`. Any announced
+            language, open or not, and never the staff member's own study
+            language. See `#/components/parameters/LearningLanguageHeader`.
+          schema: { $ref: '#/components/schemas/LearningLanguage' }
       requestBody:
         required: true
         content:
@@ -6865,6 +6949,41 @@ components:
       bearerFormat: JWT
 
   parameters:
+    LearningLanguageHeader:
+      name: X-Learning-Language
+      in: header
+      required: false
+      description: |
+        The learning context this request is in.
+
+        **Every learning read and write happens in one learning context** —
+        one account studying one language (`CurrentUser.startedLanguages`).
+        Exams, attempts, cards, weakness, placement, the streak, shadowing,
+        dictation and the trợ lý's history all belong to a context; only the
+        account itself (identity, gói, AI allowance, devices) is shared by
+        every language it studies.
+
+        - Sent by the learner app on every request. Absent, it is the
+          account's chosen language, and for a guest `ko`. It is refused with
+          422 `unknown_learning_language` (not a code), 422
+          `learning_language_unavailable` (not open), or 422
+          `learning_language_not_started` (the learner has no context there;
+          `PUT /me/learning-language` starts one).
+        - A resource opened by id that belongs to another of the caller's
+          contexts answers **409 `learning_language_mismatch`** with its
+          `language` (`LearningLanguageProblem`) — never 404, because it
+          exists and is theirs. Someone else's resource is 404 whatever its
+          language.
+        - The account routes (`/me`, the profile, the switch, sessions,
+          billing, early access) never read it. Neither do the dashboard's
+          studio routes: they take their corpus from a `language` query
+          parameter, so a staff member's own study language cannot steer what
+          they author.
+
+        Declared here and referenced by no operation, on purpose: it applies
+        to every learning route alike, and the client's request layer adds it
+        rather than each call.
+      schema: { $ref: '#/components/schemas/LearningLanguage' }
     UserId:
       name: userId
       in: path
@@ -7030,6 +7149,13 @@ components:
       content:
         application/problem+json:
           schema: { $ref: '#/components/schemas/Problem' }
+    LearningLanguageMismatch:
+      description: |
+        `learning_language_mismatch` — the resource exists and is the caller's,
+        in another of their learning contexts. `language` says which.
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/LearningLanguageProblem' }
     Unprocessable:
       description: Well-formed but invalid.
       content:
@@ -7080,6 +7206,23 @@ components:
             properties:
               field: { type: string }
               message: { type: string }
+
+    LearningLanguageProblem:
+      description: |
+        A refusal about a learning context, carrying the language it is about.
+
+        `learning_language_mismatch` (409): the resource opened by id belongs
+        to another of the caller's contexts, and `language` is that context's.
+        The client offers "Chuyển sang {tiếng Hàn}" rather than an error.
+
+        `learning_language_not_started` (422): `X-Learning-Language` named a
+        language the caller has no context in, and `language` is that one.
+      allOf:
+        - $ref: '#/components/schemas/Problem'
+        - type: object
+          required: [language]
+          properties:
+            language: { $ref: '#/components/schemas/LearningLanguage' }
 
     AttemptInProgressProblem:
       allOf:
@@ -7200,7 +7343,7 @@ components:
 
     CurrentUser:
       type: object
-      required: [id, email, emailVerified, hasPassword, displayName, roles, permissions, plan]
+      required: [id, email, emailVerified, hasPassword, displayName, startedLanguages, roles, permissions, plan]
       properties:
         id: { type: string, format: uuid }
         email: { type: string, format: email }
@@ -7238,6 +7381,17 @@ components:
             fallback, not a claim about where anybody is.
         learningLanguage:
           $ref: '#/components/schemas/LearningLanguage'
+        startedLanguages:
+          type: array
+          items: { $ref: '#/components/schemas/LearningLanguage' }
+          description: |
+            Every language this account holds a learning context in, sorted.
+            Always present and never empty for an account made by signup, which
+            starts in `ko`.
+
+            The switcher reads it to tell a language to continue from one to
+            start, and it is what `X-Learning-Language` is checked against: a
+            language not listed here is 422 `learning_language_not_started`.
         roles:
           type: array
           items: { type: string }
@@ -8262,6 +8416,10 @@ components:
 
         Only `ko` is open. The other three are announced, and a client lists
         them as "sắp ra mắt" rather than hiding them.
+
+        Also the value of `X-Learning-Language`, the header that names the
+        learning context a request is in; see
+        `#/components/parameters/LearningLanguageHeader`.
 
     SetLearningLanguage:
       type: object

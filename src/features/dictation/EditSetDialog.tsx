@@ -4,6 +4,7 @@ import type { AdminDictationSetRow, SaveDictationSetRequest } from '../../api/ge
 import { userMessage } from '../../lib/problem'
 import { Button, Dialog, ErrorNote, Select, TextField } from '../../components/ui'
 import { CategorySelect, TagField, formatTags, parseTags } from '../lessons/taxonomy'
+import { authoringLanguage } from '../../lib/authoringLanguage'
 
 /**
  * Sửa thông tin bộ — the metadata, and only the metadata.
@@ -60,7 +61,7 @@ export function EditSetDialog({
   /* A failed request costs the picker its options and nothing else: the dialog
      still saves, and CategorySelect keeps naming whatever this set is already
      filed under. */
-  const categories = useListAdminDictationCategories()
+  const categories = useListAdminDictationCategories({ language: authoringLanguage() })
 
   const set1 = <K extends keyof SaveDictationSetRequest>(
     key: K,

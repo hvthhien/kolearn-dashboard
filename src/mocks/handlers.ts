@@ -296,6 +296,12 @@ export const MOCK_USER: AuthTokens['user'] = {
   hasPassword: true,
   displayName: 'Biên tập viên',
   locale: 'vi',
+  // Every account made by signup holds a Korean context from its first
+  // request (migration 00069), and /me says so. The dashboard reads neither
+  // field today — its corpus comes from authoringLanguage(), never from what
+  // the editor studies — but a mock without them is not what the server sends.
+  learningLanguage: 'ko',
+  startedLanguages: ['ko'],
   // A staff account has no plan worth showing, but the field is required on
   // every CurrentUser and a mock that omits it is a client that never
   // learns to read it.

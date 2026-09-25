@@ -63,6 +63,16 @@ export interface CurrentUser {
      */
   timezone?: string;
   learningLanguage?: LearningLanguage;
+  /**
+     * Every language this account holds a learning context in, sorted.
+     * Always present and never empty for an account made by signup, which
+     * starts in `ko`.
+     *
+     * The switcher reads it to tell a language to continue from one to
+     * start, and it is what `X-Learning-Language` is checked against: a
+     * language not listed here is 422 `learning_language_not_started`.
+     */
+  startedLanguages: LearningLanguage[];
   roles: string[];
   permissions: string[];
   plan: UserPlan;

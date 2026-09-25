@@ -42,6 +42,7 @@ import {
   TextField,
   WarnNote,
 } from '../components/ui'
+import { authoringLanguage } from '../lib/authoringLanguage'
 
 const STATUS_LABEL: Record<string, string> = {
   DRAFT: 'Nháp mới',
@@ -101,7 +102,7 @@ function Studio({ video }: { video: AdminShadowVideoDetail }) {
    * already filed under. Refusing to open a studio because a dropdown could not
    * be filled would take away far more than it protects.
    */
-  const categories = useListAdminShadowCategories()
+  const categories = useListAdminShadowCategories({ language: authoringLanguage() })
 
   const [activeLine, setActiveLine] = useState(0)
 

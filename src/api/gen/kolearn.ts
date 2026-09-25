@@ -98,6 +98,9 @@ import type {
   ConflictResponse,
   ContentPremium,
   CreateAccessCodeRequest,
+  CreateAdminDictationCategoryParams,
+  CreateAdminShadowCategoryParams,
+  CreateAdminShadowVideoParams,
   CreateCardGroupBody,
   CreateCardRequest,
   CreateCardsBatchBody,
@@ -135,11 +138,13 @@ import type {
   InvitedWaitlistEntry,
   JoinWaitlistRequest,
   ListAccessCodesParams,
+  ListAdminDictationCategoriesParams,
   ListAdminDictationSetsParams,
   ListAdminExams200,
   ListAdminExamsParams,
   ListAdminPaymentOrdersParams,
   ListAdminQuestions200,
+  ListAdminShadowCategoriesParams,
   ListAdminShadowVideosParams,
   ListAdminUsersParams,
   ListAssistantThreads200,
@@ -1606,16 +1611,23 @@ export const getSetMyLearningLanguageUrl = () => {
  * **Only Korean can be chosen today.** English, Japanese and Chinese are
  * announced and listed in `LearningLanguage` so a client can show them as
  * "sắp ra mắt", and choosing one is 422 `learning_language_unavailable`.
- * A code outside the enum is 422 `unknown_learning_language`.
+ * A code outside the enum is 422 `unknown_learning_language`. Staff may
+ * choose a language before it opens, which is how one is checked.
+ *
+ * **Choosing a language the learner has not studied before starts its
+ * context**: its own level, streak, deck, history and weakness, empty,
+ * beside the ones they already have. Choosing one they have moves only
+ * the choice. Nothing is moved between contexts or deleted — an exam left
+ * in progress stays in progress, in its own language, with its clock
+ * running. Choosing twice starts nothing twice.
  *
  * **Its own endpoint rather than a field of `PATCH /me/profile`**, because
- * switching is meant to become more than a field write: once a second
- * language opens, a switch moves the learner into that language's own
- * context. Today it stores the code and changes nothing else.
+ * the write is not only a field.
  *
  * **Answers with the whole `CurrentUser`**, for the reason the profile
- * patch does — and because once a switch changes context, more of that
- * object will move than the field that was sent.
+ * patch does — and because `startedLanguages` moves with it. The client
+ * reloads after a switch rather than patching its cache: every screen it
+ * holds was rendered in the old context.
  * @summary Ngôn ngữ đang học
  */
 export const setMyLearningLanguage = async (setLearningLanguage: SetLearningLanguage, options?: Parameters<typeof apiFetch>[1]): Promise<CurrentUser> => {
@@ -12178,12 +12190,19 @@ export const useDeleteAssistantThread = <TError = UnauthorizedResponse | Forbidd
       return useMutation(getDeleteAssistantThreadMutationOptions(options), queryClient);
     }
 
-export const getListAdminDictationCategoriesUrl = () => {
+export const getListAdminDictationCategoriesUrl = (params?: ListAdminDictationCategoriesParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/v1/admin/dictation/categories`
+  return stringifiedParams.length > 0 ? `/api/v1/admin/dictation/categories?${stringifiedParams}` : `/api/v1/admin/dictation/categories`
 }
 
 /**
@@ -12192,9 +12211,9 @@ export const getListAdminDictationCategoriesUrl = () => {
  * from.
  * @summary Chủ đề bộ chép chính tả, cho studio
  */
-export const listAdminDictationCategories = async ( options?: Parameters<typeof apiFetch>[1]): Promise<AdminDictationCategoryList> => {
+export const listAdminDictationCategories = async (params?: ListAdminDictationCategoriesParams, options?: Parameters<typeof apiFetch>[1]): Promise<AdminDictationCategoryList> => {
 
-  return apiFetch<AdminDictationCategoryList>(getListAdminDictationCategoriesUrl(),
+  return apiFetch<AdminDictationCategoryList>(getListAdminDictationCategoriesUrl(params),
   {
     ...options,
     method: 'GET'
@@ -12207,23 +12226,23 @@ export const listAdminDictationCategories = async ( options?: Parameters<typeof 
 
 
 
-export const getListAdminDictationCategoriesQueryKey = () => {
+export const getListAdminDictationCategoriesQueryKey = (params?: ListAdminDictationCategoriesParams,) => {
     return [
-    `/api/v1/admin/dictation/categories`
+    `/api/v1/admin/dictation/categories`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getListAdminDictationCategoriesQueryOptions = <TData = Awaited<ReturnType<typeof listAdminDictationCategories>>, TError = UnauthorizedResponse | ForbiddenResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminDictationCategories>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export const getListAdminDictationCategoriesQueryOptions = <TData = Awaited<ReturnType<typeof listAdminDictationCategories>>, TError = UnauthorizedResponse | ForbiddenResponse>(params?: ListAdminDictationCategoriesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminDictationCategories>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getListAdminDictationCategoriesQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getListAdminDictationCategoriesQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminDictationCategories>>> = ({ signal }) => listAdminDictationCategories({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminDictationCategories>>> = ({ signal }) => listAdminDictationCategories(params, { signal, ...requestOptions });
 
 
 
@@ -12237,7 +12256,7 @@ export type ListAdminDictationCategoriesQueryError = UnauthorizedResponse | Forb
 
 
 export function useListAdminDictationCategories<TData = Awaited<ReturnType<typeof listAdminDictationCategories>>, TError = UnauthorizedResponse | ForbiddenResponse>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminDictationCategories>>, TError, TData>> & Pick<
+ params: undefined |  ListAdminDictationCategoriesParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminDictationCategories>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof listAdminDictationCategories>>,
           TError,
@@ -12247,7 +12266,7 @@ export function useListAdminDictationCategories<TData = Awaited<ReturnType<typeo
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useListAdminDictationCategories<TData = Awaited<ReturnType<typeof listAdminDictationCategories>>, TError = UnauthorizedResponse | ForbiddenResponse>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminDictationCategories>>, TError, TData>> & Pick<
+ params?: ListAdminDictationCategoriesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminDictationCategories>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof listAdminDictationCategories>>,
           TError,
@@ -12257,7 +12276,7 @@ export function useListAdminDictationCategories<TData = Awaited<ReturnType<typeo
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useListAdminDictationCategories<TData = Awaited<ReturnType<typeof listAdminDictationCategories>>, TError = UnauthorizedResponse | ForbiddenResponse>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminDictationCategories>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ params?: ListAdminDictationCategoriesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminDictationCategories>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
@@ -12265,11 +12284,11 @@ export function useListAdminDictationCategories<TData = Awaited<ReturnType<typeo
  */
 
 export function useListAdminDictationCategories<TData = Awaited<ReturnType<typeof listAdminDictationCategories>>, TError = UnauthorizedResponse | ForbiddenResponse>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminDictationCategories>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ params?: ListAdminDictationCategoriesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminDictationCategories>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getListAdminDictationCategoriesQueryOptions(options)
+  const queryOptions = getListAdminDictationCategoriesQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -12282,12 +12301,19 @@ export function useListAdminDictationCategories<TData = Awaited<ReturnType<typeo
 
 
 
-export const getCreateAdminDictationCategoryUrl = () => {
+export const getCreateAdminDictationCategoryUrl = (params?: CreateAdminDictationCategoryParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/v1/admin/dictation/categories`
+  return stringifiedParams.length > 0 ? `/api/v1/admin/dictation/categories?${stringifiedParams}` : `/api/v1/admin/dictation/categories`
 }
 
 /**
@@ -12296,9 +12322,10 @@ export const getCreateAdminDictationCategoryUrl = () => {
  * reaching those sets.
  * @summary Thêm chủ đề
  */
-export const createAdminDictationCategory = async (saveDictationCategoryRequest: SaveDictationCategoryRequest, options?: Parameters<typeof apiFetch>[1]): Promise<AdminDictationCategory> => {
+export const createAdminDictationCategory = async (saveDictationCategoryRequest: SaveDictationCategoryRequest,
+    params?: CreateAdminDictationCategoryParams, options?: Parameters<typeof apiFetch>[1]): Promise<AdminDictationCategory> => {
 
-  return apiFetch<AdminDictationCategory>(getCreateAdminDictationCategoryUrl(),
+  return apiFetch<AdminDictationCategory>(getCreateAdminDictationCategoryUrl(params),
   {
     ...options,
     method: 'POST',
@@ -12312,8 +12339,8 @@ export const createAdminDictationCategory = async (saveDictationCategoryRequest:
 
 
 export const getCreateAdminDictationCategoryMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | ConflictResponse | UnprocessableResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminDictationCategory>>, TError,{data: SaveDictationCategoryRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof createAdminDictationCategory>>, TError,{data: SaveDictationCategoryRequest}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminDictationCategory>>, TError,{data: SaveDictationCategoryRequest;params?: CreateAdminDictationCategoryParams}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAdminDictationCategory>>, TError,{data: SaveDictationCategoryRequest;params?: CreateAdminDictationCategoryParams}, TContext> => {
 
 const mutationKey = ['createAdminDictationCategory'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -12325,10 +12352,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAdminDictationCategory>>, {data: SaveDictationCategoryRequest}> = (props) => {
-          const {data} = props ?? {};
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAdminDictationCategory>>, {data: SaveDictationCategoryRequest;params?: CreateAdminDictationCategoryParams}> = (props) => {
+          const {data,params} = props ?? {};
 
-          return  createAdminDictationCategory(data,requestOptions)
+          return  createAdminDictationCategory(data,params,requestOptions)
         }
 
 
@@ -12346,11 +12373,11 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
  * @summary Thêm chủ đề
  */
 export const useCreateAdminDictationCategory = <TError = UnauthorizedResponse | ForbiddenResponse | ConflictResponse | UnprocessableResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminDictationCategory>>, TError,{data: SaveDictationCategoryRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminDictationCategory>>, TError,{data: SaveDictationCategoryRequest;params?: CreateAdminDictationCategoryParams}, TContext>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof createAdminDictationCategory>>,
         TError,
-        {data: SaveDictationCategoryRequest},
+        {data: SaveDictationCategoryRequest;params?: CreateAdminDictationCategoryParams},
         TContext
       > => {
       return useMutation(getCreateAdminDictationCategoryMutationOptions(options), queryClient);
@@ -17231,12 +17258,19 @@ export const useRunImport = <TError = BadRequestResponse | UnauthorizedResponse 
       return useMutation(getRunImportMutationOptions(options), queryClient);
     }
 
-export const getListAdminShadowCategoriesUrl = () => {
+export const getListAdminShadowCategoriesUrl = (params?: ListAdminShadowCategoriesParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/v1/admin/shadowing/categories`
+  return stringifiedParams.length > 0 ? `/api/v1/admin/shadowing/categories?${stringifiedParams}` : `/api/v1/admin/shadowing/categories`
 }
 
 /**
@@ -17245,9 +17279,9 @@ export const getListAdminShadowCategoriesUrl = () => {
  * from.
  * @summary Chủ đề ngữ liệu nhại theo, cho studio
  */
-export const listAdminShadowCategories = async ( options?: Parameters<typeof apiFetch>[1]): Promise<AdminShadowCategoryList> => {
+export const listAdminShadowCategories = async (params?: ListAdminShadowCategoriesParams, options?: Parameters<typeof apiFetch>[1]): Promise<AdminShadowCategoryList> => {
 
-  return apiFetch<AdminShadowCategoryList>(getListAdminShadowCategoriesUrl(),
+  return apiFetch<AdminShadowCategoryList>(getListAdminShadowCategoriesUrl(params),
   {
     ...options,
     method: 'GET'
@@ -17260,23 +17294,23 @@ export const listAdminShadowCategories = async ( options?: Parameters<typeof api
 
 
 
-export const getListAdminShadowCategoriesQueryKey = () => {
+export const getListAdminShadowCategoriesQueryKey = (params?: ListAdminShadowCategoriesParams,) => {
     return [
-    `/api/v1/admin/shadowing/categories`
+    `/api/v1/admin/shadowing/categories`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getListAdminShadowCategoriesQueryOptions = <TData = Awaited<ReturnType<typeof listAdminShadowCategories>>, TError = UnauthorizedResponse | ForbiddenResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminShadowCategories>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+export const getListAdminShadowCategoriesQueryOptions = <TData = Awaited<ReturnType<typeof listAdminShadowCategories>>, TError = UnauthorizedResponse | ForbiddenResponse>(params?: ListAdminShadowCategoriesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminShadowCategories>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getListAdminShadowCategoriesQueryKey();
+  const queryKey =  queryOptions?.queryKey ?? getListAdminShadowCategoriesQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminShadowCategories>>> = ({ signal }) => listAdminShadowCategories({ signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listAdminShadowCategories>>> = ({ signal }) => listAdminShadowCategories(params, { signal, ...requestOptions });
 
 
 
@@ -17290,7 +17324,7 @@ export type ListAdminShadowCategoriesQueryError = UnauthorizedResponse | Forbidd
 
 
 export function useListAdminShadowCategories<TData = Awaited<ReturnType<typeof listAdminShadowCategories>>, TError = UnauthorizedResponse | ForbiddenResponse>(
-  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminShadowCategories>>, TError, TData>> & Pick<
+ params: undefined |  ListAdminShadowCategoriesParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminShadowCategories>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof listAdminShadowCategories>>,
           TError,
@@ -17300,7 +17334,7 @@ export function useListAdminShadowCategories<TData = Awaited<ReturnType<typeof l
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useListAdminShadowCategories<TData = Awaited<ReturnType<typeof listAdminShadowCategories>>, TError = UnauthorizedResponse | ForbiddenResponse>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminShadowCategories>>, TError, TData>> & Pick<
+ params?: ListAdminShadowCategoriesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminShadowCategories>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof listAdminShadowCategories>>,
           TError,
@@ -17310,7 +17344,7 @@ export function useListAdminShadowCategories<TData = Awaited<ReturnType<typeof l
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 export function useListAdminShadowCategories<TData = Awaited<ReturnType<typeof listAdminShadowCategories>>, TError = UnauthorizedResponse | ForbiddenResponse>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminShadowCategories>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ params?: ListAdminShadowCategoriesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminShadowCategories>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
 /**
@@ -17318,11 +17352,11 @@ export function useListAdminShadowCategories<TData = Awaited<ReturnType<typeof l
  */
 
 export function useListAdminShadowCategories<TData = Awaited<ReturnType<typeof listAdminShadowCategories>>, TError = UnauthorizedResponse | ForbiddenResponse>(
-  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminShadowCategories>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
+ params?: ListAdminShadowCategoriesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listAdminShadowCategories>>, TError, TData>>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
-  const queryOptions = getListAdminShadowCategoriesQueryOptions(options)
+  const queryOptions = getListAdminShadowCategoriesQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 
@@ -17335,12 +17369,19 @@ export function useListAdminShadowCategories<TData = Awaited<ReturnType<typeof l
 
 
 
-export const getCreateAdminShadowCategoryUrl = () => {
+export const getCreateAdminShadowCategoryUrl = (params?: CreateAdminShadowCategoryParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/v1/admin/shadowing/categories`
+  return stringifiedParams.length > 0 ? `/api/v1/admin/shadowing/categories?${stringifiedParams}` : `/api/v1/admin/shadowing/categories`
 }
 
 /**
@@ -17349,9 +17390,10 @@ export const getCreateAdminShadowCategoryUrl = () => {
  * reaching those items.
  * @summary Thêm chủ đề
  */
-export const createAdminShadowCategory = async (saveShadowCategoryRequest: SaveShadowCategoryRequest, options?: Parameters<typeof apiFetch>[1]): Promise<AdminShadowCategory> => {
+export const createAdminShadowCategory = async (saveShadowCategoryRequest: SaveShadowCategoryRequest,
+    params?: CreateAdminShadowCategoryParams, options?: Parameters<typeof apiFetch>[1]): Promise<AdminShadowCategory> => {
 
-  return apiFetch<AdminShadowCategory>(getCreateAdminShadowCategoryUrl(),
+  return apiFetch<AdminShadowCategory>(getCreateAdminShadowCategoryUrl(params),
   {
     ...options,
     method: 'POST',
@@ -17365,8 +17407,8 @@ export const createAdminShadowCategory = async (saveShadowCategoryRequest: SaveS
 
 
 export const getCreateAdminShadowCategoryMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | ConflictResponse | UnprocessableResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminShadowCategory>>, TError,{data: SaveShadowCategoryRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof createAdminShadowCategory>>, TError,{data: SaveShadowCategoryRequest}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminShadowCategory>>, TError,{data: SaveShadowCategoryRequest;params?: CreateAdminShadowCategoryParams}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAdminShadowCategory>>, TError,{data: SaveShadowCategoryRequest;params?: CreateAdminShadowCategoryParams}, TContext> => {
 
 const mutationKey = ['createAdminShadowCategory'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -17378,10 +17420,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAdminShadowCategory>>, {data: SaveShadowCategoryRequest}> = (props) => {
-          const {data} = props ?? {};
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAdminShadowCategory>>, {data: SaveShadowCategoryRequest;params?: CreateAdminShadowCategoryParams}> = (props) => {
+          const {data,params} = props ?? {};
 
-          return  createAdminShadowCategory(data,requestOptions)
+          return  createAdminShadowCategory(data,params,requestOptions)
         }
 
 
@@ -17399,11 +17441,11 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
  * @summary Thêm chủ đề
  */
 export const useCreateAdminShadowCategory = <TError = UnauthorizedResponse | ForbiddenResponse | ConflictResponse | UnprocessableResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminShadowCategory>>, TError,{data: SaveShadowCategoryRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminShadowCategory>>, TError,{data: SaveShadowCategoryRequest;params?: CreateAdminShadowCategoryParams}, TContext>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof createAdminShadowCategory>>,
         TError,
-        {data: SaveShadowCategoryRequest},
+        {data: SaveShadowCategoryRequest;params?: CreateAdminShadowCategoryParams},
         TContext
       > => {
       return useMutation(getCreateAdminShadowCategoryMutationOptions(options), queryClient);
@@ -17665,12 +17707,19 @@ export function useListAdminShadowVideos<TData = Awaited<ReturnType<typeof listA
 
 
 
-export const getCreateAdminShadowVideoUrl = () => {
+export const getCreateAdminShadowVideoUrl = (params?: CreateAdminShadowVideoParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/v1/admin/shadowing/videos`
+  return stringifiedParams.length > 0 ? `/api/v1/admin/shadowing/videos?${stringifiedParams}` : `/api/v1/admin/shadowing/videos`
 }
 
 /**
@@ -17680,9 +17729,10 @@ export const getCreateAdminShadowVideoUrl = () => {
  * somewhere.
  * @summary Start a draft
  */
-export const createAdminShadowVideo = async (createShadowVideoRequest: CreateShadowVideoRequest, options?: Parameters<typeof apiFetch>[1]): Promise<AdminShadowVideoDetail> => {
+export const createAdminShadowVideo = async (createShadowVideoRequest: CreateShadowVideoRequest,
+    params?: CreateAdminShadowVideoParams, options?: Parameters<typeof apiFetch>[1]): Promise<AdminShadowVideoDetail> => {
 
-  return apiFetch<AdminShadowVideoDetail>(getCreateAdminShadowVideoUrl(),
+  return apiFetch<AdminShadowVideoDetail>(getCreateAdminShadowVideoUrl(params),
   {
     ...options,
     method: 'POST',
@@ -17696,8 +17746,8 @@ export const createAdminShadowVideo = async (createShadowVideoRequest: CreateSha
 
 
 export const getCreateAdminShadowVideoMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | UnprocessableResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminShadowVideo>>, TError,{data: CreateShadowVideoRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof createAdminShadowVideo>>, TError,{data: CreateShadowVideoRequest}, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminShadowVideo>>, TError,{data: CreateShadowVideoRequest;params?: CreateAdminShadowVideoParams}, TContext>, request?: SecondParameter<typeof apiFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createAdminShadowVideo>>, TError,{data: CreateShadowVideoRequest;params?: CreateAdminShadowVideoParams}, TContext> => {
 
 const mutationKey = ['createAdminShadowVideo'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -17709,10 +17759,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAdminShadowVideo>>, {data: CreateShadowVideoRequest}> = (props) => {
-          const {data} = props ?? {};
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createAdminShadowVideo>>, {data: CreateShadowVideoRequest;params?: CreateAdminShadowVideoParams}> = (props) => {
+          const {data,params} = props ?? {};
 
-          return  createAdminShadowVideo(data,requestOptions)
+          return  createAdminShadowVideo(data,params,requestOptions)
         }
 
 
@@ -17730,11 +17780,11 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
  * @summary Start a draft
  */
 export const useCreateAdminShadowVideo = <TError = UnauthorizedResponse | ForbiddenResponse | UnprocessableResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminShadowVideo>>, TError,{data: CreateShadowVideoRequest}, TContext>, request?: SecondParameter<typeof apiFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createAdminShadowVideo>>, TError,{data: CreateShadowVideoRequest;params?: CreateAdminShadowVideoParams}, TContext>, request?: SecondParameter<typeof apiFetch>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof createAdminShadowVideo>>,
         TError,
-        {data: CreateShadowVideoRequest},
+        {data: CreateShadowVideoRequest;params?: CreateAdminShadowVideoParams},
         TContext
       > => {
       return useMutation(getCreateAdminShadowVideoMutationOptions(options), queryClient);

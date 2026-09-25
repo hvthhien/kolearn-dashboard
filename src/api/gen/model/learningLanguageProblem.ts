@@ -24,20 +24,18 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { LearningLanguage } from './learningLanguage';
-import type { TopicCategory } from './topicCategory';
+import type { Problem } from './problem';
 
-export type ListTopicsParams = {
 /**
- * The corpus to list or author in; absent means `ko`. Any announced
- * language, open or not, and never the staff member's own study
- * language. See `#/components/parameters/LearningLanguageHeader`.
+ * A refusal about a learning context, carrying the language it is about.
+ *
+ * `learning_language_mismatch` (409): the resource opened by id belongs
+ * to another of the caller's contexts, and `language` is that context's.
+ * The client offers "Chuyển sang {tiếng Hàn}" rather than an error.
+ *
+ * `learning_language_not_started` (422): `X-Learning-Language` named a
+ * language the caller has no context in, and `language` is that one.
  */
-language?: LearningLanguage;
-category?: TopicCategory;
-q?: string;
-/**
- * @minimum 1
- * @maximum 100
- */
-limit?: number;
+export type LearningLanguageProblem = Problem & {
+  language: LearningLanguage;
 };

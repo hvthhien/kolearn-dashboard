@@ -38,6 +38,7 @@ import {
   Td,
   Th,
 } from '../components/ui'
+import { authoringLanguage } from '../lib/authoringLanguage'
 
 type StatusFilter = 'ALL' | AdminDictationSetRowStatus
 
@@ -88,6 +89,7 @@ export function DictationSetListPage() {
 
   const pager = usePager(PAGE_SIZE)
   const { data, error, isPending, isFetching } = useListAdminDictationSets({
+    language: authoringLanguage(),
     status: status === 'ALL' ? undefined : status,
     limit: pager.pageSize,
     offset: pager.offset,
@@ -101,7 +103,7 @@ export function DictationSetListPage() {
   /* Read here rather than only inside the dialog, so the button can say how
      many shelves there are and be honestly disabled while the list is in
      flight. */
-  const categories = useListAdminDictationCategories()
+  const categories = useListAdminDictationCategories({ language: authoringLanguage() })
 
   /* No params, so this is the prefix every status filter hangs off — a set
      removed under "Tất cả" must not still be sitting in the cached "Nháp". */
@@ -320,8 +322,12 @@ export function DictationSetListPage() {
           noun="bộ"
           categories={categories.data.items.map(toManaged)}
           api={{
-            list: async () => (await listAdminDictationCategories()).items.map(toManaged),
-            create: (input) => createAdminDictationCategory(input),
+            list: async () =>
+              (await listAdminDictationCategories({ language: authoringLanguage() })).items.map(
+                toManaged,
+              ),
+            create: (input) =>
+              createAdminDictationCategory(input, { language: authoringLanguage() }),
             save: (id, input) => saveAdminDictationCategory(id, input),
             remove: (id) => deleteAdminDictationCategory(id),
           }}
